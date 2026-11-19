@@ -77,10 +77,16 @@ apt-get update && apt-get install -y 64tass vice xvfb
 - Report honestly: what was tested, what was not, and what could not be verified. Do not claim something works
   on real hardware or sounds right without it having been tried there.
 - Lead with the result, keep it short, and flag decisions that are mine to make.
-- Commit messages and pull request descriptions should explain what changed and why. No AI model names in
-  commits or code.
+- Commit messages and pull request descriptions should explain what changed and why. A commit an assistant
+  helped with ends with a `Co-Authored-By:` line that names the model. That line is the only place for it: no
+  AI model names in the rest of the message, in pull request descriptions, or in code.
 - I own a C64 and a C128D and will test `.prg` files on real hardware. Target PAL.
 - I care about security and tidy DevOps: CI on every repo, no secrets in repos, pinned or minimal dependencies.
+
+## Changes to these rules
+
+- **2026-11-19.** The commit rule used to say "No AI model names in commits or code". Changed at my request:
+  the `Co-Authored-By:` line of a commit now names the model, and the ban covers everything else.
 
 ## Open threads
 
