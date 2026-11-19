@@ -24,7 +24,9 @@ A briefing for whoever picks this project up next, person or assistant. Written 
   the view one tile at a time. No smooth scrolling, car, traffic or sound yet.
 - The city comes from the same generator as the browser game (`tools/city.mjs`, checksum-checked).
 - `make` builds `build/sleazeburg64.prg`; `make test` runs asset tests and a headless VICE run that saves
-  screenshots.
+  screenshots. `make music` and `make test-music` do the same for the music test builds.
+- `make test` also runs end-to-end tests (`tests/e2e/`) that drive the program in VICE through its binary
+  monitor: joystick in, memory out, one frame at a time. Add to them with every feature.
 - Read `README.md` and `docs/ROADMAP.md` first. The issues cover the roadmap.
 - Memory: code from `$080d`, character set `$3800`, tile definitions `$4000`, map `$4500`. ROMs are banked out;
   the program does not call the KERNAL.
@@ -35,25 +37,25 @@ Start on the issue "1b: Smooth eight-way scrolling", then "1c: A car you can dri
 the port is practical. I also want the issue "Play the C64 version in a browser with a WebAssembly build of
 VICE" looked into at some point: find which builds exist, their licence, and how they handle system ROMs.
 
-### Let's still build two original SID tunes into the game
+### The two SID tunes: in test builds only
 
-- Tunes in question:
-- https://www.hvsc.c64.org/search?sid=139169 # Skate or Die intro
-- https://www.hvsc.c64.org/search?sid=130260 # Nemesis the Warlock
+Decided: the two Rob Hubbard tunes are used in **test builds**, not in the published program.
 
-Things to settle before doing it:
-
-- **Rights.** Both are Rob Hubbard tunes published commercially (Electronic Arts, 1987; Martech, 1987). Putting
-  them in this public repository or in a distributed `.prg` is redistribution. The browser game avoids that by
-  streaming from HVSC and storing nothing. Decide how to handle this first: permission, keeping the tune files
-  out of the repository and adding them at build time from a local copy, or something else.
-- **Skate or Die (intro)** is an RSID tune that plays sampled sound. It takes over the machine's timing and
-  most of the CPU while it plays, so it suits a title screen far better than gameplay.
-- **Nemesis the Warlock** is an ordinary PSID tune and could play during the game, but it uses all three SID
-  voices, so sound effects would have to interrupt a voice or wait.
-- **Memory.** Each tune comes with its own player code at a fixed address (see the load, init and play
-  addresses in its HVSC entry). Those addresses have to stay free in this program's memory map, or the tune has
-  to be relocated.
+- *Skate or Die (intro)*, 1987 Electronic Arts (https://www.hvsc.c64.org/search?sid=139169), on the title
+  screen. *Nemesis the Warlock*, 1987 Martech (https://www.hvsc.c64.org/search?sid=130260), in the game.
+- `make music` builds them; `make test-music` runs them in the emulator. See the README and `music/README.md`.
+- **Rights.** The tune files are fetched from HVSC into `.cache/` at build time and are never committed. The
+  programs built with them are for my own machines and are not published; CI does not build them. Title,
+  author and copyright are kept for every tune, both in `music/tunes.json` and on screen. The same goes for
+  any tune that is ever stored in the repository as an asset.
+- **Skate or Die (intro)** is an RSID tune with sampled sound. It takes over the interrupts and loads at
+  `$1000`–`$5150`, right across the game, so the title screen is a separate program (`src/title.asm`) that
+  moves the game into place on fire.
+- **Nemesis the Warlock** is an ordinary PSID tune at `$e000`, called once a frame, about 27 raster lines at
+  worst. It uses all three SID voices, so sound effects will have to interrupt a voice or wait. It is called
+  from the main loop for now and should move to the raster interrupt once there is one.
+- **Not yet heard by anyone.** The emulator test only shows that both tunes produce sound. How they sound,
+  and how the sampled drums in the title tune come out on a real 6581, is for me to check on hardware.
 
 ## Setting up the environment
 
@@ -66,20 +68,35 @@ apt-get update && apt-get install -y 64tass vice xvfb
   Do not commit ROMs.
 - Emulator screenshots can be used to check graphics. An assistant cannot hear the SID or feel the controls,
   and should say so rather than guess.
-- Network access may be restricted. HVSC hosts (`hvsc.c64.org`, `www.hvsc.c64.org`) and GitHub raw files were
-  reachable in the previous session; other hosts may not be.
+- Network access may be restricted. The cloud environment allows the HVSC hosts (`hvsc.c64.org`,
+  `www.hvsc.c64.org`, needed by `make music`) and `mselin.github.io`, and its setup script installs the
+  packages above. GitHub raw files were reachable too; other hosts may not be.
 
 ## How I like to work
 
-- Work on a branch, open a pull request, and merge only when I say so (or when I have asked for "PR and merge
-  when tests pass" for that task). Wait for CI to pass before merging.
+- Work on a branch and open a pull request. An assistant may merge its own pull request without asking once
+  CI has passed on its latest commit. The exceptions, where it says so in the pull request and waits for me:
+  a change that can only be judged by eye, ear or on real hardware (how something sounds, feels or looks on
+  a real machine), a decision that is mine to make, and anything touching rights or licences.
+- Every change comes with tests that would catch it breaking. For the C64 program that means the end-to-end
+  tests in `tests/e2e/`, which run it in VICE. A pull request that weakens, skips or deletes a test to get
+  CI green is not mergeable without me.
 - Report honestly: what was tested, what was not, and what could not be verified. Do not claim something works
   on real hardware or sounds right without it having been tried there.
 - Lead with the result, keep it short, and flag decisions that are mine to make.
-- Commit messages and pull request descriptions should explain what changed and why. No AI model names in
-  commits or code.
+- Commit messages and pull request descriptions should explain what changed and why. A commit an assistant
+  helped with ends with a `Co-Authored-By:` line that names the model. That line is the only place for it: no
+  AI model names in the rest of the message, in pull request descriptions, or in code.
 - I own a C64 and a C128D and will test `.prg` files on real hardware. Target PAL.
 - I care about security and tidy DevOps: CI on every repo, no secrets in repos, pinned or minimal dependencies.
+
+## Changes to these rules
+
+- **2026-11-19.** The commit rule used to say "No AI model names in commits or code". Changed at my request:
+  the `Co-Authored-By:` line of a commit now names the model, and the ban covers everything else.
+- **2026-11-19.** Merging used to wait for my word every time. Changed at my request, now that end-to-end
+  tests run in CI: an assistant may merge its own pull request once CI is green, with the exceptions listed
+  under "How I like to work".
 
 ## Open threads
 
@@ -91,7 +108,8 @@ apt-get update && apt-get install -y 64tass vice xvfb
 
 ## Don't
 
-- Don't commit copyrighted SID tunes or Commodore ROMs to either repository without the rights question above
-  being settled.
+- Don't commit copyrighted SID tunes or Commodore ROMs to either repository, and don't publish a program or
+  recording that contains the tunes (`build/sleazeburg64-music.prg`, `build/sleazeburg64-ingame.prg`,
+  `build/sound-*.wav`).
 - Don't rename or rebrand the game after any existing commercial game.
 - Don't push to `main` in either repo except through a merged pull request.

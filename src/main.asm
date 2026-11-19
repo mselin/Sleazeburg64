@@ -7,6 +7,7 @@
 ; Assemble with 64tass (see the Makefile). Build options, set with -D on the command line:
 ;   START_X, START_Y   the tile in the top left corner of the view at start
 ;   AUTOPILOT          1 makes the view drive itself for a while, for the emulator test
+;   MUSIC              1 plays a tune during the game: a test build, see music/README.md
 
         .cpu "6502"
         .include "c64.inc"
@@ -15,7 +16,11 @@
 START_X         = 9
 START_Y         = 8
 AUTOPILOT       = 0
+MUSIC           = 0
                 .endweak
+.if MUSIC != 0
+                .include "tune-ingame.inc"
+.endif
 
 MAP_SIZE        = 98            ; tiles per side of the city
 VIEW_W          = 20            ; tiles shown across (40 characters)
@@ -67,8 +72,14 @@ start           sei
                 sta move_wait
                 jsr video.draw
                 jsr panel.update
+.if MUSIC != 0
+                jsr tune.init
+.endif
 
 main_loop       jsr video.wait_frame
+.if MUSIC != 0
+                jsr tune.play          ; straight after the frame edge, so the tempo is steady
+.endif
                 jsr input.read          ; A = which directions are held
                 jsr move_view
                 jmp main_loop
@@ -134,6 +145,10 @@ old_y           .byte ?
                 .include "input.asm"
                 .include "video.asm"
                 .include "panel.asm"
+.if MUSIC != 0
+                .include "music.asm"
+.endif
+code_end
                 .cerror * > charset, "code has run into the character set"
 
 ; ---------- data ----------
@@ -147,3 +162,11 @@ tile_bl         .binary "tiles.bin", 512, 256
 tile_br         .binary "tiles.bin", 768, 256
 tile_colour     .binary "tiles.bin", 1024, 256  ; ... and the colour all four share
 city_map        .binary "map.bin"               ; one tile number per tile, row by row
+.if MUSIC != 0
+; The tune waits here and is copied to the address it was written for when the program starts. Padded with
+; zeroes to whole pages and one more, because the copy works in pages and tunes read a little past their end.
+tune_data       .binary "tune-ingame.bin"
+                .fill tune.PAGES * 256 - ingame_size, 0
+                .cerror * > ingame_load, "the program has run into where the tune plays from"
+.endif
+program_end
