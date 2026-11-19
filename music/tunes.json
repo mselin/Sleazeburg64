@@ -1,0 +1,28 @@
+{
+  "about": "Credits for the tunes used by the music test builds. The tune files themselves are not in this repository: see music/README.md.",
+  "hvscBase": "https://www.hvsc.c64.org/download/C64Music",
+  "tunes": [
+    {
+      "role": "title",
+      "title": "Skate or Die (intro)",
+      "author": "Rob Hubbard",
+      "released": "1987 Electronic Arts",
+      "hvsc": "/MUSICIANS/H/Hubbard_Rob/Skate_or_Die_intro.sid",
+      "id": 139169,
+      "format": "RSID",
+      "subtune": 1,
+      "sha256": "96e571a5eba051c52734102e0d703b0b604e51df0ee7a0819d5d71c6287acd8c"
+    },
+    {
+      "role": "ingame",
+      "title": "Nemesis the Warlock",
+      "author": "Rob Hubbard",
+      "released": "1987 Martech",
+      "hvsc": "/MUSICIANS/H/Hubbard_Rob/Nemesis_the_Warlock.sid",
+      "id": 130260,
+      "format": "PSID",
+      "subtune": 1,
+      "sha256": "5e4a1beb61f812cb0d93335d0da38b97de0939db8a6d239d3c3a8c56ab70acbe"
+    }
+  ]
+}

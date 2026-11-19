@@ -46,7 +46,9 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
 
 - **The radio.** The browser game streams tunes from the High Voltage SID Collection. On a real machine each
   tune brings its own player code at a fixed address, takes all three voices, and would have to be shipped on
-  the disk, which is redistribution. The C64 version gets its own music instead.
+  the disk, which is redistribution. The C64 version gets its own music instead. Two such tunes can be tried
+  in private test builds (`make music`, see `music/README.md`), which is also how the music code gets written
+  before there is an original tune.
 - **Skid marks and other decals.** The browser game paints them onto the map. Character mode has nowhere cheap
   to put them.
 - **Crowds.** The browser game simulates about fifty cars. Here it will be a handful.

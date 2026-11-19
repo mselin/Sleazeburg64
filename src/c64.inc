@@ -14,6 +14,8 @@ VIC_BACKGROUND  = $d021
 VIC_MULTI1      = $d022         ; shared multicolour 1
 VIC_MULTI2      = $d023         ; shared multicolour 2
 
+SID             = $d400         ; 25 write-only sound registers
+
 CIA1_PORT_A     = $dc00         ; joystick port 2
 CIA1_IRQ        = $dc0d
 CIA2_PORT_A     = $dd00         ; bits 0-1 choose the VIC bank

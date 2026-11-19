@@ -48,6 +48,28 @@ This checks the asset tools, then runs the program in VICE without a display and
 downloads the open-source [Open ROMs](https://github.com/MEGA65/open-roms) once into `.cache/`. They are used
 only to start the emulated machine; nothing from them is part of this program or this repository.
 
+## Music test builds
+
+```bash
+make music
+make test-music
+```
+
+`make music` writes two more programs, for trying music on your own machine:
+
+- `build/sleazeburg64-music.prg`: a title screen playing *Skate or Die (intro)*, then, on fire, the city
+  viewer playing *Nemesis the Warlock*.
+- `build/sleazeburg64-ingame.prg`: the city viewer with its tune and no title screen.
+
+Both tunes are by Rob Hubbard and belong to their copyright holders. They are **not in this repository**: the
+build fetches them from the [High Voltage SID Collection](https://www.hvsc.c64.org) into `.cache/`, and the
+programs that contain them are not to be published. Each tune's title, author and copyright is recorded in
+[music/tunes.json](music/tunes.json) and shown on screen while it plays. [music/README.md](music/README.md)
+has the credits and the rules.
+
+`make test-music` checks in the emulator that the title screen comes up, that the game it starts matches the
+game started directly, and that both tunes produce sound. It cannot judge how they sound.
+
 ## How it is put together
 
 | Path | What it holds |
@@ -56,10 +78,15 @@ only to start the emulated machine; nothing from them is part of this program or
 | `src/video.asm` | Screen set-up and drawing the city. |
 | `src/panel.asm` | The three-row status panel. |
 | `src/input.asm` | The joystick. |
+| `src/music.asm` | Music test builds: the tune that plays in the game, and its credits in the panel. |
+| `src/title.asm` | Music test builds: the title screen, its tune, and starting the game from it. |
 | `src/c64.inc` | Hardware addresses and colour names. |
 | `tools/city.mjs` | The city generator, identical to the browser game's. |
 | `tools/assets.mjs` | Builds the character set, tile definitions and map that the program includes. |
+| `tools/sid.mjs` | Fetches and checks a tune for a music test build, and writes its addresses and credits. |
 | `tools/emulator-test.sh` | Runs the program in VICE and takes screenshots. |
+| `tools/music-test.sh` | The same for the music test builds, with sound recordings. |
+| `music/` | Credits for the tunes, and the rules for using them. No tune files. |
 
 **Graphics.** The screen is in multicolour character mode: every character pixel is two screen pixels wide and
 is one of four colours, three shared by the whole screen (asphalt, pavement, outline) and one that each tile
@@ -78,6 +105,10 @@ is under 10 KB. The view shows 20 by 11 tiles, the same area as the browser game
 | `$4500` | City map |
 
 The program switches BASIC and the KERNAL out and does not call them.
+
+In a music test build the game's tune follows the map and is copied to `$e000`–`$f2ff` at start; its player
+also uses zero page `$e0`–`$e3`. The title tune sits at `$1000`–`$5150`, which is why the title screen is a
+separate program that moves the game into place when it hands over.
 
 ## Licence
 
