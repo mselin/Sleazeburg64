@@ -1,0 +1,31 @@
+name: Build and test
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install the assembler and the emulator
+        run: sudo apt-get update && sudo apt-get install -y 64tass vice xvfb
+      - run: make
+      - run: make test
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sleazeburg64
+          path: |
+            build/sleazeburg64.prg
+            build/screenshot-*.png
+            build/vice-*.log
