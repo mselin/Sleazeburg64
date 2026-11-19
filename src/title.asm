@@ -108,9 +108,9 @@ colour_at       sta COLOUR_RAM,y
                 dey
                 bne -
 .else
--               lda CIA1_PORT_A         ; wait for fire on the joystick in port 2
+wait_fire       lda CIA1_PORT_A         ; wait for fire on the joystick in port 2
                 and #JOY_FIRE
-                bne -
+                bne wait_fire
 .endif
 
                 sei                     ; stop the tune: no interrupts from anywhere, and a quiet SID

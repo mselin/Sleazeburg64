@@ -25,6 +25,8 @@ A briefing for whoever picks this project up next, person or assistant. Written 
 - The city comes from the same generator as the browser game (`tools/city.mjs`, checksum-checked).
 - `make` builds `build/sleazeburg64.prg`; `make test` runs asset tests and a headless VICE run that saves
   screenshots. `make music` and `make test-music` do the same for the music test builds.
+- `make test` also runs end-to-end tests (`tests/e2e/`) that drive the program in VICE through its binary
+  monitor: joystick in, memory out, one frame at a time. Add to them with every feature.
 - Read `README.md` and `docs/ROADMAP.md` first. The issues cover the roadmap.
 - Memory: code from `$080d`, character set `$3800`, tile definitions `$4000`, map `$4500`. ROMs are banked out;
   the program does not call the KERNAL.
@@ -72,8 +74,13 @@ apt-get update && apt-get install -y 64tass vice xvfb
 
 ## How I like to work
 
-- Work on a branch, open a pull request, and merge only when I say so (or when I have asked for "PR and merge
-  when tests pass" for that task). Wait for CI to pass before merging.
+- Work on a branch and open a pull request. An assistant may merge its own pull request without asking once
+  CI has passed on its latest commit. The exceptions, where it says so in the pull request and waits for me:
+  a change that can only be judged by eye, ear or on real hardware (how something sounds, feels or looks on
+  a real machine), a decision that is mine to make, and anything touching rights or licences.
+- Every change comes with tests that would catch it breaking. For the C64 program that means the end-to-end
+  tests in `tests/e2e/`, which run it in VICE. A pull request that weakens, skips or deletes a test to get
+  CI green is not mergeable without me.
 - Report honestly: what was tested, what was not, and what could not be verified. Do not claim something works
   on real hardware or sounds right without it having been tried there.
 - Lead with the result, keep it short, and flag decisions that are mine to make.
@@ -87,6 +94,9 @@ apt-get update && apt-get install -y 64tass vice xvfb
 
 - **2026-11-19.** The commit rule used to say "No AI model names in commits or code". Changed at my request:
   the `Co-Authored-By:` line of a commit now names the model, and the ban covers everything else.
+- **2026-11-19.** Merging used to wait for my word every time. Changed at my request, now that end-to-end
+  tests run in CI: an assistant may merge its own pull request once CI is green, with the exceptions listed
+  under "How I like to work".
 
 ## Open threads
 

@@ -2,7 +2,8 @@
 #
 #   make            build build/sleazeburg64.prg
 #   make run        build and start it in VICE (needs VICE with C64 ROMs installed)
-#   make test       check the tools, then run the program in a headless emulator and keep a screenshot
+#   make test       check the tools, run the end-to-end tests in a headless emulator, and keep screenshots
+#   make e2e        only the end-to-end tests
 #   make clean
 #
 # Music test builds, which play two tunes that are not ours and are not in this repository. They are fetched
@@ -52,11 +53,16 @@ test-music: music
 run: $(PRG)
 	$(VICE) -autostartprgmode 1 -joydev2 1 $(PRG)
 
+# One emulator at a time: xvfb-run cannot reliably pick displays for several started at once.
+e2e: $(ASSETS)
+	$(NODE) --test --test-concurrency=1 "tests/e2e/*.test.mjs"
+
 test: $(ASSETS)
 	$(NODE) --test "tools/*.test.mjs"
+	$(MAKE) e2e
 	tools/emulator-test.sh
 
 clean:
 	rm -rf build
 
-.PHONY: all run test clean music test-music
+.PHONY: all run test e2e clean music test-music

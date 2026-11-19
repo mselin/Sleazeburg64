@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Prepares a tune for a music test build.
 //
-//   node tools/sid.mjs <role> <output directory>
+//   node tools/sid.mjs <role> <output directory> [manifest]
 //
 // Looks the role up in music/tunes.json, fetches the tune from HVSC into .cache/sid/ if it is not there yet,
 // checks it is the file the manifest describes, and writes
@@ -10,6 +10,8 @@
 //   tune-<role>.inc   its addresses, and its title, author and copyright as text for the screen
 //
 // The tune files are other people's work and are never committed: see music/README.md.
+//
+// The tests name a manifest of their own, describing made-up tunes that sit in the same directory as it.
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -93,13 +95,13 @@ export function prepare(entry, bytes) {
   return { sid, inc, credits };
 }
 
-function main([role, dir]) {
+function main([role, dir, ownManifest]) {
   const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-  const manifest = JSON.parse(readFileSync(join(root, 'music/tunes.json'), 'utf8'));
+  const manifest = JSON.parse(readFileSync(ownManifest || join(root, 'music/tunes.json'), 'utf8'));
   const entry = manifest.tunes.find((t) => t.role === role);
-  if (!entry || !dir) throw new Error(`usage: node tools/sid.mjs <${manifest.tunes.map((t) => t.role).join('|')}> <output directory>`);
-  const file = join(root, '.cache/sid', basename(entry.hvsc));
-  if (!existsSync(file)) {
+  if (!entry || !dir) throw new Error(`usage: node tools/sid.mjs <${manifest.tunes.map((t) => t.role).join('|')}> <output directory> [manifest]`);
+  const file = join(ownManifest ? dirname(ownManifest) : join(root, '.cache/sid'), basename(entry.hvsc));
+  if (!existsSync(file) && !ownManifest) {
     mkdirSync(dirname(file), { recursive: true });
     execFileSync('curl', ['-fsSL', '-o', file, manifest.hvscBase + entry.hvsc], { stdio: 'inherit' });
   }
