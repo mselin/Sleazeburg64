@@ -6,7 +6,7 @@ objects on screen, so the early milestones are about those and the game itself c
 Each item has a matching issue; this page is the overview.
 
 The game's rules and look, with the numbers, are in the browser game's
-[design document](https://github.com/mselin/mselin.github.io/blob/main/gta-c64/specs/design.md): the palette,
+[design document](https://github.com/mselin/gta-c64/blob/main/specs/design.md): the palette,
 people, cars and walls, heat and the police, the title and the icon. The items below follow it, and its
 "C64 notes" point out where the hardware forces a choice.
 

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-// The Sleazeburg city generator. This is the same code as the browser game's (gta-c64/js/world.js in
-// mselin/mselin.github.io), kept identical on purpose so both versions have the same streets.
+// The Sleazeburg city generator. This is the same code as the browser game's (js/world.js in
+// mselin/gta-c64), kept identical on purpose so both versions have the same streets.
 // CITY_CHECKSUM below is the browser game's value; assets.mjs refuses to build if this copy drifts from it.
 
 export const MW = 98; // tiles per side
