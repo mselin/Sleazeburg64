@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Sleazeburg 64 for the Commodore 64</title>
+    <meta name="description" content="A top-down crime satire for the Commodore 64, written in 6502 assembly. Play it in your browser or download it for a real C64.">
+    <style>
+      :root { color-scheme: dark; }
+      body { margin: 0; background: #000; color: #ddd; font: 18px/1.5 system-ui, sans-serif; }
+      main { max-width: 42rem; margin: 0 auto; padding: 2rem 1.25rem 3rem; }
+      h1 { color: #ee7; font-size: 1.8rem; margin: 0 0 0.25rem; }
+      h2 { color: #7dd; font-size: 1.2rem; margin: 2rem 0 0.5rem; }
+      a { color: #8cf; }
+      .play { display: flex; flex-wrap: wrap; gap: 0.75rem; margin: 1.25rem 0; }
+      .play a { display: inline-block; padding: 0.7rem 1.1rem; border: 2px solid #8cf; border-radius: 0.4rem; text-decoration: none; font-weight: 600; }
+      .play a:hover, .play a:focus-visible { background: #8cf; color: #000; }
+      img { max-width: 100%; height: auto; image-rendering: pixelated; border: 1px solid #333; }
+      small { color: #999; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Sleazeburg 64</h1>
+      <p>A top-down crime satire for the <strong>Commodore 64</strong>, written in 6502 assembly: the real-hardware version of the <a href="https://mselin.github.io/gta-c64/">browser game of the same name</a>. This is an early build: a car to drive around the city, with the view scrolling smoothly to follow it. No traffic, people or game yet.</p>
+
+      <div class="play">
+        <a href="https://vc64web.github.io/#openROMS=true#port2=true#https://mselin.github.io/Sleazeburg64/sleazeburg64.prg">Play with the keyboard</a>
+        <a href="https://vc64web.github.io/#openROMS=true#port2=true#touch=true#https://mselin.github.io/Sleazeburg64/sleazeburg64.prg">Play on a phone or tablet</a>
+        <a href="sleazeburg64.prg" download>Download the .prg</a>
+      </div>
+
+      <img src="screenshot.png" width="384" height="272" alt="The car on a street in Sleazeburg, with the status panel underneath.">
+
+      <h2>Controls</h2>
+      <p>The joystick in port 2: up accelerates, down brakes and then reverses, left and right steer, and fire is the handbrake. In the browser the cursor keys are the stick and space is fire; on a phone there is a joystick on the screen.</p>
+
+      <h2>On a real C64 or C128</h2>
+      <p>Copy <code>sleazeburg64.prg</code> to a disk, SD card or cartridge, plug a joystick into port 2, then <code>LOAD"*",8,1</code> (or its name in place of the star) and <code>RUN</code>. It is written for PAL machines.</p>
+
+      <h2>About</h2>
+      <p>The browser version runs in <a href="https://github.com/vc64web/virtualc64web">VirtualC64 Web</a> (GPL-3.0), an emulator on its own site, with the open-source <a href="https://github.com/MEGA65/open-roms">MEGA65 Open ROMs</a> (LGPL-3.0) in place of Commodore's. The game is free software under the GNU GPL, version 2 or later: the source is at <a href="https://github.com/mselin/Sleazeburg64">github.com/mselin/Sleazeburg64</a>. This page and the program are rebuilt and tested every time the source changes.</p>
+      <p><small>Copyright (C) 2026 mselin.</small></p>
+    </main>
+  </body>
+</html>

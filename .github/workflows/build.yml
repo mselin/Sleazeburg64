@@ -31,6 +31,8 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y 64tass vice xvfb
       - run: make
       - run: make test
+      - name: Check the play page's HTML
+        run: npx --yes html-validate@11.21.1 site/index.html
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
@@ -39,6 +41,40 @@ jobs:
             build/sleazeburg64.prg
             build/screenshot-*.png
             build/vice-*.log
+
+  # After the tests pass on main: publish the tested program and the play page in site/ with GitHub Pages,
+  # at https://mselin.github.io/Sleazeburg64/. (The repository's Pages source has to be "GitHub Actions".)
+  pages:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [build]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: sleazeburg64
+          path: build
+      - name: Put the page together
+        run: |
+          mkdir -p public
+          cp site/index.html public/
+          cp build/sleazeburg64.prg public/
+          cp build/screenshot-autopilot.png public/screenshot.png
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: public
+      - id: deploy
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
 
   # The one check that branch protection requires, so jobs can be added or renamed
   # above without touching the repository settings.

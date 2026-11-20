@@ -27,7 +27,8 @@ A briefing for whoever picks this project up next, person or assistant. Written 
 - The city comes from the same generator as the browser game (`tools/city.mjs`, checksum-checked).
 - `make` builds `build/sleazeburg64.prg`; `make test` runs asset tests and a headless VICE run that saves
   screenshots. `make music` and `make test-music` do the same for the music test builds.
-- CI (`.github/workflows/build.yml`) runs `make test` on every pull request and every push to `main`. Its
+- CI (`.github/workflows/build.yml`) runs `make test` on every pull request and every push to `main`, and on
+  `main` then publishes the tested `.prg` and `site/index.html` with GitHub Pages. Its
   actions are pinned to release commits, kept up to date by Dependabot, the same way as in the browser game's
   repository. Branch protection should require the one check "All checks passed", so jobs can be added or
   renamed without changing the repository settings.
@@ -50,8 +51,8 @@ port is practical, so the next step is mine: try it on the C64 and the C128D. Af
 starting with traffic and a sprite multiplexer, which is the next hardest part. Sprites steal cycles on the
 lines they are on, so the split's timed writes and the frame budget need checking as sprites are added: the
 pixel tests and the late-frame tests show both. The issue "Play the C64 version in a browser with a WebAssembly
-build of VICE" has been researched: see `docs/BROWSER.md`. It recommends VirtualC64 Web on the Open ROMs
-rather than VICE, and the first step is mine: trying the program in it.
+build of VICE" is done in its first form: VirtualC64 Web runs the program correctly, and CI publishes the
+tested program and a play page with GitHub Pages after every merge to `main`. See `docs/BROWSER.md`.
 
 ### The two SID tunes: in test builds only
 

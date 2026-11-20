@@ -30,6 +30,9 @@ That writes `build/sleazeburg64.prg`.
 
 ## Run
 
+In a browser: <https://mselin.github.io/Sleazeburg64/> has the latest tested build, playable in VirtualC64 Web
+(see [docs/BROWSER.md](docs/BROWSER.md)) or to download.
+
 On a real C64 or C128 in 64 mode: copy the `.prg` to a disk, SD card or cartridge of your choice, plug a
 joystick into **port 2**, then `LOAD` and `RUN` it. Up accelerates, down brakes and then reverses, left
 and right steer, and fire is the handbrake. The program is for PAL machines; it has not been tried on NTSC.
@@ -117,6 +120,7 @@ game started directly, and that both tunes produce sound. It cannot judge how th
 | `tests/e2e/vice.mjs` | Drives VICE from a test: memory, registers, the joystick, stepping frame by frame. |
 | `tests/e2e/car-model.mjs` | The car's handling in JavaScript, which the tests hold the program to frame by frame. |
 | `tests/e2e/*.test.mjs` | The end-to-end tests. |
+| `site/index.html` | The play page CI publishes with GitHub Pages, next to the tested program. |
 | `music/` | Credits for the tunes, and the rules for using them. No tune files. |
 
 **Graphics.** The screen is in multicolour character mode: every character pixel is two screen pixels wide and
