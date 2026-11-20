@@ -1,15 +1,17 @@
 ; SPDX-License-Identifier: GPL-2.0-or-later
 ; Music test builds only (MUSIC=1): a tune that plays during the game, and its credits in the status panel.
+; The tune is played by the bottom raster interrupt, once a frame, whatever the main loop is doing.
 ;
 ; The tune is someone else's work, is not in this repository and is not covered by this program's licence.
 ; Its title, author and copyright come from the tune file itself and are always shown: see music/README.md.
 
 tune            .block
 
-PAGES           = (ingame_size + 255) / 256 + 1
+PAGES           = (ingame_size + 255) / 256     ; whole pages of tune, as it waits in the program
+                                                ; then one more, cleared: tunes read a little past their end
 CREDIT_FRAMES   = 200           ; how long each line stays in the bottom row of the panel: four seconds
 
-                .cerror ingame_load + PAGES * 256 > $fffa, "the tune would be copied over the interrupt vectors"
+                .cerror ingame_load + (PAGES + 1) * 256 > $fffa, "the tune would be copied over the interrupt vectors"
 
                 .section zp
 from            .word ?
@@ -37,6 +39,10 @@ init            lda #<tune_data
                 inc to + 1
                 dex
                 bne -
+                txa                     ; and the page after it, empty
+-               sta (to),y
+                iny
+                bne -
                 ldx #$18                ; a quiet SID to start from
                 lda #0
 -               sta SID,x
@@ -48,7 +54,8 @@ init            lda #<tune_data
                 sta credit_line
                 jmp show_credit
 
-; Once a frame: play the tune, and change the line in the bottom row of the panel when its time is up.
+; Once a frame, from the bottom interrupt: play the tune, and change the line in the bottom row of the panel
+; when its time is up.
 play            jsr ingame_play
 .if AUTOPILOT != 0
                 rts                     ; the emulator test compares screenshots, so the panel keeps still
@@ -70,12 +77,13 @@ show_credit     lda #CREDIT_FRAMES
                 sta from + 1
                 ldy #39
 -               lda (from),y
-                sta panel.ROW3,y
+                sta SCREEN_A + panel.LINE3,y
+                sta SCREEN_B + panel.LINE3,y
                 dey
                 bpl -
 done            rts
 
-lines           = (credit_title, credit_by, panel.line3)
+lines           = (credit_title, credit_by, panel.text3)
 line_lo         .byte <lines
 line_hi         .byte >lines
 

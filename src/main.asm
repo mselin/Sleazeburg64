@@ -1,8 +1,9 @@
 ; SPDX-License-Identifier: GPL-2.0-or-later
 ; Sleazeburg 64 for the Commodore 64.
 ;
-; Milestone 1a: the city viewer. Draws the city in multicolour character mode and moves the view one tile
-; at a time with a joystick in port 2. Smooth scrolling, the car and everything else come later.
+; Milestone 1b: the city viewer with smooth scrolling. A joystick in port 2 moves the view a pixel at a time
+; in eight directions, and a raster split keeps the status panel still under it. The car and everything
+; else come later.
 ;
 ; Assemble with 64tass (see the Makefile). Build options, set with -D on the command line:
 ;   START_X, START_Y   the tile in the top left corner of the view at start
@@ -22,10 +23,14 @@ MUSIC           = 0
                 .include "tune-ingame.inc"
 .endif
 
-MAP_SIZE        = 98            ; tiles per side of the city
-VIEW_W          = 20            ; tiles shown across (40 characters)
-VIEW_H          = 11            ; tiles shown down (22 character rows; the last three are the status panel)
-MOVE_EVERY      = 3             ; frames between steps while the stick is held
+MAP_SIZE        = 98                    ; tiles per side of the city
+MAP_PIXELS      = MAP_SIZE * 16         ; and screen pixels
+VIEW_W          = 304                   ; the window onto the city: 38 columns of 8 pixels ...
+VIEW_H          = 161                   ; ... by raster lines 55 to 215
+MAX_X           = MAP_PIXELS - VIEW_W   ; the furthest the window's top left corner can go
+MAX_Y           = MAP_PIXELS - VIEW_H
+SPEED           = 2                     ; pixels per frame while the stick is held
+FAST            = 4                     ; and while fire is held too. The most the scrolling allows: see video
 
 ; ---------- zero page ----------
                 * = $02
@@ -33,9 +38,13 @@ MOVE_EVERY      = 3             ; frames between steps while the stick is held
                 .cerror * > $90, "zero page overflow"
 
                 .section zp
-cam_x           .byte ?         ; tile in the top left corner of the view
-cam_y           .byte ?
-move_wait       .byte ?         ; frames until the view may step again
+cam_lo          .byte ?, ?      ; the window's top left corner in city pixels: [0] across, [1] down
+cam_hi          .byte ?, ?
+cell            .byte ?, ?      ; the character of the city in the top left corner of the shown screen
+step            .byte ?, ?      ; signed movement this frame, in pixels
+busy            .byte ?         ; 1 when this frame's time has gone on colour memory: stay in the cell
+pace            .byte ?         ; pixels a frame, from the fire button
+tmp             .byte ?
                 .send
 
 ; ---------- BASIC line: 2026 SYS start ----------
@@ -55,93 +64,150 @@ start           sei
                 lda CIA2_IRQ
                 lda #$35                ; BASIC and KERNAL out, I/O in: the program owns the machine
                 sta CPU_PORT
-                lda #<ignore            ; RESTORE and stray interrupts do nothing
+                lda #<ignore            ; RESTORE does nothing
                 sta $fffa
-                sta $fffe
                 lda #>ignore
                 sta $fffb
-                sta $ffff
 
-                jsr video.init
-                jsr panel.init
-                lda #START_X
-                sta cam_x
-                lda #START_Y
-                sta cam_y
+                lda #<(START_X * 16)
+                sta cam_lo
+                lda #>(START_X * 16)
+                sta cam_hi
+                lda #<(START_Y * 16)
+                sta cam_lo + 1
+                lda #>(START_Y * 16)
+                sta cam_hi + 1
                 lda #0
-                sta move_wait
-                jsr video.draw
+                sta busy
+                jsr video.init          ; draws the first picture and sets up the raster interrupts
+                jsr panel.init
                 jsr panel.update
 .if MUSIC != 0
                 jsr tune.init
 .endif
+                cli
 
-main_loop       jsr video.wait_frame
-.if MUSIC != 0
-                jsr tune.play          ; straight after the frame edge, so the tempo is steady
-.endif
-                jsr input.read          ; A = which directions are held
-                jsr move_view
+; One pass per frame. The interrupt at the bottom of the screen puts in place what the pass before left
+; ready; this pass then works out the next frame.
+main_loop       jsr frame.wait          ; until the last frame made is on its way to the screen
+                jsr panel.update        ; the readout for that frame, written well away from the panel's lines
+                jsr video.after_swap    ; colour memory, if that frame brought in the other screen
+ready           jsr input.read          ; A = which directions are held
+                jsr move_camera
+                jsr video.follow        ; fine scroll, and the other screen if the view crossed a character
+                jsr frame.publish
                 jmp main_loop
 
 ignore          rti
 
-; Step the view by one tile in each held direction, no more often than every MOVE_EVERY frames.
+; Move the window by the joystick, keeping it inside the city. In a frame whose time went on colour memory
+; there is none left to move the screen a character, so the window stays within its character that frame.
 ; In: A = joystick bits.
-move_view       .block
-                sta held
-                lda move_wait
-                beq ready
-                dec move_wait
+move_camera     .block
+                tay
+                ldx #SPEED
+                and #JOY_FIRE
+                beq +
+                ldx #FAST
++               stx pace
+                tya
+                jsr axis_step
+                sta step
+                tya
+                asl                     ; up and down into the left and right bits
+                asl
+                jsr axis_step
+                sta step + 1
+                ldx #0
+                jsr move_axis
+                ldx #1
+                jmp move_axis
+
+; In: A with JOY_LEFT and JOY_RIGHT (or the stick shifted down to put up and down there).
+; Out: A = -pace, 0 or pace. Both directions at once is no direction.
+axis_step       and #JOY_LEFT | JOY_RIGHT
+                cmp #JOY_RIGHT
+                bne +
+                lda pace
                 rts
-ready           lda cam_x
-                sta old_x
-                lda cam_y
-                sta old_y
-                lda held
-                and #JOY_LEFT
-                beq +
-                lda cam_x
-                beq +
-                dec cam_x
-+               lda held
-                and #JOY_RIGHT
-                beq +
-                lda cam_x
-                cmp #MAP_SIZE - VIEW_W
-                bcs +
-                inc cam_x
-+               lda held
-                and #JOY_UP
-                beq +
-                lda cam_y
-                beq +
-                dec cam_y
-+               lda held
-                and #JOY_DOWN
-                beq +
-                lda cam_y
-                cmp #MAP_SIZE - VIEW_H
-                bcs +
-                inc cam_y
-+               lda cam_x
-                cmp old_x
-                bne moved
-                lda cam_y
-                cmp old_y
-                bne moved
++               cmp #JOY_LEFT
+                bne +
+                lda #0
+                sec
+                sbc pace
                 rts
-moved           lda #MOVE_EVERY - 1
-                sta move_wait
-                jsr video.draw
-                jmp panel.update
-                .section zp
-held            .byte ?
-old_x           .byte ?
-old_y           .byte ?
-                .send
++               lda #0
+                rts
                 .bend
 
+; In: X = 0 across or 1 down.
+move_axis       .block
+                lda step,x
+                beq stay
+                bmi back
+                clc                     ; forward, no further than the edge of the city
+                adc cam_lo,x
+                sta cam_lo,x
+                bcc +
+                inc cam_hi,x
++               lda cam_lo,x
+                cmp max_lo,x
+                lda cam_hi,x
+                sbc max_hi,x
+                bcc stay
+                lda max_lo,x
+                sta cam_lo,x
+                lda max_hi,x
+                sta cam_hi,x
+                jmp stay
+back            clc                     ; back, no further than 0
+                adc cam_lo,x
+                sta cam_lo,x
+                bcs +
+                dec cam_hi,x
++               lda cam_hi,x
+                bpl stay
+                lda #0
+                sta cam_lo,x
+                sta cam_hi,x
+stay            lda busy
+                beq done
+                jsr char_of
+                cmp cell,x
+                beq done
+                lda #0                  ; back to the edge of the cell it left: cell * 8, plus 7 going forward
+                sta cam_hi,x
+                bcc +
+                lda #7
++               sta tmp
+                lda cell,x
+                asl
+                rol cam_hi,x
+                asl
+                rol cam_hi,x
+                asl
+                rol cam_hi,x
+                ora tmp
+                sta cam_lo,x
+done            rts
+                .bend
+
+max_lo          .byte <MAX_X, <MAX_Y
+max_hi          .byte >MAX_X, >MAX_Y
+
+; A = the character of the city under the window's top left corner on axis X: the position divided by 8.
+char_of         lda cam_hi,x
+                sta tmp
+                lda cam_lo,x
+                lsr tmp
+                ror
+                lsr tmp
+                ror
+                lsr tmp
+                ror
+                rts
+
+                .include "irq.asm"
                 .include "input.asm"
                 .include "video.asm"
                 .include "panel.asm"
@@ -149,7 +215,7 @@ old_y           .byte ?
                 .include "music.asm"
 .endif
 code_end
-                .cerror * > charset, "code has run into the character set"
+                .cerror * > SCREEN_A, "code has run into the screens"
 
 ; ---------- data ----------
                 * = $3800
@@ -160,11 +226,11 @@ tile_tl         .binary "tiles.bin", 0, 256     ; character for each quarter of 
 tile_tr         .binary "tiles.bin", 256, 256
 tile_bl         .binary "tiles.bin", 512, 256
 tile_br         .binary "tiles.bin", 768, 256
-tile_colour     .binary "tiles.bin", 1024, 256  ; ... and the colour all four share
+char_colour     .binary "tiles.bin", 1024, 256  ; ... and the colour of each character
 city_map        .binary "map.bin"               ; one tile number per tile, row by row
 .if MUSIC != 0
 ; The tune waits here and is copied to the address it was written for when the program starts. Padded with
-; zeroes to whole pages and one more, because the copy works in pages and tunes read a little past their end.
+; zeroes to a whole page, because the copy works in pages.
 tune_data       .binary "tune-ingame.bin"
                 .fill tune.PAGES * 256 - ingame_size, 0
                 .cerror * > ingame_load, "the program has run into where the tune plays from"

@@ -10,6 +10,10 @@
 //   2  shared multicolour 2       (black: outlines)
 //   3  the character's own colour (one of the first eight C64 colours, set per tile)
 // A city tile is 16x16 screen pixels, so 8x16 of these wide pixels, and is drawn with four characters.
+//
+// Every character has exactly one colour, so the program can work out colour memory from the characters on
+// screen. Two tiles of different colours share a character only if it has no pixels of value 3, which is
+// the only value the colour shows in.
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { BLD, CITY_CHECKSUM, FOUNT, GRASS, LOT, MW, PB, PLAZA, ROAD, TREE, WALK, WATER, checksum, generate, hash } from './city.mjs';
@@ -22,13 +26,16 @@ const ROOF = { 1: WHITE, 2: RED, 3: CYAN, 4: PURPLE, 6: BLUE, 8: YELLOW, 9: RED,
 
 // ---------- characters ----------
 const chars = []; // each an array of 8 bytes
+const charColours = []; // the colour memory value for each of them
 const charIndex = new Map();
-function charFor(rows) {
+function charFor(rows, colour) {
   const bytes = rows.map((r) => r.reduce((b, v) => (b << 2) | v, 0));
-  const key = bytes.join(',');
+  const ownColour = rows.some((r) => r.includes(3));
+  const key = bytes.join(',') + (ownColour ? `/${colour}` : '');
   if (!charIndex.has(key)) {
     charIndex.set(key, FIRST_TILE_CHAR + chars.length);
     chars.push(bytes);
+    charColours.push(colour | 8); // 8 and up: the character is drawn in multicolour
   }
   return charIndex.get(key);
 }
@@ -39,7 +46,7 @@ const tileIndex = new Map();
 /** Register a tile from a function giving the value (0-3) of each of its 8x16 wide pixels. */
 function tile(colour, at) {
   const quarter = (x0, y0) =>
-    charFor(Array.from({ length: 8 }, (_, y) => Array.from({ length: 4 }, (_, x) => at(x0 + x, y0 + y))));
+    charFor(Array.from({ length: 8 }, (_, y) => Array.from({ length: 4 }, (_, x) => at(x0 + x, y0 + y))), colour);
   const t = { tl: quarter(0, 0), tr: quarter(4, 0), bl: quarter(0, 8), br: quarter(4, 8), col: colour | 8 };
   const key = [t.tl, t.tr, t.bl, t.br, t.col].join(',');
   if (!tileIndex.has(key)) {
@@ -135,14 +142,20 @@ for (let code = 0; code < FIRST_TILE_CHAR; code++) {
 }
 chars.forEach((bytes, n) => charset.set(bytes, (FIRST_TILE_CHAR + n) * 8));
 
+// Four tables of 256 giving each tile's characters, then the colour of each character (font characters are
+// white, so text drawn in the city's character mode would show as two-colour text).
 const tileData = new Uint8Array(5 * 256);
 tiles.forEach((t, n) => {
   tileData[n] = t.tl;
   tileData[256 + n] = t.tr;
   tileData[512 + n] = t.bl;
   tileData[768 + n] = t.br;
-  tileData[1024 + n] = t.col;
 });
+tileData.fill(1, 1024, 1024 + FIRST_TILE_CHAR);
+charColours.forEach((c, n) => (tileData[1024 + FIRST_TILE_CHAR + n] = c));
+// The idle graphics the video chip shows between the city and the panel come from the last byte of the
+// character set. It has to be empty, so those lines show the background colour.
+if (FIRST_TILE_CHAR + chars.length > 255) throw new Error('character 255 is needed empty');
 
 const dir = process.argv[2] || 'build';
 mkdirSync(dir, { recursive: true });

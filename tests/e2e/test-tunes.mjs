@@ -24,27 +24,35 @@ function sidFile({ format, title, author, released, load, init, play, songs, cod
 }
 
 // Plays during the game, from $e000 like the real one. init keeps the subtune it was asked for and clears a
-// counter; play adds one to the counter and puts its low byte in a SID register.
+// counter; play adds one to the counter, puts its low byte in a SID register, and then takes about as long
+// as the real tune's busiest frames (some 1700 cycles, 27 raster lines), so the tests see the game cope with
+// a tune's load.
 export const INGAME = {
   load: 0xe000,
-  song: 0xe020, // the value init was called with
-  counter: 0xe021, // 16 bits: how many times play has been called
+  song: 0xe040, // the value init was called with
+  counter: 0xe041, // 16 bits: how many times play has been called
   subtune: 2,
   // prettier-ignore
   code: [
-    0x8d, 0x20, 0xe0,       // e000 init: sta $e020
+    0x8d, 0x40, 0xe0,       // e000 init: sta $e040
     0xa9, 0x00,             //            lda #0
-    0x8d, 0x21, 0xe0,       //            sta $e021
-    0x8d, 0x22, 0xe0,       //            sta $e022
+    0x8d, 0x41, 0xe0,       //            sta $e041
+    0x8d, 0x42, 0xe0,       //            sta $e042
     0x60,                   //            rts
-    0xee, 0x21, 0xe0,       // e00c play: inc $e021
+    0xee, 0x41, 0xe0,       // e00c play: inc $e041
     0xd0, 0x03,             //            bne +
-    0xee, 0x22, 0xe0,       //            inc $e022
-    0xad, 0x21, 0xe0,       // e014 +     lda $e021
+    0xee, 0x42, 0xe0,       //            inc $e042
+    0xad, 0x41, 0xe0,       // e014 +     lda $e041
     0x8d, 0x00, 0xd4,       //            sta $d400
-    0x60,                   //            rts
-    0, 0, 0, 0, 0,          // e01b
-    0xff, 0xff, 0xff,       // e020 song, counter: overwritten by init
+    0xa0, 0x02,             //            ldy #2
+    0xa2, 0xaa,             // e01c --    ldx #170
+    0xca,                   // e01e -     dex
+    0xd0, 0xfd,             //            bne -
+    0x88,                   //            dey
+    0xd0, 0xf8,             //            bne --
+    0x60,                   // e024       rts
+    ...new Array(0x1b).fill(0),
+    0xff, 0xff, 0xff,       // e040 song, counter: overwritten by init
   ],
 };
 
@@ -54,9 +62,10 @@ export const INGAME = {
 // moves the game over this code. Each handler only counts.
 export const TITLE = (() => {
   const load = 0x1000;
-  const mark = 0x1080; // 42 once init has run
-  const irqCount = 0x1081;
-  const nmiCount = 0x1082;
+  // The marks sit where moving the game in leaves memory alone: after its code, before its screens.
+  const mark = 0x2f80; // 42 once init has run
+  const irqCount = 0x2f81;
+  const nmiCount = 0x2f82;
   const lo = (n) => n & 255, hi = (n) => n >> 8;
   const abs = (n) => [lo(n), hi(n)];
   const init = (irq, nmi) => [

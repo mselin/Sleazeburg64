@@ -2,8 +2,10 @@
 ; Music test build: a title screen that plays a tune and credits it, then starts the game.
 ;
 ; This is a separate program wrapped around the game. It holds the title tune at the address the tune was
-; written for, and behind it a copy of the game built with MUSIC=1. Fire stops the tune, moves the game down
-; to where it runs from and starts it. See music/README.md: the tunes are not ours and builds are not to be
+; written for, $1000-$5150, which is right across the game's memory, and around it a copy of the game built
+; with MUSIC=1: the start of the game's code is already in place below the tune, and the rest waits after it.
+; The title screen's own code comes last. Fire stops the tune, moves the waiting parts of the game down to
+; where they run from, and starts it. See music/README.md: the tunes are not ours and builds are not to be
 ; published.
 ;
 ; Build options, set with -D on the command line:
@@ -23,13 +25,13 @@ AUTOPILOT       = 0
                 .endweak
 
 LOAD            = $0801
+GAME_CODE       = $080d                                 ; after the game's BASIC line, which is not needed
 GAME_FILE       = "sleazeburg64-ingame.prg"
-CODE_SIZE       = game.code_end - LOAD                  ; the game is code, a gap, then data:
-DATA_SIZE       = game.program_end - game.charset       ; the gap is not carried
+HIGH_SIZE       = game.code_end - title_load            ; the game is code, a gap, then data: the code up to
+DATA_SIZE       = game.program_end - game.charset       ; the tune is in place, the gap is not carried
+                .cerror HIGH_SIZE < 1, "the game's code ends below the title tune: carry it in place instead"
 PAL_FLAG        = $02a6         ; set by the KERNAL at power-on: 1 on a PAL machine. The tune reads it too.
 CIA1_DDR_A      = $dc02
-VIC_IRQ         = $d019
-VIC_IRQ_MASK    = $d01a
 AUTO_FRAMES     = 600
 
 from            = $fb           ; zero page the tune leaves alone, used once it has stopped
@@ -41,7 +43,24 @@ to              = $fd
                 .null $9e, format("%d", start)
 +               .word 0
 
-start           lda #BLACK
+; ---------- the start of the game's code, where it runs ----------
+                * = GAME_CODE
+                .binary GAME_FILE, 2 + GAME_CODE - LOAD, title_load - GAME_CODE
+
+; ---------- the title tune, where it was written to be ----------
+                * = title_load
+                .binary "tune-title.bin"
+
+; ---------- the rest of the game, waiting to be moved down ----------
+image_code      .binary GAME_FILE, 2 + title_load - LOAD, HIGH_SIZE
+image_data      .binary GAME_FILE, 2 + game.charset - LOAD, DATA_SIZE
+                ; The copies run upwards, which is safe only when each part moves down in memory.
+                .cerror image_code < title_load, "the game's code would be overwritten while it is moved"
+                .cerror image_data < game.charset, "the game's data would be overwritten while it is moved"
+
+; ---------- the title screen ----------
+start           .cerror * < game.program_end, "the title screen would be overwritten when the game is moved in"
+                lda #BLACK
                 sta VIC_BORDER
                 sta VIC_BACKGROUND
                 lda #%00010101          ; screen at $0400, the upper case character ROM
@@ -166,29 +185,17 @@ centred         .macro text
 text_end
 ntsc_note       .text "ntsc machine: written for pal"
                 .enc "none"
-                .cerror * > title_load, "the title screen has run into its tune"
 
-; ---------- the title tune, where it was written to be ----------
-                * = title_load
-                .binary "tune-title.bin"
-
-; ---------- the game, waiting to be moved down ----------
-image_code      .binary GAME_FILE, 2, CODE_SIZE
-image_data      .binary GAME_FILE, 2 + game.charset - LOAD, DATA_SIZE
-                ; The copies run upwards, which is safe only when each part moves down in memory.
-                .cerror image_data < game.charset, "the game's data would be overwritten while it is moved"
-
-move_game       .cerror * < game.program_end, "this routine would overwrite itself"
-                ldx #<image_code
+move_game       ldx #<image_code
                 ldy #>image_code
                 stx from
                 sty from + 1
-                ldx #<LOAD
-                ldy #>LOAD
+                ldx #<title_load
+                ldy #>title_load
                 stx to
                 sty to + 1
-                ldx #<CODE_SIZE
-                ldy #>CODE_SIZE
+                ldx #<HIGH_SIZE
+                ldy #>HIGH_SIZE
                 jsr copy
                 ldx #<image_data
                 ldy #>image_data

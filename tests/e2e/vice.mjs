@@ -22,7 +22,7 @@ export const JOY = { UP: 1, DOWN: 2, LEFT: 4, RIGHT: 8, FIRE: 16 };
 
 // Binary monitor commands and replies, from the VICE manual ("Binary monitor").
 const CMD = { MEM_GET: 0x01, MEM_SET: 0x02, CHECKPOINT_SET: 0x12, CHECKPOINT_DELETE: 0x13, REGISTERS_GET: 0x31,
-  REGISTERS_AVAILABLE: 0x83, JOYPORT_SET: 0xa2, EXIT: 0xaa, QUIT: 0xbb, AUTOSTART: 0xdd };
+  REGISTERS_AVAILABLE: 0x83, DISPLAY_GET: 0x84, JOYPORT_SET: 0xa2, EXIT: 0xaa, QUIT: 0xbb, AUTOSTART: 0xdd };
 const REPLY = { CHECKPOINT: 0x11, REGISTERS: 0x31, STOPPED: 0x62, RESUMED: 0x63 };
 const EVENT = 0xffffffff;
 
@@ -61,12 +61,17 @@ function connect(port, child, timeoutMs = 30000) {
   });
 }
 
-/** Read the labels file 64tass writes: `name = $hex` or `name = decimal`, one per line. */
+/**
+ * Read a labels file 64tass writes, in its own format (`name = $hex`, top level only) or VICE's
+ * (`al hex .block:name`, nested ones too, which come back as `block.name`).
+ */
 export function readLabels(file) {
   const labels = {};
   for (const line of readFileSync(file, 'utf8').split('\n')) {
-    const m = /^(\w+)\s*=\s*(\$[0-9a-f]+|\d+)\s*$/i.exec(line);
-    if (m) labels[m[1]] = m[2][0] === '$' ? parseInt(m[2].slice(1), 16) : Number(m[2]);
+    const own = /^(\w+)\s*=\s*(\$[0-9a-f]+|\d+)\s*$/i.exec(line);
+    if (own) labels[own[1]] = own[2][0] === '$' ? parseInt(own[2].slice(1), 16) : Number(own[2]);
+    const vice = /^al ([0-9a-f]+) \.([\w:]+)$/i.exec(line);
+    if (vice) labels[vice[2].replaceAll(':', '.')] = parseInt(vice[1], 16);
   }
   return labels;
 }
@@ -198,6 +203,26 @@ export class Vice {
       at += size + 1;
     }
     return registers;
+  }
+
+  /**
+   * The picture as the video chip has drawn it so far, one byte per pixel holding its colour (0-15).
+   * `at(x, line)` takes the video chip's own coordinates: x 24 and line 51 are the top left corner of the
+   * 320 by 200 area inside the borders. Lines the raster has not reached yet still hold the frame before.
+   *
+   * VICE 3.7 gives the inner area's offset in its buffer one line higher than where line 51 is drawn, so a
+   * line is looked up one row further on. The pixel tests would all fail if this were wrong: the top edge of
+   * the 24-row window, line 55, is fixed by the video chip itself.
+   */
+  async display() {
+    const reply = await this.#command(CMD.DISPLAY_GET, Buffer.from([1, 0]));
+    const b = reply.body;
+    const info = b.readUInt32LE(0);
+    const width = b.readUInt16LE(4);
+    const offsetX = b.readUInt16LE(8);
+    const offsetY = b.readUInt16LE(10);
+    const pixels = b.subarray(8 + info, 8 + info + b.readUInt32LE(4 + info));
+    return { at: (x, line) => pixels[(line - 52 + offsetY) * width + (x - 24 + offsetX)] };
   }
 
   /** Hold the given directions and fire (JOY bits) on the joystick in port 2. 0 lets go of everything. */
