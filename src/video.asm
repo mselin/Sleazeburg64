@@ -7,15 +7,16 @@
 ; by copying the shown one moved by a character and drawing the newly exposed row and column from the map.
 ; The bottom interrupt then shows the other screen from the next frame on.
 ;
-; Colour memory cannot be doubled like that. Each character has one colour (see tools/assets.mjs), so after a
-; swap colour memory is worked out again from the new screen, from the top down, straight after the bottom
-; interrupt: it keeps ahead of the video chip, which reads each row's colours on that row's bad line. The
-; routines that do it are written at start (see write_colour).
+; Colour memory cannot be doubled like that. Each tile has one colour (see tools/assets.mjs), so after a swap
+; colour memory is worked out again from the map, a tile at a time, from the top down, straight after the
+; bottom interrupt: it keeps ahead of the video chip, which reads each row's colours on that row's bad line.
+; The routines that do it are written at start (see write_colour).
 ;
 ; The cost sets the top speed. Moving a screen and drawing its edges takes about a third of a frame and
-; working out colour memory about two thirds, so the window can cross at most one character every two
-; frames: 4 pixels a frame, which is how fast the browser game's sports car goes. In the frame after a swap
-; the window stays within its character (see move_camera).
+; working out colour memory about a third, and the car, the panel and the rest have to fit around them, so
+; the window can cross at most one character every two frames: 4 pixels a frame, which is how fast the
+; browser game's sports car goes. In the frame after a swap the window stays within its character (see
+; move_camera).
 
 SCREEN_A        = $3000
 SCREEN_B        = $3400
@@ -43,6 +44,14 @@ rows_left       .byte ?
 k               .byte ?         ; tile in the map row
 j               .byte ?         ; screen column
 mp_loop         .word ?
+cmap            .word ?         ; colour: the map at the window's top left tile
+gx              .byte ?         ; write_colour: the window starts on a tile's second column (1) or first (0)
+gy              .byte ?         ; ... and row
+across          .byte ?         ; tiles across: 20, or 21 when the window cuts the first and last in half
+r               .byte ?
+c               .byte ?
+nr              .byte ?
+nc              .byte ?
                 .send
 
 ; Add an 8-bit constant to a 16-bit zero page pointer.
@@ -93,19 +102,29 @@ init            lda #BLACK
                 ldx #1
                 jsr char_of
                 sta cell + 1
-                lda #<COLOUR_A
+                ldx #3                  ; the four colour routines
+-               lda colour_lo,x
                 sta ptr
-                lda #>COLOUR_A
+                lda colour_hi,x
                 sta ptr + 1
-                lda #>SCREEN_A
+                txa
+                and #1
+                sta gx
+                txa
+                lsr
+                sta gy
+                txa
+                pha
                 jsr write_colour
-                lda #>SCREEN_B          ; ptr is where the first one ended: COLOUR_B
-                jsr write_colour
+                pla
+                tax
+                dex
+                bpl -
                 jsr write_copies
                 lda #>SCREEN_A
                 sta target
                 jsr draw_all
-                jsr COLOUR_A
+                jsr colour
                 jsr fine
                 lda frame.next_d011
                 sta frame.cur_d011
@@ -186,12 +205,35 @@ d018_of         .byte D018_A, D018_B
 ; Colour memory for the screen that has just come in. Called straight after the bottom interrupt.
 after_swap      lda swapped
                 sta busy
-                beq +
-                lda front
-                beq colour_a_far
-                jmp COLOUR_B
-colour_a_far    jmp COLOUR_A
-+               rts
+                bne colour
+                rts
+
+; Colour memory for the window at cell: the routine for whether it starts on a tile's first or second column
+; and row, with the map from its top left tile.
+colour          lda cell + 1
+                lsr
+                tax
+                lda cell
+                lsr
+                clc
+                adc row_lo,x
+                sta cmap
+                lda row_hi,x
+                adc #0
+                sta cmap + 1
+                lda cell + 1
+                and #1
+                asl
+                sta k
+                lda cell
+                and #1
+                ora k
+                tax
+                lda colour_lo,x
+                sta colour_jump + 1
+                lda colour_hi,x
+                sta colour_jump + 2
+colour_jump     jmp $ffff
 
 ; Fill the back screen with the front one moved by dcol and drow, then draw what came into view.
 shift           lda drow                ; which way: (drow + 1) * 3 + dcol + 1
@@ -470,65 +512,117 @@ last_upper      lda tile_tl,x
                 sta (ptr),y
 +               rts
 
-; Colour memory for the city rows from a screen: each character's colour from char_colour, row by row from
-; the top, so it keeps ahead of the video chip. This is the busiest work there is, so it is a straight run
-; of 840 lots of
-;       ldy screen + n          4 cycles
-;       lda char_colour,y       4 (the table is page aligned, so never 5)
-;       sta COLOUR_RAM + n      4
-; with no loop at all: 12 cycles a character. That is 7.5K of code for each screen, too much to load, so
-; init writes it, into memory the video chip does not need.
-COLOUR_A        = $8000
-COLOUR_B        = COLOUR_A + ROWS * 40 * 9 + 1
-                .cerror COLOUR_B + ROWS * 40 * 9 + 1 > SQUARES, "the colour routines run into the multiplication tables"
-                .cerror program_end > COLOUR_A, "the program runs into where the colour routines go"
-                .cerror (char_colour & $ff) != 0, "char_colour must start a page"
+; Colour memory for the city rows, from the map: each tile's colour (tile_colour) in all of its characters on
+; screen, row by row from the top, so it keeps ahead of the video chip. A character only shows its colour in
+; pixels of value 3, and a tile's characters that have any are drawn in its colour (tools/assets.mjs), so
+; this gives every character its own colour. It is the busiest work there is, so it is a straight run of,
+; for each tile on screen,
+;       iny                     2 cycles (ldy #0 for the first tile in a row)
+;       lda (cmap),y            5 or 6
+;       tax                     2
+;       lda tile_colour,x       4
+;       sta COLOUR_RAM + n      4, for each of the tile's characters on screen: up to four
+; and cmap moved on by a row of the map between rows of tiles: some 6800 cycles, against 10,500 for working
+; it out a character at a time. Which characters each tile covers depends on whether the window starts on a
+; tile's first or second column and row, so there are four routines. At 4.2K each they are too much to load,
+; so init writes them, into memory the video chip does not need: three after the program, and the fourth
+; after the map, where a music build's tune waits until it has been copied away.
+COLOUR_00       = $8000                 ; the window starts on a tile's first column and row
+COLOUR_10       = $9100                 ; second column, first row
+COLOUR_01       = $a200                 ; first column, second row
+COLOUR_11       = $6d00                 ; second column, second row
+COLOUR_SIZE     = 11 * 2 + 10 * 11 + 21 * 11 * 7 - 11 + ROWS * 40 * 3 + 1      ; the longest: 21 tiles across
+                .cerror COLOUR_SIZE > COLOUR_10 - COLOUR_00, "a colour routine does not fit its place"
+                .cerror COLOUR_01 + COLOUR_SIZE > SQUARES2, "the colour routines run into multiplication tables"
+                .cerror map_end > COLOUR_11 || COLOUR_11 + COLOUR_SIZE > COLOUR_00, "no room after the map"
+                .cerror program_end > COLOUR_00, "the program runs into where the colour routines go"
+                .cerror (tile_colour & $ff) != 0, "tile_colour must start a page"
+colour_lo       .byte <COLOUR_00, <COLOUR_10, <COLOUR_01, <COLOUR_11
+colour_hi       .byte >COLOUR_00, >COLOUR_10, >COLOUR_01, >COLOUR_11
 
-; Write the colour routine for the screen whose high byte is in A, at ptr.
-write_colour    sta src + 1
+; Write the colour routine for a window starting on a tile's column gx and row gy (0 for the first, 1 for
+; the second), at ptr. Y stays 0, for emit.
+write_colour    ldy #0
+                lda gx
+                clc
+                adc #20
+                sta across
                 lda #0
-                sta src
-                lda #<COLOUR_RAM
-                sta dst
-                lda #>COLOUR_RAM
-                sta dst + 1
-                lda #<(ROWS * 40)
-                sta k
-                lda #>(ROWS * 40)
-                sta j
-                ldy #0
--               lda #$ac                ; ldy src
+                sta j                   ; row of tiles
+tile_row        lda j
+                beq +
+                ldx #0                  ; after the first: on to the next row of the map
+-               lda next_row,x
                 jsr emit
-                lda src
-                jsr emit
-                lda src + 1
-                jsr emit
-                lda #$b9                ; lda char_colour,y
-                jsr emit
-                lda #<char_colour
-                jsr emit
-                lda #>char_colour
-                jsr emit
-                lda #$8d                ; sta dst
-                jsr emit
-                lda dst
-                jsr emit
-                lda dst + 1
-                jsr emit
-                inc src
-                bne +
-                inc src + 1
-+               inc dst
-                bne +
-                inc dst + 1
-+               lda k                   ; one character fewer to go
-                bne +
-                dec j
-+               dec k
-                lda k
-                ora j
+                inx
+                cpx #size(next_row)
                 bne -
-                lda #$60                ; rts
++               lda #$a0                ; ldy #0
+                jsr emit
+                tya
+                jsr emit
+                sta k                   ; tile in the row
+tile_col        lda k
+                beq +
+                lda #$c8                ; iny
+                jsr emit
++               ldx #0                  ; its colour
+-               lda read_tile,x
+                jsr emit
+                inx
+                cpx #size(read_tile)
+                bne -
+                lda j                   ; into its characters: rows 2j - gy and the next ...
+                asl
+                sec
+                sbc gy
+                sta r
+                lda #2
+                sta nr
+each_row        lda r
+                cmp #ROWS
+                bcs no_row              ; (-1 is 255)
+                tax
+                lda k                   ; ... and columns 2k - gx and the next
+                asl
+                sec
+                sbc gx
+                sta c
+                lda #2
+                sta nc
+each_col        lda c
+                cmp #40
+                bcs no_col
+                lda #$8d                ; sta COLOUR_RAM + 40 * r + c
+                jsr emit
+                lda c
+                clc
+                adc row40_lo,x
+                jsr emit
+                lda row40_hi,x
+                adc #>COLOUR_RAM
+                jsr emit
+no_col          inc c
+                dec nc
+                bne each_col
+no_row          inc r
+                dec nr
+                bne each_row
+                inc k
+                lda k
+                cmp across
+                bne tile_col
+                inc j
+                lda j
+                cmp #(ROWS + 1) / 2
+                beq +
+                jmp tile_row
++               lda #$60                ; rts
+                jmp emit
+next_row        .byte $18, $a5, <cmap, $69, MAP_SIZE, $85, <cmap, $90, $02, $e6, <cmap + 1  ; cmap += MAP_SIZE
+read_tile       .byte $b1, <cmap, $aa, $bd, <tile_colour, >tile_colour  ; lda (cmap),y : tax : lda tile_colour,x
+                .cerror (<COLOUR_RAM) != 0, "write_colour expects colour memory to start a page"
+
 emit            sta (ptr),y
                 inc ptr
                 bne +

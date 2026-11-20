@@ -54,8 +54,7 @@ fwd             .word ?
 lat             .word ?
 nf              .word ?
 nl              .word ?
-mv              .word ?                 ; mul_t: mr = mv * ms / 256, rounded towards 0
-ms              .word ?
+mv              .word ?                 ; mul_c, mul_s: mr = mv * cs or sn / 256, rounded towards 0
 mr              .word ?
 msign           .byte ?
 ta              .byte ?
@@ -132,12 +131,16 @@ asr16           .macro v                ; arithmetic shift right: rounds down, a
                 .endm
 mul             .macro v, s, to         ; to = v * s / 256, rounded towards 0, for s = cs or sn
                 #mov16 \v, mv
-                ldx #\s - cs
-                jsr mul_t
+.if \s == cs
+                jsr mul_c
+.else
+                jsr mul_s
+.endif
                 #mov16 mr, \to
                 .endm
 
-; Build the quarter square tables: SQUARES[n] = n * n / 4, rounded down, for n = 0..511.
+; Build the quarter square tables: SQUARES[n] = n * n / 4, rounded down, for n = 0..511, low bytes then high
+; bytes, and SQUARES2[n] = SQUARES[|n - 255|], so that a * b = SQUARES[a + b] - SQUARES2[b - a + 255].
 init            lda #0
                 sta sum
                 sta sum + 1
@@ -186,6 +189,22 @@ init            lda #0
                 inc tb
                 lda tb
                 cmp #2
+                bne -
+                ldx #0                  ; SQUARES2 for n = 0..255: |n - 255| = 255 - n ...
+-               txa
+                eor #$ff
+                tay
+                lda SQUARES,y
+                sta SQUARES2,x
+                lda SQUARES + 512,y
+                sta SQUARES2 + 512,x
+                inx
+                bne -
+-               lda SQUARES + 1,x       ; ... and 256..511: n - 255
+                sta SQUARES2 + 256,x
+                lda SQUARES + 513,x
+                sta SQUARES2 + 768,x
+                inx
                 bne -
                 rts
 
@@ -303,6 +322,26 @@ trig            ldx angle + 1
                 dex
                 bpl -
                 .cerror sn - cs != 2, "trig expects sn two bytes after cs"
+                lda size_lo             ; and the multiplications' tables, moved along by |cs| and |sn|
+                sta mul_c.p1 + 1
+                sta mul_c.p3 + 1
+                sta mul_c.p5 + 1
+                sta mul_c.p7 + 1
+                eor #$ff
+                sta mul_c.p2 + 1
+                sta mul_c.p4 + 1
+                sta mul_c.p6 + 1
+                sta mul_c.p8 + 1
+                lda size_lo + 2
+                sta mul_s.p1 + 1
+                sta mul_s.p3 + 1
+                sta mul_s.p5 + 1
+                sta mul_s.p7 + 1
+                eor #$ff
+                sta mul_s.p2 + 1
+                sta mul_s.p4 + 1
+                sta mul_s.p6 + 1
+                sta mul_s.p8 + 1
                 rts
 
 ; Turn by up to 2.46 directions a frame, scaled down below TURN_SPEED forward, a quarter more on the
@@ -990,78 +1029,54 @@ kind_at         lda py
                 lda tile_kind,x
                 rts
 
-; mr = mv * s / 256, rounded towards 0, where s is cs (X = 0) or sn (X = 2), as trig left them.
-mul_t           lda size_lo,x           ; times 0
-                ora size_hi,x
-                bne +
-                sta mr
-                sta mr + 1
-                rts
+; mr = mv * s / 256, rounded towards 0, for s = cs (mul_c) or sn (mul_s), as trig left them. With quarter
+; squares (see init): the tables' addresses are moved along by |s| (the low bytes of p1, p3, p5, p7) and by
+; 255 - |s| (p2, p4, p6, p8) by trig, which leaves a * |s| = p1[a] - p2[a] as 16 bits.
+times           .macro at
+                lda size_hi + \at       ; |s| = 256: mr = mv, or -mv
+                beq ++
+                #mov16 mv, mr
+                lda sign_of + \at
+                bpl +
+                #neg16 mr
++               rts
 +               lda mv + 1
-                eor sign_of,x
+                eor sign_of + \at
                 sta msign
                 lda mv + 1
                 bpl +
                 #neg16 mv
-+               lda size_hi,x           ; 256: mr = mv
-                beq +
-                #mov16 mv, mr
-                jmp apply_sign
-+               lda size_lo,x
-                sta ms
-                lda mv                  ; low byte times |s|, keeping its high byte
-                ldx ms
-                jsr mul8
-                lda prod + 1
++               ldx mv                  ; the low byte times |s|: the high byte of that, the low only for its
+                sec                     ; borrow
+p1              lda SQUARES,x
+p2              cmp SQUARES2,x
+p3              lda SQUARES + 512,x
+p4              sbc SQUARES2 + 512,x
                 sta mr
                 lda #0
                 sta mr + 1
-                ldx mv + 1              ; plus high byte times |s|: added that many times, as it is small
-                beq apply_sign
--               clc
-                lda mr
-                adc ms
+                ldx mv + 1              ; plus the high byte times |s|
+                beq +
+                sec
+p5              lda SQUARES,x
+p6              sbc SQUARES2,x
+                tay
+p7              lda SQUARES + 512,x
+p8              sbc SQUARES2 + 512,x
+                sta mr + 1
+                tya
+                clc
+                adc mr
                 sta mr
                 bcc +
                 inc mr + 1
-+               dex
-                bne -
-apply_sign      lda msign
++               lda msign
                 bpl +
                 #neg16 mr
 +               rts
-
-; prod = A * X, unsigned 8 by 8 bits, from quarter squares: a * b = q(a + b) - q(|a - b|).
-mul8            sta ta
-                stx tb
-                clc
-                adc tb
-                tay
-                bcs +
-                lda SQUARES,y
-                sta sum
-                lda SQUARES + 512,y
-                sta sum + 1
-                jmp ++
-+               lda SQUARES + 256,y
-                sta sum
-                lda SQUARES + 768,y
-                sta sum + 1
-+               lda ta
-                sec
-                sbc tb
-                bcs +
-                eor #$ff
-                adc #1
-+               tay
-                sec
-                lda sum
-                sbc SQUARES,y
-                sta prod
-                lda sum + 1
-                sbc SQUARES + 512,y
-                sta prod + 1
-                rts
+                .endm
+mul_c           #times 0
+mul_s           #times 2
 
 ; The sprite registers for the next frame, from where the car and the window will be.
 show            sec                     ; x: 31 is the window's left edge, the car's centre is sprite pixel 12

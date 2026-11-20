@@ -39,6 +39,7 @@ CENTRE_Y        = VIEW_H / 2
 CAR_FRAMES      = $0840                 ; the car's sprite in 16 directions, 64 bytes each
 CAR_SPRITE      = CAR_FRAMES / 64       ; sprite pointer of the first
 SQUARES         = $c000                 ; quarter squares for multiplying (see car.init): 1K, made at start
+SQUARES2        = $bc00                 ; and the same moved along, for the other half of a multiplication: 1K
 
 ; ---------- zero page ----------
                 * = $02
@@ -100,6 +101,9 @@ start           sei
                 sty car.sum
                 ldy #<(START_Y * 16 + CENTRE_Y)
                 jsr car.place
+.endif
+.if MUSIC != 0
+                jsr tune.copy           ; out of the way of a colour routine (video.asm) before it is written
 .endif
                 jsr video.init          ; draws the first picture and sets up the raster interrupts
                 jsr panel.init
@@ -321,8 +325,10 @@ tile_tr         .binary "tiles.bin", 256, 256
 tile_bl         .binary "tiles.bin", 512, 256
 tile_br         .binary "tiles.bin", 768, 256
 char_colour     .binary "tiles.bin", 1024, 256  ; ... the colour of each character
-tile_kind       .binary "tiles.bin", 1280, 256  ; ... and what each tile is to a car
+tile_kind       .binary "tiles.bin", 1280, 256  ; ... what each tile is to a car ...
+tile_colour     .binary "tiles.bin", 1536, 256  ; ... and its colour, for colour memory
 city_map        .binary "map.bin"               ; one tile number per tile, row by row
+map_end
 .if MUSIC != 0
 ; The tune waits here and is copied to the address it was written for when the program starts. Padded with
 ; zeroes to a whole page, because the copy works in pages.

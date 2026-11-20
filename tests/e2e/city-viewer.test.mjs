@@ -90,7 +90,7 @@ test('the program owns the machine: ROMs out, the stack empty at the top of the 
 test('the character set, tiles and map are in memory where the program expects them', () =>
   run(async (vice) => {
     assert.ok((await vice.read(L.charset, 2048)).equals(assets.chars), 'character set');
-    assert.ok((await vice.read(L.tile_tl, 6 * 256)).equals(assets.tiles), 'tile definitions, character colours and tile kinds');
+    assert.ok((await vice.read(L.tile_tl, assets.tiles.length)).equals(assets.tiles), 'tile definitions, character colours, tile kinds and colours');
     assert.ok((await vice.read(L.city_map, assets.map.length)).equals(assets.map), 'map');
   }));
 
