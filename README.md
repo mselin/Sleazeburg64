@@ -127,6 +127,7 @@ game started directly, and that both tunes produce sound. It cannot judge how th
 | `tests/e2e/traffic-model.mjs` | The same for the traffic, and what the multiplexer makes of it. |
 | `tests/e2e/*.test.mjs` | The end-to-end tests. |
 | `site/index.html` | The play page CI publishes with GitHub Pages, next to the tested program. |
+| `site/icon-*.png` | The play page's icons: copies of the browser version's, which its `tools/make-icons.mjs` draws. |
 | `music/` | Credits for the tunes, and the rules for using them. No tune files. |
 
 **Graphics.** The screen is in multicolour character mode: every character pixel is two screen pixels wide and
