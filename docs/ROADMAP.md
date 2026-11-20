@@ -11,8 +11,9 @@ Each item has a matching issue; this page is the overview.
 - **1b. Smooth scrolling** (done, not yet tried on real hardware). Eight-way pixel scrolling using the VIC
   fine-scroll registers and a second screen, with colour memory worked out after each swap ahead of the beam.
   Top speed 4 pixels a frame, one character every two frames, as fast as the browser game's sports car.
-- **1c. A car you can drive.** One sprite with pre-rotated frames, steering and speed in fixed-point
-  arithmetic, and collision with buildings. The view follows the car.
+- **1c. A car you can drive** (done, not yet tried on real hardware). One sprite in 16 directions, the
+  browser game's handling in fixed point (including the slide), collision with buildings and trees, and the
+  view following the car. Top speed 4 pixels a frame, as fast as the view can scroll.
 
 If 1b and 1c feel right on real hardware, the rest is a long list of known work.
 

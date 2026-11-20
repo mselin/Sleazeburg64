@@ -9,7 +9,8 @@
 ;
 ; Colour memory cannot be doubled like that. Each character has one colour (see tools/assets.mjs), so after a
 ; swap colour memory is worked out again from the new screen, from the top down, straight after the bottom
-; interrupt: it keeps ahead of the video chip, which reads each row's colours on that row's bad line.
+; interrupt: it keeps ahead of the video chip, which reads each row's colours on that row's bad line. The
+; routines that do it are written at start (see write_colour).
 ;
 ; The cost sets the top speed. Moving a screen and drawing its edges takes about a third of a frame and
 ; working out colour memory about two thirds, so the window can cross at most one character every two
@@ -18,9 +19,11 @@
 
 SCREEN_A        = $3000
 SCREEN_B        = $3400
-ROWS            = 21            ; rows of city in each screen. Rows 21-23 are the panel, the same in both.
+PANEL_SCREEN    = $0400             ; the panel's own: only its rows 21-23 are shown
+ROWS            = 21            ; rows of city in each screen; the panel shows rows 21-23 of PANEL_SCREEN
 D018_A          = (SCREEN_A & $3fff) / $400 * 16 | (charset & $3fff) / $800 * 2
 D018_B          = (SCREEN_B & $3fff) / $400 * 16 | (charset & $3fff) / $800 * 2
+D018_PANEL      = (PANEL_SCREEN & $3fff) / $400 * 16 | (charset & $3fff) / $800 * 2
 
 video           .block
 
@@ -39,6 +42,7 @@ city_row        .byte ?         ; the row of characters in the city that is bein
 rows_left       .byte ?
 k               .byte ?         ; tile in the map row
 j               .byte ?         ; screen column
+mp_loop         .word ?
                 .send
 
 ; Add an 8-bit constant to a 16-bit zero page pointer.
@@ -74,6 +78,10 @@ init            lda #BLACK
                 sta SCREEN_B + $100,x
                 sta SCREEN_B + $200,x
                 sta SCREEN_B + $300,x
+                sta PANEL_SCREEN,x
+                sta PANEL_SCREEN + $100,x
+                sta PANEL_SCREEN + $200,x
+                sta PANEL_SCREEN + $300,x
                 inx
                 bne -
                 lda #0                  ; the first picture goes straight onto screen A
@@ -85,10 +93,19 @@ init            lda #BLACK
                 ldx #1
                 jsr char_of
                 sta cell + 1
+                lda #<COLOUR_A
+                sta ptr
+                lda #>COLOUR_A
+                sta ptr + 1
+                lda #>SCREEN_A
+                jsr write_colour
+                lda #>SCREEN_B          ; ptr is where the first one ended: COLOUR_B
+                jsr write_colour
+                jsr write_copies
                 lda #>SCREEN_A
                 sta target
                 jsr draw_all
-                jsr colour_a
+                jsr COLOUR_A
                 jsr fine
                 lda frame.next_d011
                 sta frame.cur_d011
@@ -163,7 +180,7 @@ show            ldx front
                 sta frame.next_d018
                 rts
 
-screen_hi       .byte >SCREEN_A, >SCREEN_B
+screen_hi       .byte >SCREEN_A, >SCREEN_B, >SCREEN_A  ; the third: "the other one" from B
 d018_of         .byte D018_A, D018_B
 
 ; Colour memory for the screen that has just come in. Called straight after the bottom interrupt.
@@ -172,8 +189,8 @@ after_swap      lda swapped
                 beq +
                 lda front
                 beq colour_a_far
-                jmp colour_b
-colour_a_far    jmp colour_a
+                jmp COLOUR_B
+colour_a_far    jmp COLOUR_A
 +               rts
 
 ; Fill the back screen with the front one moved by dcol and drow, then draw what came into view.
@@ -185,19 +202,16 @@ shift           lda drow                ; which way: (drow + 1) * 3 + dcol + 1
                 adc dcol
                 clc
                 adc #4
-                tay
-                lda delta_lo,y
-                sta src
-                ldx front
-                lda screen_hi,x
+                ldx front               ; and which screen to which: nine for each
+                beq +
                 clc
-                adc delta_hi,y
-                sta src + 1
-                lda #0
-                sta dst
-                lda target
-                sta dst + 1
-                jsr copy
+                adc #9
++               tax
+                lda copy_lo,x
+                sta copy_jump + 1
+                lda copy_hi,x
+                sta copy_jump + 2
+copy_jump       jsr $ffff               ; one of the routines write_copies made
                 ldx dcol
                 beq +
                 lda #0
@@ -216,43 +230,96 @@ edge_row        jmp draw_row
 
 ; Where the new screen's characters come from in the old one: 40 * drow + dcol.
 DELTAS          = (-41, -40, -39, -1, 0, 1, 39, 40, 41)
+
+; The copies. Each moves ROWS rows of 40 characters from one screen to the other, from a fixed offset: an
+; unrolled run of
+;       lda from + 40 * row + delta,x   4 or 5 cycles
+;       sta to + 40 * row,x             5
+; for each row, in a loop over the 40 columns. What it copies from outside the old screen's city rows lands
+; on the edges, which are drawn afresh after it. There are 18 (two screens, nine ways), made at start.
+COPIES          = $c400
+COPY_SIZE       = 2 + ROWS * 6 + 1 + 2 + 3 + 1  ; ldx #39, the rows, dex, bmi, jmp, rts
+                .cerror COPIES + 18 * COPY_SIZE > $d000, "the copies run into the I/O area"
+                .cerror COPIES < SQUARES + 1024, "the copies run into the multiplication tables"
+copy_lo         .byte <(COPIES + range(18) * COPY_SIZE)
+copy_hi         .byte >(COPIES + range(18) * COPY_SIZE)
 delta_lo        .byte <(DELTAS + $10000)
 delta_hi        .byte >(DELTAS + $10000)
 
-; Copy ROWS rows of 40 characters from src to dst. The loop is unrolled over the rows and the addresses are
-; written into it first. What it copies from outside the old screen's city rows lands on the edges, which
-; are drawn afresh after it.
-copy            lda #<(body + 1)
+; Write the 18 copies at COPIES.
+write_copies    lda #<COPIES
                 sta ptr
-                lda #>(body + 1)
+                lda #>COPIES
                 sta ptr + 1
-                ldx #ROWS
--               ldy #0
+                lda #0
+                sta j                   ; 0: SCREEN_A to SCREEN_B, then 1: the other way
+next_pair       lda #0
+                sta k                   ; which way, 0-8
+next_way        ldy #0
+                lda #$a2                ; ldx #39
+                jsr emit
+                lda #39
+                jsr emit
+                ldx j                   ; from: the front screen plus the offset
+                lda screen_hi,x
+                ldx k
+                clc
+                adc delta_hi,x
+                sta src + 1
+                lda delta_lo,x
+                sta src
+                ldx j                   ; to: the other screen
+                lda screen_hi + 1,x
+                .cerror d018_of - screen_hi != 3, "write_copies needs screen_hi's third entry"
+                sta dst + 1
+                lda #0
+                sta dst
+                lda ptr                 ; the loop starts here
+                sta mp_loop
+                lda ptr + 1
+                sta mp_loop + 1
+                lda #ROWS
+                sta rows_left
+-               lda #$bd                ; lda src,x
+                jsr emit
                 lda src
-                sta (ptr),y
-                iny
+                jsr emit
                 lda src + 1
-                sta (ptr),y
-                ldy #3
+                jsr emit
+                lda #$9d                ; sta dst,x
+                jsr emit
                 lda dst
-                sta (ptr),y
-                iny
+                jsr emit
                 lda dst + 1
-                sta (ptr),y
+                jsr emit
                 #advance src, 40
                 #advance dst, 40
-                #advance ptr, 6
-                dex
+                dec rows_left
                 bne -
-                ldx #39
-body
-                .rept ROWS
-                lda $ffff,x
-                sta $ffff,x
-                .endrept
-                dex
-                bmi +
-                jmp body
+                lda #$ca                ; dex
+                jsr emit
+                lda #$30                ; bmi +3
+                jsr emit
+                lda #3
+                jsr emit
+                lda #$4c                ; jmp loop
+                jsr emit
+                lda mp_loop
+                jsr emit
+                lda mp_loop + 1
+                jsr emit
+                lda #$60                ; rts
+                jsr emit
+                inc k
+                lda k
+                cmp #9
+                beq +
+                jmp next_way
++               inc j
+                lda j
+                cmp #2
+                beq +
+                jmp next_pair
 +               rts
 
 ; Draw every row of the screen at target from the map.
@@ -266,7 +333,8 @@ draw_all        lda #0
                 bne -
                 rts
 
-; Draw screen row A of the screen at target from the map.
+; Draw screen row A of the screen at target from the map. Each tile gives two characters side by side, so
+; the loop goes a tile at a time; a row that starts or ends on half a tile does that half on its own.
 draw_row        tax
                 lda row40_lo,x
                 sta ptr
@@ -295,17 +363,27 @@ draw_row        tax
                 pha
                 adc #>tile_tl
                 sta left + 2
+                sta last_left + 2
                 pla
                 adc #>tile_tr
                 sta right + 2
-                lda #0
-                sta k
-                tay
+                sta first_right + 2
+                ldy #0                  ; Y: the screen column
+                sty k
                 plp
-                bcs right_half
-left_half       sty j
+                bcc pairs
+                lda (map_ptr),y         ; starting on a right half: that first, on its own
+                tax
+first_right     lda tile_tr,x
+                sta (ptr),y
+                iny
+                inc map_ptr
+                bne pairs
+                inc map_ptr + 1
+pairs           sty j
                 ldy k
-                lda (map_ptr),y
+                lda (map_ptr),y         ; a whole tile: two characters
+                inc k
                 tax
                 ldy j
 left            lda tile_tl,x           ; tile_tl or tile_bl
@@ -313,25 +391,24 @@ left            lda tile_tl,x           ; tile_tl or tile_bl
                 iny
                 cpy #40
                 beq +
-right_half      sty j
+right           lda tile_tr,x           ; tile_tr or tile_br
+                sta (ptr),y
+                iny
+                cpy #39
+                bcc pairs
+                bne +
+                sty j                   ; one column left: the left half of one more tile
                 ldy k
                 lda (map_ptr),y
                 tax
                 ldy j
-right           lda tile_tr,x           ; tile_tr or tile_br
+last_left       lda tile_tl,x
                 sta (ptr),y
-                inc k
-                iny
-                cpy #40
-                bne left_half
 +               rts
 
-; Draw screen column A of the screen at target from the map.
-draw_col        sta j
-                sta ptr
-                lda target
-                sta ptr + 1
-                lda j
+; Draw screen column A of the screen at target from the map. Each tile gives two characters one above the
+; other, so the loop goes a tile at a time, writing 40 characters apart.
+draw_col        sta ptr
                 clc
                 adc cell
                 lsr                     ; the tile column; carry set for the right halves
@@ -339,15 +416,16 @@ draw_col        sta j
                 lda #>tile_tl
                 adc #0
                 sta upper + 2           ; tile_tl or tile_tr ...
+                sta last_upper + 2
                 adc #2
                 sta lower + 2           ; ... and two pages on, tile_bl or tile_br
-                lda cell + 1
-                sta city_row
-                lda #ROWS
-                sta rows_left
--               lda city_row
+                sta first_lower + 2
+                lda target
+                sta ptr + 1
+                lda cell + 1            ; the tile row of the first character, and where it is on the map
                 lsr
                 tax
+                php                     ; carry: the column starts on a lower half
                 lda row_lo,x
                 clc
                 adc k
@@ -355,42 +433,107 @@ draw_col        sta j
                 lda row_hi,x
                 adc #0
                 sta map_ptr + 1
+                lda #ROWS
+                sta rows_left
+                ldy #0
+                plp
+                bcc col_pairs
+                lda (map_ptr),y         ; a lower half on its own first
+                tax
+first_lower     lda tile_bl,x
+                sta (ptr),y
+                #advance ptr, 40
+                #advance map_ptr, MAP_SIZE
+                dec rows_left
+col_pairs       lda rows_left
+                cmp #2
+                bcc col_end
+                ldy #0
+                lda (map_ptr),y         ; a whole tile: two characters, one under the other
+                tax
+upper           lda tile_tl,x
+                sta (ptr),y
+                ldy #40
+lower           lda tile_bl,x
+                sta (ptr),y
+                #advance ptr, 80
+                #advance map_ptr, MAP_SIZE
+                dec rows_left
+                dec rows_left
+                jmp col_pairs
+col_end         lda rows_left               ; one row left: the upper half of one more tile
+                beq +
                 ldy #0
                 lda (map_ptr),y
                 tax
-                lda city_row
-                lsr
-                bcs lower
-upper           lda tile_tl,x
-                jmp +
-lower           lda tile_bl,x
-+               sta (ptr),y
-                #advance ptr, 40
-                inc city_row
-                dec rows_left
+last_upper      lda tile_tl,x
+                sta (ptr),y
++               rts
+
+; Colour memory for the city rows from a screen: each character's colour from char_colour, row by row from
+; the top, so it keeps ahead of the video chip. This is the busiest work there is, so it is a straight run
+; of 840 lots of
+;       ldy screen + n          4 cycles
+;       lda char_colour,y       4 (the table is page aligned, so never 5)
+;       sta COLOUR_RAM + n      4
+; with no loop at all: 12 cycles a character. That is 7.5K of code for each screen, too much to load, so
+; init writes it, into memory the video chip does not need.
+COLOUR_A        = $8000
+COLOUR_B        = COLOUR_A + ROWS * 40 * 9 + 1
+                .cerror COLOUR_B + ROWS * 40 * 9 + 1 > SQUARES, "the colour routines run into the multiplication tables"
+                .cerror program_end > COLOUR_A, "the program runs into where the colour routines go"
+                .cerror (char_colour & $ff) != 0, "char_colour must start a page"
+
+; Write the colour routine for the screen whose high byte is in A, at ptr.
+write_colour    sta src + 1
+                lda #0
+                sta src
+                lda #<COLOUR_RAM
+                sta dst
+                lda #>COLOUR_RAM
+                sta dst + 1
+                lda #<(ROWS * 40)
+                sta k
+                lda #>(ROWS * 40)
+                sta j
+                ldy #0
+-               lda #$ac                ; ldy src
+                jsr emit
+                lda src
+                jsr emit
+                lda src + 1
+                jsr emit
+                lda #$b9                ; lda char_colour,y
+                jsr emit
+                lda #<char_colour
+                jsr emit
+                lda #>char_colour
+                jsr emit
+                lda #$8d                ; sta dst
+                jsr emit
+                lda dst
+                jsr emit
+                lda dst + 1
+                jsr emit
+                inc src
+                bne +
+                inc src + 1
++               inc dst
+                bne +
+                inc dst + 1
++               lda k                   ; one character fewer to go
+                bne +
+                dec j
++               dec k
+                lda k
+                ora j
                 bne -
-                rts
-
-; Colour memory for the city rows from a screen: each character's colour from char_colour. Row by row from
-; the top, ten columns at a time, so it keeps ahead of the video chip. One copy for each screen, unrolled for
-; speed: this is the busiest work there is.
-colour_of       .macro screen
-                .for r := 0, r < ROWS, r += 1
-                ldx #9
--
-                .for c := 0, c < 40, c += 10
-                ldy \screen + 40 * r + c,x
-                lda char_colour,y
-                sta COLOUR_RAM + 40 * r + c,x
-                .next
-                dex
-                bpl -
-                .next
-                rts
-                .endm
-
-colour_a        #colour_of SCREEN_A
-colour_b        #colour_of SCREEN_B
+                lda #$60                ; rts
+emit            sta (ptr),y
+                inc ptr
+                bne +
+                inc ptr + 1
++               rts
 
 row40_lo        .byte <(range(ROWS) * 40)
 row40_hi        .byte >(range(ROWS) * 40)

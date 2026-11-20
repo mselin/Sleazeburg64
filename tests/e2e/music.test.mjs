@@ -20,7 +20,8 @@ for (const role of ['title', 'ingame'])
 
 // The game with a tune. Its labels and program go where the title screen's source looks for them.
 const GAME_DIR = `${OUT}/music`;
-const game = assemble('music/sleazeburg64-ingame', { defs: { MUSIC: 1 }, include: [TUNES] });
+// VIEWER: the stick moves the window itself, so these tests can scroll exactly as they need.
+const game = assemble('music/sleazeburg64-ingame', { defs: { MUSIC: 1, VIEWER: 1 }, include: [TUNES] });
 execFileSync('cp', [game.labelFile, `${GAME_DIR}/labels-ingame.txt`], { cwd: ROOT });
 const title = assemble('music/title', { source: 'src/title.asm', include: [GAME_DIR, TUNES] });
 const G = game.labels;
@@ -67,12 +68,42 @@ test('with the tune\'s load the game still makes every frame in time, and every 
       await vice.runTo(G.ready);
       const [x, y] = await camera(vice, G);
       assert.deepEqual([x, y], [144 + 4 * pass, 128 + 4 * pass]);
-      assert.deepEqual(await screenMismatches(vice, x, y), [], `screen and colours after ${pass} frames`);
+      assert.deepEqual(await screenMismatches(vice, x, y, G), [], `screen and colours after ${pass} frames`);
       await vice.runTo(G['frame.bottom']);
       assert.deepEqual(await pictureMismatches(vice, x, y), [], `the picture after ${pass} frames`);
     }
     assert.equal(await missed() - before, 0, 'no frame was late');
   }));
+
+test('driving the car flat out with the tune playing: the car follows the model and no frame is late', async (t) => {
+  const withCar = assemble('music/car', { defs: { MUSIC: 1 }, include: [TUNES] });
+  const { Car } = await import('./car-model.mjs');
+  const { Camera, CENTRE_X, CENTRE_Y } = await import('./game.mjs');
+  const C = withCar.labels;
+  return withProgram(withCar.prg, async (vice) => {
+    await vice.runTo(C.ready);
+    const car = new Car(144 + CENTRE_X, 128 + CENTRE_Y), cam = new Camera(144, 128);
+    const missed = async () => (await vice.read(C['frame.missed'], 2)).readUInt16LE(0);
+    // The first frame after start can be missed: setting up can end too near the bottom of the screen for
+    // the first pass to make it. Count from the second.
+    car.step(0);
+    cam.follow(car.px, car.py);
+    await vice.runTo(C.ready);
+    const before = await missed();
+    let latest = 0;
+    await vice.joystick(JOY.UP);
+    for (let frame = 1; frame <= 240; frame++) {
+      car.step(JOY.UP);
+      cam.follow(car.px, car.py);
+      await vice.runTo(C['frame.publish']);
+      latest = Math.max(latest, ((await vice.registers()).LIN - 250 + 312) % 312);
+      await vice.runTo(C.ready);
+      assert.deepEqual(await camera(vice, C), [cam.x, cam.y], `the window after ${frame} frames`);
+    }
+    t.diagnostic(`with the tune, the busiest pass was ready ${latest} raster lines after the bottom interrupt, of 312`);
+    assert.equal(await missed() - before, 0, 'no frame was late');
+  });
+});
 
 test('the panel credits the tune: title, then author and copyright, then the hint, and round again', () =>
   withProgram(game.prg, async (vice) => {
@@ -159,7 +190,7 @@ test('fire on the title screen starts the game, moved into place whole and playi
     // The machine is the game's: it draws, keeps its frames, and plays its own tune.
     await vice.runTo(G.ready);
     assert.equal((await vice.read(0x01, 1))[0] & 7, 5);
-    assert.deepEqual(await screenMismatches(vice, 144, 128), [], 'the city is drawn');
+    assert.deepEqual(await screenMismatches(vice, 144, 128, G), [], 'the city is drawn');
     assert.equal((await readPanel(vice))[2], 'MUSIC: TEST TUNE');
     const start = await counter(vice);
     await vice.frames(G['frame.shown'], 50);

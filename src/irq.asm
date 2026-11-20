@@ -3,8 +3,8 @@
 ;
 ; Two interrupts a frame:
 ;
-;   line 213  The split. The city ends after line 215 whatever its fine scroll, lines 216-222 are black, and
-;             the status panel starts on line 223 in its own mode, colours and scroll.
+;   line 213  The split. The city ends after line 215 whatever its fine scroll and lines 216-222 are black.
+;   line 221  The panel starts on line 223 in its own mode, colours and scroll.
 ;   line 250  In the bottom border. Puts in place the city's mode, fine scroll and screen for the next
 ;             frame, and plays the music.
 ;
@@ -30,6 +30,7 @@
 SPLIT_LINE      = 213
 BLACK_LINE      = 216
 PANEL_LINE      = 223
+PANEL_IRQ_LINE  = 221
 BOTTOM_LINE     = 250
 CITY_D011       = %00010000     ; screen on, 24 rows; the fine scroll goes in bits 0-2
 CITY_D016       = %00010000     ; multicolour, 38 columns; the fine scroll goes in bits 0-2
@@ -44,15 +45,34 @@ commit          .byte ?         ; 1 when next_ holds a frame for the bottom inte
 next_d011       .byte ?
 next_d016       .byte ?
 next_d018       .byte ?
+next_sx         .byte ?         ; the car's sprite: x (low 8 bits), x bit 8, y, pointer, and whether it is on
+next_sxh        .byte ?
+next_sy         .byte ?
+next_sp         .byte ?
+next_d015       .byte ?
 cur_d011        .byte ?         ; what the city is shown with this frame
 cur_d016        .byte ?
 cur_d018        .byte ?
+cur_sx          .byte ?
+cur_sxh         .byte ?
+cur_sy          .byte ?
+cur_sp          .byte ?
+cur_d015        .byte ?
 count           .word ?         ; frames shown
 missed          .word ?         ; frames shown again because the main loop had not finished the next one
                 .send
 
 ; Start the interrupts with the city shown as cur_ says. The caller clears the interrupt mask.
 init            lda #0
+                sta cur_d015            ; no sprite until the main loop places one
+                sta next_d015
+                sta SPRITE_MC
+                sta SPRITE_EXPAND_X
+                sta SPRITE_EXPAND_Y
+                sta SPRITE_BEHIND
+                lda #RED
+                sta SPRITE_COLOUR
+                lda #0
                 sta commit
                 sta count
                 sta count + 1
@@ -116,7 +136,9 @@ scroll7         lda #BLACK_LINE - 1     ; scroll 7: line 215 is row 20's bad lin
                 nop
                 lda #BLACK_D011
 black_7         sta VIC_CTRL1
-band            lda #BLACK
+band            lda #0                  ; no sprites below the city
+                sta SPRITE_ON
+                lda #BLACK
                 sta VIC_BACKGROUND
                 lda #PANEL_D016
                 sta VIC_CTRL2
@@ -125,11 +147,34 @@ band            lda #BLACK
 -               cpx VIC_RASTER
                 bne -
                 sta VIC_CTRL1
+                lda #PANEL_IRQ_LINE     ; the panel's own interrupt next, rather than waiting here
+                sta VIC_RASTER
+                lda #<panel_irq
+                sta $fffe
+                lda #>panel_irq
+                sta $ffff
+                lda #1
+                sta VIC_IRQ
+                pla
+                tay
+                pla
+                tax
+                pla
+                rti
+
+; Line 221, in the black band, where no bad line can hold it up.
+panel_irq       pha
+                txa
+                pha
+                tya
+                pha
                 ldx #PANEL_D011
                 lda #PANEL_LINE - 1
 -               cmp VIC_RASTER
                 bne -
-                ldy #10                 ; 49 cycles: to the end of line 222's picture
+                lda #D018_PANEL         ; the panel's screen, before its bad line reads it
+                sta VIC_MEMORY
+                ldy #9                  ; 44 cycles + the 6 above: to the end of line 222's picture
 -               dey
                 bne -
 panel_on        stx VIC_CTRL1           ; lands in cycles 57-63 of line 222
@@ -161,6 +206,12 @@ bottom          pha
                 sta cur_d016
                 lda next_d018
                 sta cur_d018
+                ldx #4
+-               lda next_sx,x
+                sta cur_sx,x
+                dex
+                bpl -
+                .cerror next_d015 - next_sx != 4 || cur_d015 - cur_sx != 4, "the sprite registers are copied as five"
                 lda #0
                 sta commit
                 beq +
@@ -175,6 +226,17 @@ late            inc missed
                 sta VIC_MEMORY
                 lda #DARK_GREY
                 sta VIC_BACKGROUND
+                lda cur_sx
+                sta SPRITE_X
+                lda cur_sxh
+                sta SPRITE_X_HIGH
+                lda cur_sy
+                sta SPRITE_Y
+                lda cur_sp
+                sta SCREEN_A + $3f8
+                sta SCREEN_B + $3f8
+                lda cur_d015
+                sta SPRITE_ON
                 inc count
                 bne +
                 inc count + 1
