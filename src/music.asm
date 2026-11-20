@@ -77,8 +77,7 @@ show_credit     lda #CREDIT_FRAMES
                 sta from + 1
                 ldy #39
 -               lda (from),y
-                sta SCREEN_A + panel.LINE3,y
-                sta SCREEN_B + panel.LINE3,y
+                sta PANEL_SCREEN + panel.LINE3,y
                 dey
                 bpl -
 done            rts

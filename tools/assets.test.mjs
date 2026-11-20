@@ -5,13 +5,14 @@ import { execFileSync } from 'node:child_process';
 import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { CITY_CHECKSUM, MW, ROAD, WALK, WATER, checksum, generate } from './city.mjs';
+import { BLD, CITY_CHECKSUM, FOUNT, GRASS, MW, ROAD, TREE, WALK, WATER, checksum, generate } from './city.mjs';
 
 const dir = mkdtempSync(join(tmpdir(), 'sleazeburg-assets-'));
 execFileSync(process.execPath, [new URL('./assets.mjs', import.meta.url).pathname, dir]);
 const chars = readFileSync(join(dir, 'chars.bin'));
 const tiles = readFileSync(join(dir, 'tiles.bin'));
 const map = readFileSync(join(dir, 'map.bin'));
+const car = readFileSync(join(dir, 'car.bin'));
 
 test('the city is the same one as in the browser game', () => {
   const city = generate();
@@ -23,7 +24,8 @@ test('the city is the same one as in the browser game', () => {
 
 test('the files are the sizes the program expects', () => {
   assert.equal(chars.length, 2048, '256 characters of 8 bytes');
-  assert.equal(tiles.length, 5 * 256, 'four characters for each of 256 tiles, and a colour for each character');
+  assert.equal(tiles.length, 6 * 256, 'four characters for each of 256 tiles, a colour for each character, a kind for each tile');
+  assert.equal(car.length, 16 * 64, 'the car in 16 directions, a sprite each');
   assert.equal(map.length, MW * MW);
 });
 
@@ -59,4 +61,23 @@ test('the font is in place: A is character 1 and is not blank', () => {
   assert.deepEqual([...chars.subarray(32 * 8, 33 * 8)], [0, 0, 0, 0, 0, 0, 0, 0], 'space is blank');
   // Text is drawn two-colour, so font characters only use whole screen pixels in the left six columns.
   for (let ch = 0; ch < 64; ch++) for (let r = 0; r < 8; r++) assert.equal(chars[ch * 8 + r] & 0x83, 0);
+});
+
+test('every tile has the kind its ground has in the city: buildings and trees are walls, grass is grass', () => {
+  const city = generate();
+  const kindOf = { [BLD]: 1, [TREE]: 1, [GRASS]: 2, [WATER]: 3, [FOUNT]: 3 };
+  for (let i = 0; i < map.length; i++) assert.equal(tiles[1280 + map[i]], kindOf[city.map[i]] ?? 0, `tile ${i % MW},${Math.floor(i / MW)}`);
+});
+
+test('the car looks the same turned a quarter turn: its 16 directions are one shape rotated', () => {
+  const pixel = (k, i, j) => (car[k * 64 + j * 3 + (i >> 3)] >> (7 - (i & 7))) & 1;
+  const count = (k) => { let n = 0; for (let j = 0; j < 21; j++) for (let i = 0; i < 24; i++) n += pixel(k, i, j); return n; };
+  // Facing east and facing south are the same picture turned about the car's centre, sprite pixel (12, 10).
+  for (let j = 0; j < 21; j++)
+    for (let i = 0; i < 24; i++) {
+      const si = 12 - (j - 10), sj = 10 + (i - 12); // (i, j) turned a quarter turn clockwise
+      if (si >= 0 && si < 24 && sj >= 0 && sj < 21) assert.equal(pixel(4, si, sj), pixel(0, i, j), `pixel ${i},${j}`);
+    }
+  for (let k = 0; k < 16; k++) assert.ok(count(k) > 120 && count(k) < 200, `direction ${k} has a car-sized number of pixels (${count(k)})`);
+  for (let k = 0; k < 16; k++) assert.equal(car[k * 64 + 63], 0, 'the 64th byte of each sprite is unused');
 });

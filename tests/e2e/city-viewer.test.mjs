@@ -10,7 +10,7 @@ import {
   frontScreen, pictureMismatches, readPanel, screenMismatches, withProgram,
 } from './game.mjs';
 
-const game = assemble('city-viewer');
+const game = assemble('city-viewer', { defs: { VIEWER: 1 } });
 const L = game.labels;
 const START = [9 * 16, 8 * 16];
 
@@ -28,7 +28,7 @@ const run = (body, program = game) =>
 async function assertFrame(vice, x, y, what = '') {
   assert.deepEqual(await camera(vice, L), [x, y], `where the window is ${what}`);
   assert.equal((await readPanel(vice))[1], expectedReadout(x, y), `the readout ${what}`);
-  assert.deepEqual(await screenMismatches(vice, x, y), [], `screen and colour memory at ${x},${y} ${what}`);
+  assert.deepEqual(await screenMismatches(vice, x, y, L), [], `screen and colour memory at ${x},${y} ${what}`);
   await vice.runTo(L['frame.bottom']);
   assert.deepEqual(await pictureMismatches(vice, x, y), [], `the picture at ${x},${y} ${what}`);
 }
@@ -90,7 +90,7 @@ test('the program owns the machine: ROMs out, the stack empty at the top of the 
 test('the character set, tiles and map are in memory where the program expects them', () =>
   run(async (vice) => {
     assert.ok((await vice.read(L.charset, 2048)).equals(assets.chars), 'character set');
-    assert.ok((await vice.read(L.tile_tl, 5 * 256)).equals(assets.tiles), 'tile definitions and character colours');
+    assert.ok((await vice.read(L.tile_tl, 6 * 256)).equals(assets.tiles), 'tile definitions, character colours and tile kinds');
     assert.ok((await vice.read(L.city_map, assets.map.length)).equals(assets.map), 'map');
   }));
 
@@ -147,10 +147,10 @@ for (const [corner, x, y, bits] of [
     }));
 
 test('the starting tile can be chosen at build time', () => {
-  const elsewhere = assemble('city-viewer-elsewhere', { defs: { START_X: 40, START_Y: 60 } });
+  const elsewhere = assemble('city-viewer-elsewhere', { defs: { VIEWER: 1, START_X: 40, START_Y: 60 } });
   return run(async (vice) => {
     assert.deepEqual(await camera(vice, elsewhere.labels), [640, 960]);
-    assert.deepEqual(await screenMismatches(vice, 640, 960), []);
+    assert.deepEqual(await screenMismatches(vice, 640, 960, elsewhere.labels), []);
   }, elsewhere);
 });
 
@@ -159,6 +159,8 @@ test('a long wander: the window follows the stick exactly, both screens stay rig
     const model = new Camera(...START);
     let seed = 64;
     const random = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) >>> 16;
+    model.step(0); // the first frame after start can be missed: count from the second
+    await vice.runTo(L.ready);
     const missedBefore = (await vice.read(L['frame.missed'], 2)).readUInt16LE(0);
     let bits = 0;
     for (let pass = 0; pass < 1200; pass++) {
@@ -169,7 +171,7 @@ test('a long wander: the window follows the stick exactly, both screens stay rig
       model.step(bits);
       await vice.runTo(L.ready);
       assert.deepEqual(await camera(vice, L), [model.x, model.y], `after ${pass + 1} passes`);
-      if (pass % 50 === 0) assert.deepEqual(await screenMismatches(vice, model.x, model.y), [], `after ${pass + 1} passes`);
+      if (pass % 50 === 0) assert.deepEqual(await screenMismatches(vice, model.x, model.y, L), [], `after ${pass + 1} passes`);
     }
     assert.equal((await vice.registers()).SP, 0xff, 'the stack is where it started');
     const missed = (await vice.read(L['frame.missed'], 2)).readUInt16LE(0) - missedBefore;
@@ -206,7 +208,7 @@ test('the hidden screen is not shown while it is being drawn: the shown one neve
     await vice.joystick(JOY.RIGHT | JOY.FIRE);
     for (let pass = 0; pass < 12; pass++) {
       await vice.runTo(L.ready);
-      const shown = await frontScreen(vice);
+      const shown = await frontScreen(vice, L);
       const before = await vice.read(shown, ROWS * 40);
       await vice.runTo(L['frame.bottom']); // the pass draws whatever it draws
       assert.ok((await vice.read(shown, ROWS * 40)).equals(before), `the shown screen stayed as it was (pass ${pass + 1})`);

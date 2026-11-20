@@ -5,6 +5,15 @@ CPU_PORT        = $01           ; memory configuration
 SCREEN          = $0400         ; 40x25 character codes
 COLOUR_RAM      = $d800         ; 40x25 colour nybbles
 
+SPRITE_X        = $d000         ; sprite 0's position: x low 8 bits, y; x bit 8 of all eight in $d010
+SPRITE_Y        = $d001
+SPRITE_X_HIGH   = $d010
+SPRITE_ON       = $d015
+SPRITE_EXPAND_Y = $d017
+SPRITE_BEHIND   = $d01b
+SPRITE_MC       = $d01c
+SPRITE_EXPAND_X = $d01d
+SPRITE_COLOUR   = $d027         ; sprite 0's colour
 VIC_CTRL1       = $d011         ; vertical scroll, 25 rows, screen on, raster bit 8
 VIC_RASTER      = $d012
 VIC_CTRL2       = $d016         ; horizontal scroll, 40 columns, multicolour

@@ -1,14 +1,15 @@
 ; SPDX-License-Identifier: GPL-2.0-or-later
 ; Sleazeburg 64 for the Commodore 64.
 ;
-; Milestone 1b: the city viewer with smooth scrolling. A joystick in port 2 moves the view a pixel at a time
-; in eight directions, and a raster split keeps the status panel still under it. The car and everything
-; else come later.
+; Milestone 1c: a car to drive around the city. A joystick in port 2 drives it, the view scrolls smoothly to
+; follow it, and a raster split keeps the status panel still under the city. Traffic, people and the game
+; itself come later.
 ;
 ; Assemble with 64tass (see the Makefile). Build options, set with -D on the command line:
-;   START_X, START_Y   the tile in the top left corner of the view at start
-;   AUTOPILOT          1 makes the view drive itself for a while, for the emulator test
+;   START_X, START_Y   the tile in the top left corner of the view at start; the car starts in its middle
+;   AUTOPILOT          1 makes the car drive itself for a while, for the emulator test
 ;   MUSIC              1 plays a tune during the game: a test build, see music/README.md
+;   VIEWER             1 has no car: the stick moves the view itself, as in milestone 1b, for testing scrolling
 
         .cpu "6502"
         .include "c64.inc"
@@ -18,6 +19,7 @@ START_X         = 9
 START_Y         = 8
 AUTOPILOT       = 0
 MUSIC           = 0
+VIEWER          = 0
                 .endweak
 .if MUSIC != 0
                 .include "tune-ingame.inc"
@@ -29,13 +31,19 @@ VIEW_W          = 304                   ; the window onto the city: 38 columns o
 VIEW_H          = 161                   ; ... by raster lines 55 to 215
 MAX_X           = MAP_PIXELS - VIEW_W   ; the furthest the window's top left corner can go
 MAX_Y           = MAP_PIXELS - VIEW_H
-SPEED           = 2                     ; pixels per frame while the stick is held
+SPEED           = 2                     ; VIEWER: pixels per frame while the stick is held
 FAST            = 4                     ; and while fire is held too. The most the scrolling allows: see video
+FOLLOW          = 4                     ; the car: the most the view moves towards it in a frame, each way
+CENTRE_X        = VIEW_W / 2            ; where in the window the view keeps the car
+CENTRE_Y        = VIEW_H / 2
+CAR_FRAMES      = $0840                 ; the car's sprite in 16 directions, 64 bytes each
+CAR_SPRITE      = CAR_FRAMES / 64       ; sprite pointer of the first
+SQUARES         = $c000                 ; quarter squares for multiplying (see car.init): 1K, made at start
 
 ; ---------- zero page ----------
                 * = $02
                 .dsection zp
-                .cerror * > $90, "zero page overflow"
+                .cerror * > $e0, "zero page overflow: from $e0 on is the music test builds' tune's"
 
                 .section zp
 cam_lo          .byte ?, ?      ; the window's top left corner in city pixels: [0] across, [1] down
@@ -52,6 +60,10 @@ tmp             .byte ?
                 .word (+), 2026
                 .null $9e, format("%d", start)
 +               .word 0
+
+; ---------- the car's sprite, where the video chip can see it ----------
+                * = CAR_FRAMES
+                .binary "car.bin"
 
 start           sei
                 cld
@@ -79,6 +91,16 @@ start           sei
                 sta cam_hi + 1
                 lda #0
                 sta busy
+.if VIEWER == 0
+                jsr car.init
+                clc                     ; the car in the middle of the window
+                lda #<(START_X * 16 + CENTRE_X)
+                ldx #>(START_X * 16 + CENTRE_X)
+                ldy #>(START_Y * 16 + CENTRE_Y)
+                sty car.sum
+                ldy #<(START_Y * 16 + CENTRE_Y)
+                jsr car.place
+.endif
                 jsr video.init          ; draws the first picture and sets up the raster interrupts
                 jsr panel.init
                 jsr panel.update
@@ -93,7 +115,14 @@ main_loop       jsr frame.wait          ; until the last frame made is on its wa
                 jsr panel.update        ; the readout for that frame, written well away from the panel's lines
                 jsr video.after_swap    ; colour memory, if that frame brought in the other screen
 ready           jsr input.read          ; A = which directions are held
+.if VIEWER == 0
+                jsr car.update
+                jsr follow_car
+                jsr move_both
+                jsr car.show
+.else
                 jsr move_camera
+.endif
                 jsr video.follow        ; fine scroll, and the other screen if the view crossed a character
                 jsr frame.publish
                 jmp main_loop
@@ -118,10 +147,7 @@ move_camera     .block
                 asl
                 jsr axis_step
                 sta step + 1
-                ldx #0
-                jsr move_axis
-                ldx #1
-                jmp move_axis
+                jmp move_both
 
 ; In: A with JOY_LEFT and JOY_RIGHT (or the stick shifted down to put up and down there).
 ; Out: A = -pace, 0 or pace. Both directions at once is no direction.
@@ -140,7 +166,72 @@ axis_step       and #JOY_LEFT | JOY_RIGHT
                 rts
                 .bend
 
-; In: X = 0 across or 1 down.
+move_both       ldx #0
+                jsr move_axis
+                ldx #1
+                jmp move_axis
+
+.if VIEWER == 0
+; Aim the view at the car: step = how far to move the window this frame, at most FOLLOW each way, to put the
+; car at CENTRE_X, CENTRE_Y in it (or as near as the edge of the city lets it).
+follow_car      .block
+                ldx #0
+-               sec                     ; target = car - centre, or 0
+                .cerror car.pos_y - car.pos_x != 3, "follow_car expects pos_y three bytes after pos_x"
+                ldy offset,x
+                lda car.pos_x + 1,y
+                sbc centre_lo,x
+                sta target
+                lda car.pos_x + 2,y
+                sbc centre_hi,x
+                sta target + 1
+                bpl +
+                lda #0
+                sta target
+                sta target + 1
++               lda target              ; no further than MAX
+                cmp max_lo,x
+                lda target + 1
+                sbc max_hi,x
+                bcc +
+                lda max_lo,x
+                sta target
+                lda max_hi,x
+                sta target + 1
++               sec                     ; how far: target - cam, at most FOLLOW either way
+                lda target
+                sbc cam_lo,x
+                sta target
+                lda target + 1
+                sbc cam_hi,x
+                bmi left
+                bne far_right
+                lda target
+                cmp #FOLLOW + 1
+                bcc +
+far_right       lda #FOLLOW
+                bne +
+left            cmp #$ff
+                bne far_left
+                lda target
+                cmp #$100 - FOLLOW
+                bcs +
+far_left        lda #$100 - FOLLOW
++               sta step,x
+                inx
+                cpx #2
+                bne -
+                rts
+offset          .byte 0, 3
+centre_lo       .byte <CENTRE_X, <CENTRE_Y
+centre_hi       .byte >CENTRE_X, >CENTRE_Y
+                .section zp
+target          .word ?
+                .send
+                .bend
+.endif
+
+; In: X = 0 across or 1 down, step,x = how far.
 move_axis       .block
                 lda step,x
                 beq stay
@@ -211,6 +302,9 @@ char_of         lda cam_hi,x
                 .include "input.asm"
                 .include "video.asm"
                 .include "panel.asm"
+.if VIEWER == 0
+                .include "car.asm"
+.endif
 .if MUSIC != 0
                 .include "music.asm"
 .endif
@@ -226,7 +320,8 @@ tile_tl         .binary "tiles.bin", 0, 256     ; character for each quarter of 
 tile_tr         .binary "tiles.bin", 256, 256
 tile_bl         .binary "tiles.bin", 512, 256
 tile_br         .binary "tiles.bin", 768, 256
-char_colour     .binary "tiles.bin", 1024, 256  ; ... and the colour of each character
+char_colour     .binary "tiles.bin", 1024, 256  ; ... the colour of each character
+tile_kind       .binary "tiles.bin", 1280, 256  ; ... and what each tile is to a car
 city_map        .binary "map.bin"               ; one tile number per tile, row by row
 .if MUSIC != 0
 ; The tune waits here and is copied to the address it was written for when the program starts. Padded with

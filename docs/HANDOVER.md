@@ -20,29 +20,32 @@ A briefing for whoever picks this project up next, person or assistant. Written 
 **2. Commodore 64 port (just started, the active work)**
 
 - Repo: `mselin/Sleazeburg64` (this one). 6502 assembly in 64tass syntax.
-- State: milestone 1b, the city viewer with smooth scrolling. Draws the city in multicolour character mode; a
-  joystick in port 2 scrolls it a pixel at a time in eight directions (fire for 4 pixels a frame). A raster
-  split keeps the panel still on black. No car, traffic or sound yet. Not yet tried on real hardware.
+- State: milestone 1c, a car you can drive. The city in multicolour characters, scrolled smoothly to follow
+  a car driven with a joystick in port 2, with the browser game's handling and collisions with buildings and
+  trees. A raster split keeps the panel still on black. No traffic, people or sound yet. None of it has been
+  tried on real hardware.
 - The city comes from the same generator as the browser game (`tools/city.mjs`, checksum-checked).
 - `make` builds `build/sleazeburg64.prg`; `make test` runs asset tests and a headless VICE run that saves
   screenshots. `make music` and `make test-music` do the same for the music test builds.
 - `make test` also runs end-to-end tests (`tests/e2e/`) that drive the program in VICE through its binary
   monitor: joystick in, memory out, one frame at a time. Add to them with every feature.
 - Read `README.md` and `docs/ROADMAP.md` first. The issues cover the roadmap.
-- Memory: code from `$080d`, screens `$3000` and `$3400`, character set `$3800`, tile definitions `$4000`,
-  map `$4500`. ROMs are banked out; the program does not call the KERNAL. Two raster interrupts a frame (lines
-  213 and 250); `src/irq.asm` explains the split.
+- Memory: see the table in the README. ROMs are banked out; the program does not call the KERNAL. Three
+  raster interrupts a frame (lines 213, 221 and 250); `src/irq.asm` explains the split.
+- Build option `VIEWER=1` has no car and lets the stick move the view, as in 1b. The scrolling tests use it.
+- Frame budget: the busiest frame (colour memory after a screen swap, plus the car, plus a tune) is done 273
+  raster lines after the bottom interrupt, of 312. The tests fail if any frame is late. Anything new that
+  runs every frame has to fit in what is left, or move work out of that frame.
 - The end-to-end tests compare VICE's actual picture with a model pixel by pixel, which is how the timing of
   the split was got right. Keep that for anything that draws.
 
 ## What to do next
 
-1b (smooth scrolling) and the raster split are done. Next is the issue "1c: A car you can drive": a sprite,
-steering in fixed point, collision with the map, and the camera following the car. The camera already copes
-with lagging a little behind: in the frame after a screen swap it stays within its character. Sprites will
-steal cycles on the raster lines they are on, which shifts the split's timed writes: re-check them (the pixel
-tests will show it) once the car is in. 1b and 1c together decide whether the port is practical, and that
-needs trying on real hardware. I also want the issue "Play the C64 version in a browser with a WebAssembly build of
+Milestone 1 (smooth scrolling, the raster split and the car) is done in the emulator. It decides whether the
+port is practical, so the next step is mine: try it on the C64 and the C128D. After that, milestone 2,
+starting with traffic and a sprite multiplexer, which is the next hardest part. Sprites steal cycles on the
+lines they are on, so the split's timed writes and the frame budget need checking as sprites are added: the
+pixel tests and the late-frame tests show both. I also want the issue "Play the C64 version in a browser with a WebAssembly build of
 VICE" looked into at some point: find which builds exist, their licence, and how they handle system ROMs.
 
 ### The two SID tunes: in test builds only

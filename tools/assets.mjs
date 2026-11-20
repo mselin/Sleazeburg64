@@ -100,6 +100,12 @@ if (checksum(map) !== CITY_CHECKSUM) throw new Error('the city no longer matches
 const typeAt = (x, y) => (x < 0 || y < 0 || x >= MW || y >= MW ? WATER : map[y * MW + x]);
 const sameBuilding = (x, y, id) => x >= 0 && y >= 0 && x < MW && y < MW && bid[y * MW + x] === id;
 
+// What each tile is to a car: 0 open, 1 a wall (buildings and trees), 2 grass (less grip), 3 water (the canal and
+// the fountain: open for now; cars flood in it later). Tiles that look the same share a design, so every
+// city tile type behind a design must agree on its kind.
+const KIND_OF = { [BLD]: 1, [TREE]: 1, [GRASS]: 2, [WATER]: 3, [FOUNT]: 3 };
+const tileKinds = [];
+
 const out = new Uint8Array(MW * MW);
 for (let y = 0; y < MW; y++)
   for (let x = 0; x < MW; x++) {
@@ -128,6 +134,9 @@ for (let y = 0; y < MW; y++)
     else if (t === PLAZA) id = DESIGN.plaza();
     else if (t === FOUNT) id = DESIGN.fountain(typeAt(x - 1, y) === FOUNT ? 1 : 0, typeAt(x, y - 1) === FOUNT ? 1 : 0);
     out[i] = id;
+    const kind = KIND_OF[t] ?? 0;
+    if (tileKinds[id] !== undefined && tileKinds[id] !== kind) throw new Error(`tile design ${id} is used for two kinds of ground`);
+    tileKinds[id] = kind;
   }
 if (tiles.length > 256) throw new Error(`${tiles.length} tiles, but a map byte can only name 256`);
 if (FIRST_TILE_CHAR + chars.length > 256) throw new Error(`${chars.length} tile characters do not fit beside the font`);
@@ -143,8 +152,8 @@ for (let code = 0; code < FIRST_TILE_CHAR; code++) {
 chars.forEach((bytes, n) => charset.set(bytes, (FIRST_TILE_CHAR + n) * 8));
 
 // Four tables of 256 giving each tile's characters, then the colour of each character (font characters are
-// white, so text drawn in the city's character mode would show as two-colour text).
-const tileData = new Uint8Array(5 * 256);
+// white, so text drawn in the city's character mode would show as two-colour text), then each tile's kind.
+const tileData = new Uint8Array(6 * 256);
 tiles.forEach((t, n) => {
   tileData[n] = t.tl;
   tileData[256 + n] = t.tr;
@@ -153,6 +162,7 @@ tiles.forEach((t, n) => {
 });
 tileData.fill(1, 1024, 1024 + FIRST_TILE_CHAR);
 charColours.forEach((c, n) => (tileData[1024 + FIRST_TILE_CHAR + n] = c));
+tileKinds.forEach((k, n) => (tileData[1280 + n] = k));
 // The idle graphics the video chip shows between the city and the panel come from the last byte of the
 // character set. It has to be empty, so those lines show the background colour.
 if (FIRST_TILE_CHAR + chars.length > 255) throw new Error('character 255 is needed empty');
@@ -162,4 +172,29 @@ mkdirSync(dir, { recursive: true });
 writeFileSync(join(dir, 'chars.bin'), charset);
 writeFileSync(join(dir, 'tiles.bin'), tileData);
 writeFileSync(join(dir, 'map.bin'), out);
+
+// ---------- the car: a two-colour sprite in 16 directions ----------
+// Sprite pixel (i, j) is the city pixel (x + i - 12, y + j - 10) for a car whose centre is at (x, y). The car
+// is 19 pixels long and 10 wide with rounded corners, and the windscreen and rear window are holes through
+// it. Direction k points at k * 22.5 degrees clockwise from east, as the program counts angles.
+export const CAR = { length: 19, width: 10 };
+export function carFrame(k) {
+  // Rounded, so that a quarter turn is exactly one and pixels on an edge fall the same way in every direction.
+  const a = (k * Math.PI) / 8, c = Math.round(Math.cos(a) * 1e9) / 1e9, s = Math.round(Math.sin(a) * 1e9) / 1e9;
+  const bytes = new Uint8Array(64);
+  for (let j = 0; j < 21; j++)
+    for (let i = 0; i < 24; i++) {
+      const rx = i - 12, ry = j - 10;
+      const u = rx * c + ry * s, v = -rx * s + ry * c;
+      const au = Math.abs(u), av = Math.abs(v);
+      let on = au <= CAR.length / 2 && av <= CAR.width / 2;
+      if (on && au > 7.5 && av > 3 && Math.hypot(au - 7.5, av - 3) > 2) on = false; // rounded corners
+      if ((u >= 2 && u <= 4.5 && av <= 3.5) || (u >= -7.5 && u <= -6 && av <= 3.5)) on = false; // windows
+      if (on) bytes[j * 3 + (i >> 3)] |= 0x80 >> (i & 7);
+    }
+  return bytes;
+}
+const car = new Uint8Array(16 * 64);
+for (let k = 0; k < 16; k++) car.set(carFrame(k), k * 64);
+writeFileSync(join(dir, 'car.bin'), car);
 console.log(`assets: ${tiles.length} tiles, ${chars.length} tile characters, map ${MW}x${MW} (${out.length} bytes)`);

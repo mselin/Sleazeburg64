@@ -3,14 +3,16 @@
 A top-down crime satire for the **Commodore 64**, written in 6502 assembly. It is the real-hardware version of
 the [browser game of the same name](https://mselin.github.io/gta-c64/), which only pretends to be a C64 game.
 
-![The city viewer running in VICE](docs/city-viewer.png)
+![The car on a street in VICE](docs/city-viewer.png)
 
 ## Status
 
-Early. This is **milestone 1b, the city viewer with smooth scrolling**: the program draws the city of
-Sleazeburg in multicolour character mode and a joystick in port 2 scrolls the view over it a pixel at a time
-in eight directions, 2 pixels a frame or 4 with fire held. A raster split keeps the status panel still under
-the city, on black. There is no car, no traffic, no sound and no game yet. See [docs/ROADMAP.md](docs/ROADMAP.md) and the
+Early. This is **milestone 1c, a car you can drive**: the program draws the city of Sleazeburg in
+multicolour character mode, and you drive a car around it with a joystick in port 2 while the view scrolls
+smoothly to follow. The car handles like the browser game's: it speeds up, brakes, reverses, slides when
+you turn fast, turns tighter on the handbrake, has less grip on grass, and bounces off buildings and trees.
+A raster split keeps the status panel still under the city, on black. There is no traffic, no people, no
+sound and no game yet. See [docs/ROADMAP.md](docs/ROADMAP.md) and the
 [issues](https://github.com/mselin/Sleazeburg64/issues) for what comes next.
 
 The streets are the same ones as in the browser game: both versions generate the city from the same code and
@@ -29,8 +31,8 @@ That writes `build/sleazeburg64.prg`.
 ## Run
 
 On a real C64 or C128 in 64 mode: copy the `.prg` to a disk, SD card or cartridge of your choice, plug a
-joystick into **port 2**, then `LOAD` and `RUN` it. Hold fire to scroll faster. The program is for PAL machines; it has not been tried on
-NTSC.
+joystick into **port 2**, then `LOAD` and `RUN` it. Up accelerates, down brakes and then reverses, left
+and right steer, and fire is the handbrake. The program is for PAL machines; it has not been tried on NTSC.
 
 In [VICE](https://vice-emu.sourceforge.io/), if it is installed with C64 ROMs:
 
@@ -93,7 +95,8 @@ game started directly, and that both tunes produce sound. It cannot judge how th
 
 | Path | What it holds |
 |---|---|
-| `src/main.asm` | Start-up, memory layout, the main loop and moving the view. |
+| `src/main.asm` | Start-up, memory layout, the main loop and moving the view to follow the car. |
+| `src/car.asm` | The car: its handling, collisions with the map, and its sprite. |
 | `src/irq.asm` | The raster interrupts: the split under the city, and putting each frame in place. |
 | `src/video.asm` | Drawing and scrolling the city: the two screens and colour memory. |
 | `src/panel.asm` | The three-row status panel. |
@@ -102,11 +105,12 @@ game started directly, and that both tunes produce sound. It cannot judge how th
 | `src/title.asm` | Music test builds: the title screen, its tune, and starting the game from it. |
 | `src/c64.inc` | Hardware addresses and colour names. |
 | `tools/city.mjs` | The city generator, identical to the browser game's. |
-| `tools/assets.mjs` | Builds the character set, tile definitions and map that the program includes. |
+| `tools/assets.mjs` | Builds the character set, tile definitions, map and car sprite that the program includes. |
 | `tools/sid.mjs` | Fetches and checks a tune for a music test build, and writes its addresses and credits. |
 | `tools/emulator-test.sh` | Runs the program in VICE and takes screenshots. |
 | `tools/music-test.sh` | The same for the music test builds, with sound recordings. |
 | `tests/e2e/vice.mjs` | Drives VICE from a test: memory, registers, the joystick, stepping frame by frame. |
+| `tests/e2e/car-model.mjs` | The car's handling in JavaScript, which the tests hold the program to frame by frame. |
 | `tests/e2e/*.test.mjs` | The end-to-end tests. |
 | `music/` | Credits for the tunes, and the rules for using them. No tune files. |
 
@@ -123,25 +127,40 @@ sight, copying the old one moved by a character and drawing only the row and col
 the map, and the next frame shows that screen. Colour memory cannot be doubled like that, so straight after
 the swap it is worked out again from the new screen, row by row from the top, keeping ahead of the video chip.
 That costs most of a frame, so the window crosses at most one character every two frames: 4 pixels a frame
-is the top speed, the same as the browser game's sports car. Every frame is ready in time even at that speed
-with a tune playing.
+is the top speed. The routines that copy the screen and work out colour memory are written at start, fully
+unrolled, into memory the video chip does not need.
+
+**The car.** A hires sprite, drawn by `tools/assets.mjs` in 16 directions. Its handling follows the browser
+game's sports car, done in fixed point once a frame: the velocity is split into the car's forward and
+sideways parts, the throttle, brakes, handbrake, drag and coasting act on the forward part, the tyres' grip
+wears the sideways part down (which is what makes it slide), and the changes go back into the velocity. Its
+top speed is 4 pixels a frame, as fast as the view can scroll (the browser's is 4.3). Collisions use the
+browser game's three points along the car, each with a 9 by 9 box, against buildings and trees in the map.
+The view follows the car, up to 4 pixels a frame each way. The busiest frame, at top speed with a tune
+playing, is done 273 raster lines after the bottom interrupt, of 312.
 
 **Raster split.** An interrupt on line 213 ends the city at line 215 whatever its fine scroll, makes lines
 216 to 222 black, and starts the panel on line 223 in two-colour characters on black with no scroll. Two of
 its writes to the video chip are timed to the cycle; `src/irq.asm` explains how. A second interrupt in the
-bottom border puts the next frame's scroll and screen in place and plays the music.
+bottom border puts the next frame's scroll, screen and car sprite in place and plays the music. The panel has
+a screen of its own, which the split switches to for its three rows, and the car's sprite is switched off
+below the city.
 
 **Memory.**
 
 | Address | Contents |
 |---|---|
+| `$0400` | The panel's screen: rows 21–23 |
 | `$0801` | BASIC line that starts the program |
-| `$080d` | Code |
-| `$3000` | Screen A: city in rows 0–20, panel in rows 21–23 |
+| `$0840` | The car's sprite in 16 directions |
+| `$0c40` | Code |
+| `$3000` | Screen A: the city in rows 0–20 |
 | `$3400` | Screen B, the same |
 | `$3800` | Character set: font in 0–63, tile characters after |
-| `$4000` | Tile definitions, then the colour of each character |
-| `$4500` | City map |
+| `$4000` | Tile definitions, the colour of each character, and what each tile is to a car |
+| `$4600` | City map |
+| `$8000` | Made at start: the two colour memory routines |
+| `$c000` | Made at start: quarter squares for multiplying, then the 18 screen copies |
 
 The program switches BASIC and the KERNAL out and does not call them.
 
