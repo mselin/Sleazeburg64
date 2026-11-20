@@ -24,8 +24,9 @@ radio streams tunes from HVSC, but that is a rights question for the owner.)
 **Tried on 20 November 2026 and it works.** The owner loaded `sleazeburg64.prg` into VirtualC64 Web (on the
 Commodore ROMs) and drove the car. The picture was as in VICE: the city in its 38-column window, the car in the
 middle, the black band, and the panel on black with the readout following. So VirtualC64 handles the raster
-split's cycle-timed writes. Not yet tried there: the Open ROMs, which is what the play link uses (VICE runs the
-program the same on either).
+split's cycle-timed writes. Once the page was published the owner tried its play link, which runs on VirtualC64
+Web's Open ROMs, and it works there too. (The keyboard and touch links differ only in the on-screen joystick;
+the touch one has not been reported on separately.)
 
 One thing to know when trying a `.prg` in it by hand: it puts the program at its load address and types
 `run:`. With ROMs that start BASIC somewhere other than `$0801` that fails with `?SYNTAX ERROR` (the start-up
@@ -80,7 +81,8 @@ They follow the KERNAL's public entry points rather than copying it, so programs
    (`site/index.html`) with GitHub Pages, at <https://mselin.github.io/Sleazeburg64/>. The page links to
    VirtualC64 Web with the program's address in the link, for the keyboard and for touch, and offers the
    `.prg` to download for a real machine.
-2. **Next: try the link** once it is published, to see the Open ROMs in VirtualC64 Web as well.
+2. **Done: the link tried.** The page went live on 20 November 2026 and the owner played the game from its link,
+   on VirtualC64 Web's Open ROMs.
 3. **Later, if wanted:** host a copy of VirtualC64 Web's built files instead of linking to its site (2.2 MB of
    emulator, plus a link to its source, as GPL-3.0 asks), so the page does not depend on someone else's site
    and can be tested in CI by loading it in Playwright's Chromium and comparing a screenshot, as the VICE tests

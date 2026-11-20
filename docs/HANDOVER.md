@@ -28,10 +28,12 @@ A briefing for whoever picks this project up next, person or assistant. Written 
 - `make` builds `build/sleazeburg64.prg`; `make test` runs asset tests and a headless VICE run that saves
   screenshots. `make music` and `make test-music` do the same for the music test builds.
 - CI (`.github/workflows/build.yml`) runs `make test` on every pull request and every push to `main`, and on
-  `main` then publishes the tested `.prg` and `site/index.html` with GitHub Pages. Its
-  actions are pinned to release commits, kept up to date by Dependabot, the same way as in the browser game's
-  repository. Branch protection should require the one check "All checks passed", so jobs can be added or
-  renamed without changing the repository settings.
+  `main` then publishes the tested `.prg` and `site/index.html` with GitHub Pages (the repository's Pages
+  source is "GitHub Actions"). That `pages` job is the only thing that deploys the site: don't add another
+  Pages workflow, such as GitHub's suggested Jekyll one, because two deploys race and the other lacks the
+  built `.prg`. The workflow's actions are pinned to release commits, kept up to date by Dependabot, the same
+  way as in the browser game's repository. Branch protection should require the one check "All checks
+  passed", so jobs can be added or renamed without changing the repository settings.
 - `make test` also runs end-to-end tests (`tests/e2e/`) that drive the program in VICE through its binary
   monitor: joystick in, memory out, one frame at a time. Add to them with every feature.
 - Read `README.md` and `docs/ROADMAP.md` first. The issues cover the roadmap.
@@ -52,7 +54,9 @@ starting with traffic and a sprite multiplexer, which is the next hardest part. 
 lines they are on, so the split's timed writes and the frame budget need checking as sprites are added: the
 pixel tests and the late-frame tests show both. The issue "Play the C64 version in a browser with a WebAssembly
 build of VICE" is done in its first form: VirtualC64 Web runs the program correctly, and CI publishes the
-tested program and a play page with GitHub Pages after every merge to `main`. See `docs/BROWSER.md`.
+tested program and a play page with GitHub Pages after every merge to `main`, at
+<https://mselin.github.io/Sleazeburg64/>; I have played it from there, on VirtualC64 Web's Open ROMs. See
+`docs/BROWSER.md`.
 
 ### The two SID tunes: in test builds only
 
