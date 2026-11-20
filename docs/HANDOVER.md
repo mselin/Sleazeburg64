@@ -27,6 +27,10 @@ A briefing for whoever picks this project up next, person or assistant. Written 
 - The city comes from the same generator as the browser game (`tools/city.mjs`, checksum-checked).
 - `make` builds `build/sleazeburg64.prg`; `make test` runs asset tests and a headless VICE run that saves
   screenshots. `make music` and `make test-music` do the same for the music test builds.
+- CI (`.github/workflows/build.yml`) runs `make test` on every pull request and every push to `main`. Its
+  actions are pinned to release commits, kept up to date by Dependabot, the same way as in the browser game's
+  repository. Branch protection should require the one check "All checks passed", so jobs can be added or
+  renamed without changing the repository settings.
 - `make test` also runs end-to-end tests (`tests/e2e/`) that drive the program in VICE through its binary
   monitor: joystick in, memory out, one frame at a time. Add to them with every feature.
 - Read `README.md` and `docs/ROADMAP.md` first. The issues cover the roadmap.
