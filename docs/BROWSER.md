@@ -83,7 +83,9 @@ They follow the KERNAL's public entry points rather than copying it, so programs
    `.prg` to download for a real machine.
 2. **Done: the link tried.** The page went live on 20 November 2026 and the owner played the game from its link,
    on VirtualC64 Web's Open ROMs.
+   The homepage on mselin.github.io and the browser game's information page link to the page and to this
+   repository.
 3. **Later, if wanted:** host a copy of VirtualC64 Web's built files instead of linking to its site (2.2 MB of
    emulator, plus a link to its source, as GPL-3.0 asks), so the page does not depend on someone else's site
    and can be tested in CI by loading it in Playwright's Chromium and comparing a screenshot, as the VICE tests
-   do. And a link to the page from the browser game on mselin.github.io.
+   do.
