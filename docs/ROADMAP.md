@@ -21,7 +21,9 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
 
 - A raster split so the status panel has its own colours (done with 1b: it had to be, to keep the panel still).
 - The player on foot, and getting in and out of the car.
-- Traffic: a few cars following the lanes, drawn with a sprite multiplexer.
+- Traffic: a few cars following the lanes, drawn with a sprite multiplexer (done, not yet tried on real
+  hardware: six cars, which is what the frame time allows; the multiplexer shares sprites 1-7 and the tests try
+  it with sixteen). Next: the player's car colliding with traffic, as in the browser game.
 - Pedestrians, drawn as characters rather than sprites.
 - Water: cars flood and sink, people swim.
 

@@ -139,15 +139,16 @@ export function expectedReadout(x, y) {
  * The colour of every pixel inside the borders (x 24-343, lines 51-249) for a window position. The city is
  * drawn from the map and the character set, pixel by pixel: it does not care how the program got it there.
  * The panel is drawn from what is in its rows of screen and colour memory, so this checks where and how it
- * is shown; what it says is checked separately.
+ * is shown; what it says is checked separately. `sprites` is one sprite or a list, the one in front first.
  */
-export function expectedPicture(x, y, panelCodes, panelColours, sprite = null) {
+export function expectedPicture(x, y, panelCodes, panelColours, sprites = []) {
   const { chars } = assets;
+  const list = sprites === null ? [] : Array.isArray(sprites) ? sprites : [sprites];
   return (px, line) => {
     if (line < 55 || line > 246 || (line > 215 && line < 223)) return BLACK; // borders, and the black band
     if (line <= 215) {
       if (px < 31 || px > 334) return BLACK; // 38-column mode
-      if (sprite) {
+      for (const sprite of list) {
         // In front of the city, and only over it: the borders hide it, and it is switched off below.
         const i = px - sprite.x, j = line - sprite.y - 1;
         if (i >= 0 && i < 24 && j >= 0 && j < 21 && (sprite.bitmap[j * 3 + (i >> 3)] >> (7 - (i & 7))) & 1) return sprite.colour;
@@ -164,10 +165,10 @@ export function expectedPicture(x, y, panelCodes, panelColours, sprite = null) {
 }
 
 /** The pixels that differ between what VICE drew and the model, as up to five descriptions and a count. */
-export async function pictureMismatches(vice, x, y, sprite = null) {
+export async function pictureMismatches(vice, x, y, sprites = []) {
   const panelCodes = await vice.read(PANEL_SCREEN + ROWS * 40, 120);
   const panelColours = await vice.read(COLOUR_RAM + ROWS * 40, 120);
-  const wanted = expectedPicture(x, y, panelCodes, panelColours, sprite);
+  const wanted = expectedPicture(x, y, panelCodes, panelColours, sprites);
   const shown = await vice.display();
   const wrong = [];
   let count = 0;

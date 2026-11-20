@@ -31,6 +31,7 @@ video           .block
                 .section zp
 front           .byte ?         ; the screen shown: 0 for SCREEN_A, 1 for SCREEN_B
 swapped         .byte ?         ; 1 when the frame published last brings in the other screen
+edges           .byte ?         ; 1 when that screen still needs the column and row that came into view
 target          .byte ?         ; high byte of the screen being drawn
 new_cell        .byte ?, ?
 dcol            .byte ?         ; how far the window moved, in characters: -1, 0 or 1 (more: redraw)
@@ -96,6 +97,7 @@ init            lda #BLACK
                 lda #0                  ; the first picture goes straight onto screen A
                 sta front
                 sta swapped
+                sta edges
                 ldx #0
                 jsr char_of
                 sta cell
@@ -188,7 +190,9 @@ follow          jsr fine
                 bcs far
                 jsr shift
                 jmp +
-far             jsr draw_all            ; further: draw it all
+far             lda #0                  ; further: draw it all, edges included
+                sta edges
+                jsr draw_all
 +               lda front
                 eor #1
                 sta front
@@ -202,11 +206,18 @@ show            ldx front
 screen_hi       .byte >SCREEN_A, >SCREEN_B, >SCREEN_A  ; the third: "the other one" from B
 d018_of         .byte D018_A, D018_B
 
-; Colour memory for the screen that has just come in. Called straight after the bottom interrupt.
+; The screen that has just come in: its new edges, then colour memory, both from the top down and ahead of
+; the video chip. Called straight after the bottom interrupt.
 after_swap      lda swapped
                 sta busy
-                bne colour
+                bne +
                 rts
++               lda edges
+                beq colour
+                ldx front
+                lda screen_hi,x
+                sta target
+                jsr draw_edges
 
 ; Colour memory for the window at cell: the routine for whether it starts on a tile's first or second column
 ; and row, with the map from its top left tile.
@@ -235,7 +246,9 @@ colour          lda cell + 1
                 sta colour_jump + 2
 colour_jump     jmp $ffff
 
-; Fill the back screen with the front one moved by dcol and drow, then draw what came into view.
+; Fill the back screen with the front one moved by dcol and drow. What came into view is drawn once that
+; screen is shown, ahead of the video chip (edges), which takes the time out of this frame and puts it in the
+; next, which has more to spare.
 shift           lda drow                ; which way: (drow + 1) * 3 + dcol + 1
                 asl
                 clc
@@ -254,7 +267,12 @@ shift           lda drow                ; which way: (drow + 1) * 3 + dcol + 1
                 lda copy_hi,x
                 sta copy_jump + 2
 copy_jump       jsr $ffff               ; one of the routines write_copies made
-                ldx dcol
+                lda #1
+                sta edges
+                rts
+
+; Draw the column and row that came into view on the screen at target: those the copy left out.
+draw_edges      ldx dcol
                 beq +
                 lda #0
                 cpx #1
@@ -270,8 +288,13 @@ edge_col        jsr draw_col
 edge_row        jmp draw_row
 +               rts
 
-; Where the new screen's characters come from in the old one: 40 * drow + dcol.
+; Where the new screen's characters come from in the old one: 40 * drow + dcol. Each way leaves out the column
+; and row that came into view, which are drawn from the map afterwards (draw_edges).
 DELTAS          = (-41, -40, -39, -1, 0, 1, 39, 40, 41)
+first_col       .byte 39, 39, 38, 39, 39, 38, 39, 39, 38        ; the window moved right: column 39 is new
+last_col        .byte $f0, $30, $30, $f0, $30, $30, $f0, $30, $30   ; moved left: column 0 is new (beq, not bmi)
+first_row       .byte 1, 1, 1, 0, 0, 0, 0, 0, 0                 ; moved up: row 0 is new
+row_count       .byte ROWS - 1, ROWS - 1, ROWS - 1, ROWS, ROWS, ROWS, ROWS - 1, ROWS - 1, ROWS - 1
 
 ; The copies. Each moves ROWS rows of 40 characters from one screen to the other, from a fixed offset: an
 ; unrolled run of
@@ -297,12 +320,24 @@ write_copies    lda #<COPIES
                 sta j                   ; 0: SCREEN_A to SCREEN_B, then 1: the other way
 next_pair       lda #0
                 sta k                   ; which way, 0-8
-next_way        ldy #0
-                lda #$a2                ; ldx #39
+next_way        lda j                   ; each in its own place
+                asl
+                asl
+                asl
+                adc j                   ; (the carry is clear)
+                adc k
+                tax
+                lda copy_lo,x
+                sta ptr
+                lda copy_hi,x
+                sta ptr + 1
+                ldy #0
+                lda #$a2                ; ldx: from column 39, or 38 if the new column is 39
                 jsr emit
-                lda #39
+                ldx k
+                lda first_col,x
                 jsr emit
-                ldx j                   ; from: the front screen plus the offset
+                ldx j                   ; from: the front screen plus the offset ...
                 lda screen_hi,x
                 ldx k
                 clc
@@ -310,17 +345,23 @@ next_way        ldy #0
                 sta src + 1
                 lda delta_lo,x
                 sta src
-                ldx j                   ; to: the other screen
+                ldx j                   ; ... to the other screen
                 lda screen_hi + 1,x
                 .cerror d018_of - screen_hi != 3, "write_copies needs screen_hi's third entry"
                 sta dst + 1
                 lda #0
                 sta dst
-                lda ptr                 ; the loop starts here
+                ldx k                   ; from row 0, or 1 if the new row is 0
+                lda first_row,x
+                beq +
+                #advance src, 40
+                #advance dst, 40
++               lda ptr                 ; the loop starts here
                 sta mp_loop
                 lda ptr + 1
                 sta mp_loop + 1
-                lda #ROWS
+                ldx k
+                lda row_count,x         ; all the rows but a new one
                 sta rows_left
 -               lda #$bd                ; lda src,x
                 jsr emit
@@ -340,7 +381,8 @@ next_way        ldy #0
                 bne -
                 lda #$ca                ; dex
                 jsr emit
-                lda #$30                ; bmi +3
+                ldx k                   ; bmi +3, or beq +3 if the new column is 0
+                lda last_col,x
                 jsr emit
                 lda #3
                 jsr emit

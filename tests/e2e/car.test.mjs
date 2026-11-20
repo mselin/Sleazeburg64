@@ -10,7 +10,8 @@ import {
   screenMismatches, withProgram,
 } from './game.mjs';
 
-const game = assemble('car');
+// No traffic: these tests are about the car (traffic.test.mjs has the traffic, the car with it included).
+const game = assemble('car', { defs: { SPAWN: 0 } });
 const L = game.labels;
 const START = [9 * 16, 8 * 16]; // the window's top left corner; the car is in its middle
 const RED = 2;
@@ -187,10 +188,12 @@ test('flat out east along the street: top speed, the window keeps up, and every 
     await assertPicture(vice, m, 'at top speed');
   }));
 
-test('the car\'s sprite is cut off at the bottom of the city, not drawn over the black band or the panel', () =>
+test('at the south edge of the city the window stops following, and the picture is right with the car low in it', () =>
   run(async (vice) => {
     const m = models();
-    // The south edge of the city: the window cannot follow further, so the car comes down to its bottom.
+    // The south edge of the city: the window cannot follow further, so the car comes down towards its bottom.
+    // (Not all the way: within the last few pixels the car's sprite would reach the black band, which is an
+    // open thread in docs/HANDOVER.md.)
     const street = 97 * 16 - 9; // the bottom row of tiles
     await putCar(vice, m, 600, street - 8, 64);
     assert.equal(m.cam.y, MAX_Y);
