@@ -12,9 +12,9 @@ traffic**. The program draws the city of Sleazeburg in multicolour character mod
 around it with a joystick in port 2 while the view scrolls smoothly to follow. The car handles like the
 browser game's: it speeds up, brakes, reverses, slides when you turn fast, turns tighter on the handbrake,
 has less grip on grass, and bounces off buildings and trees. A handful of other cars drive the streets on
-their lanes, turn at crossings and stop behind whatever is in front of them, your car included. A raster
-split keeps the status panel still under the city, on black. Your car does not collide with traffic yet,
-and there are no people, no sound and no game. See [docs/ROADMAP.md](docs/ROADMAP.md) and the
+their lanes, turn at crossings and stop behind whatever is in front of them, your car included; your car
+bounces off them, and a car you hit hard is wrecked. A raster split keeps the status panel still under the
+city, on black. There are no people, no sound and no game yet. See [docs/ROADMAP.md](docs/ROADMAP.md) and the
 [issues](https://github.com/mselin/Sleazeburg64/issues) for what comes next.
 
 The streets are the same ones as in the browser game: both versions generate the city from the same code and
@@ -161,7 +161,9 @@ it can, otherwise any way it can, never back and never off the city, and turns a
 its new lane. Cars slow down and stop for a car in front of them in their lane, and one held up for 3.5
 seconds stops looking for a while so that cars cannot wait for each other forever. New cars appear on the
 streets out of sight a little way from you, and go when they are far away. Every car moves every frame; the
-rest is done in the frames that do not work out colour memory.
+rest is done in the frames that do not work out colour memory. As in the browser game a traffic car does not
+give way: your car bounces off it as off a wall, and one you hit hard (0.7 pixels a frame or more) loses its
+driver, rolls to a stop and stays as a wreck. Where a car has driven into yours, you can always drive out.
 
 **Sprite multiplexer.** The video chip has eight sprites. Sprite 0 is your car; sprites 1-7 are shared. Each
 frame the cars on screen are sorted from the top down, the first seven get sprites 1-7, and each one after

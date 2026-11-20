@@ -12,8 +12,8 @@
 ; Cars slow down and stop for any car in front of them in their lane, the player's included (AHEAD_MIN to
 ; AHEAD_MAX pixels ahead, at most SIDE to the side), and drive on when it has gone. One held up for
 ; HELD_LIMIT frames stops looking for GHOST_TIME frames, so that cars waiting for each other at a crossing
-; cannot wait forever. Traffic cars do not collide with each other, and not yet with the player's car
-; either: that comes next.
+; cannot wait forever. Traffic cars do not collide with each other. The player's car bounces off them, and
+; one it hits hard becomes a wreck (see bump).
 ;
 ; New cars appear on the streets off screen, a little way from the player, while there are fewer than CARS,
 ; and go when they are more than FAR_X or FAR_Y pixels from the player.
@@ -86,6 +86,7 @@ nx              .word ?
 ny              .word ?
 first           .byte ?                 ; show
 turns           .byte ?                 ; frames with time for the rest, counted
+n_close         .byte ?                 ; nearby: how many
 cx              .word ?                 ; show: the window's corner moved by where a sprite can start
 cy              .word ?
                 .send
@@ -109,6 +110,8 @@ tah             .fill CARS
 held            .fill CARS              ; frames held up
 ghost           .fill CARS              ; frames left driving without looking
 blocked         .fill CARS              ; 1: something in front, as it last looked
+wreck           .fill CARS              ; 1: hit hard by the player's car; it rolls to a stop and stays put
+close_by        .fill CARS              ; nearby: the cars near the player's car
                 .send
 
 init            ldx #CARS - 1
@@ -161,6 +164,11 @@ update          inc tick
 each            lda on,x
                 bne +
                 jmp next_car
++               lda wreck,x             ; a wreck rolls to a stop, and that is all
+                beq +
+                lda sp,x
+                bne +++
+                jmp moving
 +               lda ghost,x
                 beq +
                 dec ghost,x
@@ -169,6 +177,8 @@ each            lda on,x
                 lda ghost,x
                 bne cruising
                 lda #0
+                beq new_want
++               lda #0                  ; (a wreck still rolling)
                 beq new_want
 cruising        lda sp,x                ; already at its cruising speed: the usual case, nothing to do
                 cmp cruise,x
@@ -196,6 +206,8 @@ new_speed       sta sp,x
                 lda #0
                 rol
                 sta dhi,x
+                lda wreck,x
+                bne moving
 at_speed        lda sp,x                ; held up? (Never at cruising speed, which is above SLOW_SPEED.)
                 cmp #SLOW_SPEED
                 bcs going
@@ -249,6 +261,8 @@ rest            lda busy                ; colour memory this frame: the rest wai
 upkeep          stx i
                 lda on,x
                 beq up_next
+                lda wreck,x             ; a wreck neither decides nor looks
+                bne +
                 lda entered,x           ; into a new tile: a crossing?
                 beq +
                 lda #0
@@ -260,7 +274,8 @@ upkeep          stx i
                 adc turns
                 and #3
                 bne up_next
-                lda ghost,x
+                lda wreck,x
+                ora ghost,x
                 bne +
                 jsr look
 +               jsr far_away
@@ -822,6 +837,7 @@ near_next       dey
                 sta held,x
                 sta ghost,x
                 sta blocked,x
+                sta wreck,x
                 sta pf,x
                 sta pf + N1,x
                 lda nx
@@ -858,6 +874,181 @@ near_next       dey
                 sta spawn_wait
                 rts
 .endif
+
+; ---------- the player's car running into traffic ----------
+;
+; As in the browser game, a traffic car is solid and does not give way: the player's car bounces off it as
+; off a wall (car.axis_move asks bump), and one hit hard (HARD or faster on the axis that hits) becomes a
+; wreck that rolls to a stop and stays put. A traffic car is a box BOX_LONG pixels from its centre along its
+; lane and BOX_SHORT across; the player's car is its three points with a 9 by 9 box each, as against walls.
+; Only a move that takes the player's car nearer counts, so where traffic has driven into it, it can always
+; drive out.
+
+HARD            = 180                   ; 0.7 pixels a frame
+BOX_LONG        = 10
+BOX_SHORT       = 5
+NEAR_BOX        = 31                    ; nearby: within this either way
+
+; Before the player's car moves: list the cars near it, so bump has few or none to look at.
+nearby          ldy #0
+                ldx #0
+-               lda on,x
+                beq ++
+                sec
+                lda pl,x
+                sbc car.pos_x + 1
+                sta t0
+                lda ph,x
+                sbc car.pos_x + 2
+                jsr within
+                bcs ++
+                sec
+                lda pl + N1,x
+                sbc car.pos_y + 1
+                sta t0
+                lda ph + N1,x
+                sbc car.pos_y + 2
+                jsr within
+                bcs +
+                txa
+                sta close_by,y
+                iny
++
++               inx
+                cpx #CARS
+                bne -
+                sty n_close
+                rts
+
+; C clear if the 16-bit difference in A (high) and t0 (low) is NEAR_BOX or less either way.
+within          sta t1
+                clc
+                lda t0
+                adc #NEAR_BOX
+                lda t1
+                adc #0
+                bne +
+                lda t0
+                clc
+                adc #NEAR_BOX
+                cmp #2 * NEAR_BOX + 1
+                rts
++               sec
+                rts
+
+; In car.axis_move, once lead has found no wall: C set if the move runs the player's car into a traffic car,
+; which is then in X. Uses lead's along, across, mo, mn and oth.
+bump            lda n_close
+                bne +
+                clc
+                rts
++               lda #0
+                sta dh                  ; which of the list
+bump_each       ldy dh
+                ldx close_by,y
+                lda dir,x               ; how far it reaches along the axis moving and across it
+                ldy car.pos_off
+                beq +
+                eor #1
++               and #1
+                tay
+                lda reach_a,y
+                sta want
+                lda reach_c,y
+                sta old
+                ldy car.pos_off         ; its centre on the axis moving (ka), and across (kc)
+                beq +
+                lda pl + N1,x
+                sta ka
+                lda pl,x
+                sta kc
+                jmp ++
++               lda pl,x
+                sta ka
+                lda pl + N1,x
+                sta kc
++               sec                     ; nearer? (8 bits are enough this near)
+                lda ka
+                sbc car.mn
+                sta dl                  ; from where the player's car goes ...
+                jsr abs8
+                sta ix
+                sec
+                lda ka
+                sbc car.mo              ; ... and from where it is
+                jsr abs8
+                cmp ix
+                beq bump_next
+                bcc bump_next
+                sec
+                lda kc
+                sbc car.oth
+                sta iy                  ; across
+                ldy #2
+-               lda dl                  ; any of the three boxes touching?
+                sec
+                sbc car.along,y
+                jsr abs8
+                cmp want
+                beq +
+                bcs ++
++               lda iy
+                sec
+                sbc car.across,y
+                jsr abs8
+                cmp old
+                beq bumped
+                bcc bumped
++               dey
+                bpl -
+bump_next       inc dh
+                lda dh
+                cmp n_close
+                beq +
+                jmp bump_each
++               clc
+                rts
+bumped          sec
+                rts
+
+abs8            bpl +
+                eor #$ff
+                clc
+                adc #1
++               rts
+
+reach_a         .byte 4 + BOX_LONG, 4 + BOX_SHORT       ; lying along the axis moving, or across it
+reach_c         .byte 4 + BOX_SHORT, 4 + BOX_LONG
+
+; The player's car has run into car X at velocity (vel_off) Y: a wreck if that was hard.
+hit             lda car.vel_x + 1,y
+                bpl +
+                lda car.vel_x,y         ; |v|
+                eor #$ff
+                clc
+                adc #1
+                sta t0
+                lda car.vel_x + 1,y
+                eor #$ff
+                adc #0
+                jmp ++
++               lda car.vel_x,y
+                sta t0
+                lda car.vel_x + 1,y
++               sta t1
+                lda t0
+                cmp #<HARD
+                lda t1
+                sbc #>HARD
+                bcc +
+                lda #1
+                sta wreck,x
+                lda #$ff
+                sta turn,x
+                lda #0
+                sta ghost,x
+                sta blocked,x
++               rts
 
 ; List the cars on screen for the multiplexer, starting with a different one each frame. After the window
 ; has moved for the next frame. A car shows if any of its sprite is inside the window, its centre from 11

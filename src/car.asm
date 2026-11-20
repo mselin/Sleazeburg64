@@ -1,5 +1,6 @@
 ; SPDX-License-Identifier: GPL-2.0-or-later
-; The car: handling along the lines of the browser game's, collisions with the map, and its sprite.
+; The car: handling along the lines of the browser game's, collisions with the map and traffic, and its
+; sprite.
 ;
 ; Units. Position in 1/256 pixel (three bytes: fraction, then the pixel as 16 bits). Velocity in 1/256
 ; pixel a frame, signed. Direction as 1/65536 of a turn, the high byte being the 256 directions the tables
@@ -284,6 +285,7 @@ update          tay
                 #mul nl, cs, lat
                 #add16 fwd, lat, fwd
                 #add16 vel_y, fwd, vel_y
+                jsr traffic.nearby      ; the traffic it could run into
                 jsr move_x
                 jmp move_y
 
@@ -593,7 +595,7 @@ zero_nl         lda #0
                 sta nl + 1
                 rts
 
-; Move across by vel_x; into a wall it bounces back instead, at a quarter of the speed.
+; Move across by vel_x; into a wall or a traffic car it bounces back instead, at a quarter of the speed.
 move_x          ldx #0                  ; X: the position's offset from pos_x
                 ldy #0                  ; Y: the velocity's offset from vel_x
                 jmp axis_move
@@ -624,8 +626,12 @@ axis_move       stx pos_off
                 cmp pos_x + 2,x
                 beq go
 look            jsr lead
+                bcs bounce
+                jsr traffic.bump        ; no wall: a traffic car?
                 bcc go
-                ldx vel_off             ; bounce: v = -(v >> 2)
+                ldy vel_off
+                jsr traffic.hit         ; a wreck, if that was hard
+bounce          ldx vel_off             ; bounce: v = -(v >> 2)
                 lda vel_x + 1,x
                 cmp #$80
                 ror vel_x + 1,x

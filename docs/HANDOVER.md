@@ -23,8 +23,8 @@ A briefing for whoever picks this project up next, person or assistant. Written 
 - State: milestone 2 started, with traffic. The city in multicolour characters, scrolled smoothly to follow
   a car driven with a joystick in port 2, with the browser game's handling and collisions with buildings and
   trees. Up to six traffic cars follow the lanes and stop for what is in front of them, shown with a sprite
-  multiplexer. A raster split keeps the panel still on black. The player's car does not collide with
-  traffic yet (next), and there are no people or sound. None of it has been tried on real hardware.
+  multiplexer; the player's car bounces off them and wrecks one it hits hard. A raster split keeps the
+  panel still on black. There are no people or sound yet. None of it has been tried on real hardware.
 - The city comes from the same generator as the browser game (`tools/city.mjs`, checksum-checked).
 - `make` builds `build/sleazeburg64.prg`; `make test` runs asset tests and a headless VICE run that saves
   screenshots. `make music` and `make test-music` do the same for the music test builds.
@@ -50,7 +50,7 @@ A briefing for whoever picks this project up next, person or assistant. Written 
   same. Anything new that runs every frame has to fit in what is left, or move work out of those frames:
   traffic only moves its cars in a colour memory frame. Six cars is what fits; a tune on a rough drive is
   tight.
-- Room is short: the code ends near `$2d60` (the screens start at `$3000`) and zero page is used up to about
+- Room is short: the code ends near `$2ebe` (the screens start at `$3000`) and zero page is used up to about
   `$d6` (the music builds' tune has `$e0` on). Variables with no starting value go in the panel screen's
   rows 0-20 (`$0400`-`$0747`), which the video chip never shows.
 - Sprites cannot be cut off part way down: switching one off only stops it starting, so a sprite carries on
@@ -65,8 +65,8 @@ A briefing for whoever picks this project up next, person or assistant. Written 
 
 Milestone 1 (smooth scrolling, the raster split and the car) is done in the emulator. It decides whether the
 port is practical, so trying it on the C64 and the C128D is still mine to do. Milestone 2 has started with
-traffic and the sprite multiplexer. Next: the player's car colliding with traffic as in the browser game,
-then the player on foot. Sprites steal cycles on the lines they are on, so the split's timed writes and the
+traffic, the sprite multiplexer and the player's car running into traffic. Next: the player on foot, and
+getting in and out of cars. Sprites steal cycles on the lines they are on, so the split's timed writes and the
 frame budget need checking as sprites are added: the pixel tests and the late-frame tests show both. The
 issue "Play the C64 version in a browser with a WebAssembly build of VICE" is done in its first form:
 VirtualC64 Web runs the program correctly, and CI publishes the tested program and a play page with GitHub

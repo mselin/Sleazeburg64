@@ -7,6 +7,7 @@ import { CAR_SPRITE, MAP_PIXELS } from './game.mjs';
 export const T = {
   ACCEL: 4, BRAKE: 11, CRUISE_MIN: 120, SLOW: 8, HELD: 175, GHOST: 80, AHEAD_MIN: 4, AHEAD_MAX: 36, SIDE: 8,
   FAR_X: 400, FAR_Y: 320, NEAR: 37, SPAWN_GAP: 16, SHOWN_X: 182, SHOWN_Y: 110,
+  HARD: 180, BOX_LONG: 10, BOX_SHORT: 5, NEAR_BOX: 31,
 };
 const LANES = [24, 8, 8, 24];
 const KOFF = [-1, 0, 1, 0];
@@ -44,7 +45,7 @@ export class Rnd {
 /** One traffic car. Positions are in 1/256 pixel along both axes; only the axis it moves on has a fraction. */
 export class TrafficCar {
   constructor(fields) {
-    Object.assign(this, { on: 1, x: 0, y: 0, dir: 0, sp: 0, cruise: 0, face: 0, col: 0, turn: 0xff, ta: 0, held: 0, ghost: 0, blocked: 0, entered: 0 }, fields);
+    Object.assign(this, { on: 1, x: 0, y: 0, dir: 0, sp: 0, cruise: 0, face: 0, col: 0, turn: 0xff, ta: 0, held: 0, ghost: 0, blocked: 0, entered: 0, wreck: 0 }, fields);
   }
   get px() {
     return this.x >> 8;
@@ -78,12 +79,12 @@ export class Traffic {
     this.turns = (this.turns + 1) & 255;
     this.cars.forEach((c, i) => {
       if (!c.on) return;
-      if (c.entered) {
+      if (c.entered && !c.wreck) {
         c.entered = 0;
         this.enter(c);
       }
       if (((i + this.turns) & 3) === 0) {
-        if (!c.ghost) this.look(c);
+        if (!c.ghost && !c.wreck) this.look(c);
         this.farAway(c);
       }
     });
@@ -96,6 +97,13 @@ export class Traffic {
   }
 
   move(c) {
+    if (c.wreck) {
+      if (c.sp) c.sp = Math.max(0, c.sp - T.BRAKE); // rolls to a stop, and that is all
+    } else this.speed(c);
+    this.along(c);
+  }
+
+  speed(c) {
     if (c.ghost) c.ghost--;
     let want = null;
     if (c.blocked && !c.ghost) want = 0;
@@ -116,6 +124,9 @@ export class Traffic {
         }
       } else c.held = 0;
     }
+  }
+
+  along(c) {
     const axis = c.dir & 1 ? 'y' : 'x';
     const back = c.dir & 2;
     const old = (c[axis] >> 8) & 255;
@@ -132,6 +143,37 @@ export class Traffic {
       const diff = (c.dir * 4 - c.face) & 15;
       if (diff) c.face = (diff < 8 ? c.face + 1 : c.face - 1) & 15;
     }
+  }
+
+  /** Before the player's car moves (traffic.nearby): the cars within NEAR_BOX of it either way. */
+  nearby(px, py) {
+    this.near = [];
+    this.cars.forEach((c, i) => {
+      if (c.on && Math.abs(c.px - px) <= T.NEAR_BOX && Math.abs(c.py - py) <= T.NEAR_BOX) this.near.push(i);
+    });
+  }
+
+  /**
+   * traffic.bump: moving the player's car on one axis from mo to mn (pixels; oth across), with its three
+   * points at these offsets along and across, does it run into a car? Its index, or -1.
+   */
+  bump(isX, mo, mn, oth, along, across) {
+    for (const k of this.near) {
+      const c = this.cars[k];
+      const long = ((c.dir ^ (isX ? 0 : 1)) & 1) === 0; // lying along the axis moving
+      const reachA = 4 + (long ? T.BOX_LONG : T.BOX_SHORT), reachC = 4 + (long ? T.BOX_SHORT : T.BOX_LONG);
+      const ka = isX ? c.px : c.py, kc = isX ? c.py : c.px;
+      const dn = ka - mn, dc = kc - oth;
+      if (!(Math.abs(ka - mo) > Math.abs(dn))) continue; // only a move that takes it nearer
+      for (const y of [2, 1, 0]) if (Math.abs(dn - along[y]) <= reachA && Math.abs(dc - across[y]) <= reachC) return k;
+    }
+    return -1;
+  }
+
+  /** traffic.hit: the player's car ran into car k at velocity v (1/256 pixel a frame) on that axis. */
+  hit(k, v) {
+    if (Math.abs(v) < T.HARD) return;
+    Object.assign(this.cars[k], { wreck: 1, turn: 0xff, ghost: 0, blocked: 0 });
   }
 
   /** Every car the program looks at: the traffic cars that are on, then the player's car. */

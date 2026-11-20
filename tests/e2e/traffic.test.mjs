@@ -19,7 +19,7 @@ async function readTraffic(vice, L, n) {
   const get = (name, length) => vice.read(L[`traffic.${name}`], length);
   const [on, pf, pl, ph] = await Promise.all([get('on', n), get('pf', 2 * n1), get('pl', 2 * n1), get('ph', 2 * n1)]);
   const fields = {};
-  for (const f of ['dir', 'sp', 'cruise', 'face', 'col', 'turn', 'tal', 'tah', 'held', 'ghost', 'blocked', 'entered']) fields[f] = await get(f, n);
+  for (const f of ['dir', 'sp', 'cruise', 'face', 'col', 'turn', 'tal', 'tah', 'held', 'ghost', 'blocked', 'entered', 'wreck']) fields[f] = await get(f, n);
   const cars = [];
   for (let i = 0; i < n; i++) {
     if (!on[i]) {
@@ -27,7 +27,7 @@ async function readTraffic(vice, L, n) {
       continue;
     }
     const car = { on: 1, x: (ph[i] << 16) | (pl[i] << 8) | pf[i], y: (ph[n1 + i] << 16) | (pl[n1 + i] << 8) | pf[n1 + i] };
-    for (const f of ['dir', 'sp', 'cruise', 'face', 'col', 'turn', 'held', 'ghost', 'blocked', 'entered']) car[f] = fields[f][i];
+    for (const f of ['dir', 'sp', 'cruise', 'face', 'col', 'turn', 'held', 'ghost', 'blocked', 'entered', 'wreck']) car[f] = fields[f][i];
     car.ta = car.turn === 0xff ? null : fields.tal[i] | (fields.tah[i] << 8);
     cars.push(car);
   }
@@ -41,7 +41,7 @@ function modelTraffic(t) {
   const cars = t.cars.map((c) => {
     if (!c.on) return { on: 0 };
     const car = { on: 1, x: c.x, y: c.y };
-    for (const f of ['dir', 'sp', 'cruise', 'face', 'col', 'turn', 'held', 'ghost', 'blocked', 'entered']) car[f] = c[f];
+    for (const f of ['dir', 'sp', 'cruise', 'face', 'col', 'turn', 'held', 'ghost', 'blocked', 'entered', 'wreck']) car[f] = c[f];
     car.ta = c.turn === 0xff ? null : c.ta;
     return car;
   });
@@ -64,7 +64,7 @@ function models(traffic) {
 /** One pass of the main loop in the models, with the joystick held as given. */
 function step(m, bits) {
   const busy = m.cam.busy; // this pass works out colour memory if the last one swapped the screens
-  m.car.step(bits);
+  m.car.step(bits, m.traffic);
   m.cam.follow(m.car.px, m.car.py);
   m.traffic.step(m.car.px, m.car.py, m.cam, busy);
   m.list = m.traffic.show(m.cam);
@@ -174,7 +174,7 @@ async function putTraffic(vice, m, cars, L = P) {
     await write('ph', i, [c.x >> 8]);
     await write('pl', n1 + i, [c.y & 255]);
     await write('ph', n1 + i, [c.y >> 8]);
-    for (const [name, value] of Object.entries({ dir: car.dir, sp: car.sp, cruise: car.cruise, face: car.face, col: car.col, turn: 0xff, held: 0, ghost: 0, blocked: 0, entered: 0 }))
+    for (const [name, value] of Object.entries({ dir: car.dir, sp: car.sp, cruise: car.cruise, face: car.face, col: car.col, turn: 0xff, held: 0, ghost: 0, blocked: 0, entered: 0, wreck: 0 }))
       await write(name, i, [value]);
     await write('dlo', i, [(car.sp * 2) & 255]);
     await write('dhi', i, [(car.sp * 2) >> 8]);
@@ -203,6 +203,52 @@ test('a car stops behind the player\'s car in its lane, waits, then gives up wai
     assert.ok(stoppedAt >= T.AHEAD_MIN && stoppedAt <= T.AHEAD_MAX, `it stopped ${stoppedAt} pixels behind`);
     assert.ok(waited >= T.HELD - 10, `it waited ${waited} frames before giving up`);
     assert.ok(c.px >= m.car.px + 40, 'and then drove on past');
+  }));
+
+// ---------- the player's car running into traffic ----------
+
+test('running into a car hard: the player\'s car bounces off, and the car is a wreck that rolls to a stop', () =>
+  withProgram(placed.prg, async (vice) => {
+    await vice.runTo(P.ready);
+    const m = models(new Traffic({ spawn: false }));
+    await pass(vice, P, m, 0, 'first');
+    // A car driving east 40 pixels ahead in the next lane over, close enough to hit, slower than the player.
+    await putTraffic(vice, m, [{ x: m.car.px + 40, y: 192 + LANE[0], dir: 0, cruise: 120 }]);
+    const c = m.traffic.cars[0];
+    let frame = 0;
+    while (!c.wreck && frame < 200) await pass(vice, P, m, JOY.UP, `after ${++frame} frames`);
+    assert.equal(c.wreck, 1, 'hit hard, it is a wreck');
+    assert.ok(m.car.vx < 0, 'and the player\'s car bounced back');
+    for (let k = 1; k <= 20; k++) await pass(vice, P, m, 0, `${k} frames after the crash`);
+    assert.equal(c.sp, 0, 'the wreck has rolled to a stop');
+    await assertPicture(vice, P, m, 'after the crash');
+  }));
+
+test('nudging a car slowly: the player\'s car bounces off, and the car is no wreck', () =>
+  withProgram(placed.prg, async (vice) => {
+    await vice.runTo(P.ready);
+    const m = models(new Traffic({ spawn: false }));
+    await pass(vice, P, m, 0, 'first');
+    await putTraffic(vice, m, [{ x: m.car.px + 22, y: 192 + LANE[0], dir: 0, cruise: 0 }]); // standing
+    let frame = 0;
+    while (m.car.vx >= 0 && frame < 60) await pass(vice, P, m, JOY.UP, `after ${++frame} frames`);
+    assert.ok(m.car.vx < 0, 'it bounced');
+    assert.equal(m.traffic.cars[0].wreck, 0, 'too slowly to wreck it');
+    for (let k = 1; k <= 30; k++) await pass(vice, P, m, JOY.UP, `pushing on, ${k} frames`);
+    assert.ok(m.car.px < m.traffic.cars[0].px - 12, 'and it cannot push through');
+  }));
+
+test('a car that has driven into the player\'s car does not hold it: it drives out', () =>
+  withProgram(placed.prg, async (vice) => {
+    await vice.runTo(P.ready);
+    const m = models(new Traffic({ spawn: false }));
+    await pass(vice, P, m, 0, 'first');
+    // Standing right behind and against the player's car, as if it had driven into it.
+    await putTraffic(vice, m, [{ x: m.car.px - 3, y: 192 + LANE[0], dir: 0, cruise: 0 }]);
+    const x0 = m.car.px;
+    for (let frame = 1; frame <= 30; frame++) await pass(vice, P, m, JOY.UP, `after ${frame} frames`);
+    assert.ok(m.car.px > x0 + 20, `it drove out (${m.car.px - x0} pixels)`);
+    assert.ok(m.car.vx > 0, 'without bouncing');
   }));
 
 // ---------- the multiplexer ----------

@@ -41,8 +41,11 @@ export class Car {
   get py() {
     return this.y >> 8;
   }
-  /** One frame with the joystick held as given (JOY bits). */
-  step(bits) {
+  /**
+   * One frame with the joystick held as given (JOY bits). `traffic`, if given, is the traffic model, which the
+   * car can run into (traffic-model.mjs).
+   */
+  step(bits, traffic = null) {
     const thr = (bits & 1 && !(bits & 2) ? 1 : 0) - (bits & 2 && !(bits & 1) ? 1 : 0);
     const turn = (bits & 8 && !(bits & 4) ? 1 : 0) - (bits & 4 && !(bits & 8) ? 1 : 0);
     const hand = !!(bits & 16);
@@ -76,10 +79,22 @@ export class Car {
     const dF = nf - fwd, dL = nl - lat;
     this.vx += mul(dF, c) - mul(dL, s);
     this.vy += mul(dF, s) + mul(dL, c);
+    traffic?.nearby(this.px, this.py);
+    const [ox, oy] = AXIS[(((this.angle >> 8) + 8) & 255) >> 4];
     for (const [p, v, isX] of [['x', 'vx', true], ['y', 'vy', false]]) {
       const n = this[p] + this[v];
       const nx = isX ? n >> 8 : this.px, ny = isX ? this.py : n >> 8;
-      if (!inside && hits(nx, ny, this.angle >> 8)) this[v] = -(this[v] >> 2) | 0;
+      let bounce = !inside && hits(nx, ny, this.angle >> 8);
+      if (!inside && !bounce && traffic) {
+        // The three points' offsets along the axis moving and across it: middle, back, front.
+        const along = [0, -(isX ? ox : oy), isX ? ox : oy], across = [0, -(isX ? oy : ox), isX ? oy : ox];
+        const hit = traffic.bump(isX, isX ? this.px : this.py, isX ? nx : ny, isX ? this.py : this.px, along, across);
+        if (hit >= 0) {
+          traffic.hit(hit, this[v]);
+          bounce = true;
+        }
+      }
+      if (bounce) this[v] = -(this[v] >> 2) | 0;
       else {
         const pixel = n >> 8;
         this[p] = pixel < C.EDGE ? C.EDGE * 256 : pixel >= MAP_PIXELS - C.EDGE ? (MAP_PIXELS - C.EDGE) * 256 : n;
