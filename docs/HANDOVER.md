@@ -7,15 +7,17 @@ A briefing for whoever picks this project up next, person or assistant. Written 
 
 **1. Browser game (finished, live, in maintenance)**
 
-- Repo: `mselin/mselin.github.io`, folder `gta-c64/`. Live at https://mselin.github.io/gta-c64/
+- Repo: `mselin/gta-c64` (until 20 November 2026 the `gta-c64/` folder of `mselin/mselin.github.io`, the
+  homepage's repository; it moved with its history). Live at https://mselin.github.io/gta-c64/, published by
+  its own CI.
 - A top-down crime satire styled as a C64 game. Original game, not a recreation of any existing one: keep it
   that way.
-- Plain ES modules under `gta-c64/js/`, no build step, served by GitHub Pages from `main`.
+- Plain ES modules under `js/`, no build step, published with GitHub Pages after CI passes on `main`.
 - Radio streams SID tunes from HVSC (https://www.hvsc.c64.org), played by USBSID-Player (WebAssembly,
-  GPL-2.0-or-later, vendored in `gta-c64/usbsid-player/`). Playlist in `gta-c64/radio/stations.json`.
-- Tests: `cd gta-c64 && npm install && npm test` (66 unit tests including a headless soak test, 25 Playwright
+  GPL-2.0-or-later, vendored in `usbsid-player/`). Playlist in `radio/stations.json`.
+- Tests: `npm install && npm test` (66 unit tests including a headless soak test, 25 Playwright
   browser tests). A CI workflow runs them on pull requests.
-- Licence GPL-2.0-or-later. `gta-c64/README.md` describes the layout.
+- Licence GPL-2.0-or-later. Its `README.md` describes the layout, and `specs/design.md` the game's rules and look.
 
 **2. Commodore 64 port (just started, the active work)**
 
