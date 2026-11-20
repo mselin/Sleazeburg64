@@ -36,7 +36,6 @@ export const assets = {
   tiles: readFileSync(join(ROOT, 'build/tiles.bin')),
   map: readFileSync(join(ROOT, 'build/map.bin')),
 };
-const charColour = (ch) => assets.tiles[1024 + ch];
 assets.car = readFileSync(join(ROOT, 'build/car.bin'));
 
 /**
@@ -73,6 +72,11 @@ export function cityChar(col, row) {
   return assets.tiles[((row & 1) * 2 + (col & 1)) * 256 + tile];
 }
 
+/** What colour memory should hold at a character position: the colour of the tile it is part of. */
+export function cityColour(col, row) {
+  return assets.tiles[1536 + assets.map[(row >> 1) * MAP_SIZE + (col >> 1)]];
+}
+
 /**
  * What a screen's city rows should hold with the window's top left corner at pixel (x, y): characters, and
  * the colours colour memory should have for them. Columns that are off the east edge of the city are never
@@ -86,7 +90,7 @@ export function expectedScreen(x, y) {
       const inside = col0 + c < MAP_SIZE * 2;
       const ch = inside ? cityChar(col0 + c, row0 + r) : null;
       chars.push(ch);
-      colours.push(inside ? charColour(ch) : null);
+      colours.push(inside ? cityColour(col0 + c, row0 + r) : null);
     }
   return { chars, colours };
 }
@@ -151,7 +155,7 @@ export function expectedPicture(x, y, panelCodes, panelColours, sprite = null) {
       const wx = x + px - 31, wy = y + line - 55;
       const ch = cityChar(wx >> 3, wy >> 3);
       const pair = (chars[ch * 8 + (wy & 7)] >> (6 - 2 * ((wx & 7) >> 1))) & 3;
-      return [DARK_GREY, LIGHT_GREY, BLACK, charColour(ch) & 7][pair];
+      return [DARK_GREY, LIGHT_GREY, BLACK, cityColour(wx >> 3, wy >> 3) & 7][pair];
     }
     const at = ((line - 223) >> 3) * 40 + ((px - 24) >> 3);
     const bit = (chars[panelCodes[at] * 8 + ((line - 223) & 7)] >> (7 - ((px - 24) & 7))) & 1;

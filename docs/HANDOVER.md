@@ -40,9 +40,13 @@ A briefing for whoever picks this project up next, person or assistant. Written 
 - Memory: see the table in the README. ROMs are banked out; the program does not call the KERNAL. Three
   raster interrupts a frame (lines 213, 221 and 250); `src/irq.asm` explains the split.
 - Build option `VIEWER=1` has no car and lets the stick move the view, as in 1b. The scrolling tests use it.
-- Frame budget: the busiest frame (colour memory after a screen swap, plus the car, plus a tune) is done 273
-  raster lines after the bottom interrupt, of 312. The tests fail if any frame is late. Anything new that
-  runs every frame has to fit in what is left, or move work out of that frame.
+- Frame budget: in the tests' drives the busiest frame is done 218 raster lines after the bottom interrupt
+  with the car flat out, 256 with a tune as well, of 312. The tests fail if any frame is late in their
+  drives. On a rough drive (turning, sliding, bouncing off walls) the worst frame is one that moves the
+  screen a character: 295 lines without a tune, so a tune can make one late. Colour memory after a swap,
+  once the busiest, is now worked out a tile at a time and is done by 227. Anything new that runs every frame
+  has to fit in what is left, or move work out of that frame. The room to make next is in the frames that
+  move the screen (the copy and its new edges, about 180 lines) and in the car's collisions.
 - The end-to-end tests compare VICE's actual picture with a model pixel by pixel, which is how the timing of
   the split was got right. Keep that for anything that draws.
 

@@ -134,10 +134,10 @@ characters cut off at its edges), raster lines 55 to 215. The video chip's fine 
 time. When the window crosses a character, the program builds the moved picture on a second screen out of
 sight, copying the old one moved by a character and drawing only the row and column that came into view from
 the map, and the next frame shows that screen. Colour memory cannot be doubled like that, so straight after
-the swap it is worked out again from the new screen, row by row from the top, keeping ahead of the video chip.
-That costs most of a frame, so the window crosses at most one character every two frames: 4 pixels a frame
-is the top speed. The routines that copy the screen and work out colour memory are written at start, fully
-unrolled, into memory the video chip does not need.
+the swap it is worked out again from the map, a tile at a time (each tile has one colour), row by row from
+the top, keeping ahead of the video chip. Each of these takes about a third of a frame, so the window crosses
+at most one character every two frames: 4 pixels a frame is the top speed. The routines that copy the screen
+and work out colour memory are written at start, fully unrolled, into memory the video chip does not need.
 
 **The car.** A hires sprite, drawn by `tools/assets.mjs` in 16 directions. Its handling follows the browser
 game's sports car, done in fixed point once a frame: the velocity is split into the car's forward and
@@ -145,8 +145,9 @@ sideways parts, the throttle, brakes, handbrake, drag and coasting act on the fo
 wears the sideways part down (which is what makes it slide), and the changes go back into the velocity. Its
 top speed is 4 pixels a frame, as fast as the view can scroll (the browser's is 4.3). Collisions use the
 browser game's three points along the car, each with a 9 by 9 box, against buildings and trees in the map.
-The view follows the car, up to 4 pixels a frame each way. The busiest frame, at top speed with a tune
-playing, is done 273 raster lines after the bottom interrupt, of 312.
+The view follows the car, up to 4 pixels a frame each way. Its sums multiply with tables of quarter squares.
+The busiest frame, at top speed with a tune playing, is done 256 raster lines after the bottom interrupt, of
+312.
 
 **Raster split.** An interrupt on line 213 ends the city at line 215 whatever its fine scroll, makes lines
 216 to 222 black, and starts the panel on line 223 in two-colour characters on black with no scroll. Two of
@@ -166,15 +167,18 @@ below the city.
 | `$3000` | Screen A: the city in rows 0–20 |
 | `$3400` | Screen B, the same |
 | `$3800` | Character set: font in 0–63, tile characters after |
-| `$4000` | Tile definitions, the colour of each character, and what each tile is to a car |
-| `$4600` | City map |
-| `$8000` | Made at start: the two colour memory routines |
+| `$4000` | Tile definitions, the colour of each character, what each tile is to a car, and its colour |
+| `$4700` | City map |
+| `$6d00` | Made at start: the fourth colour memory routine |
+| `$8000` | Made at start: the other three colour memory routines |
+| `$bc00` | Made at start: quarter squares moved along, the second half of a multiplication |
 | `$c000` | Made at start: quarter squares for multiplying, then the 18 screen copies |
 
 The program switches BASIC and the KERNAL out and does not call them.
 
-In a music test build the game's tune follows the map and is copied to `$e000`–`$f2ff` at start; its player
-also uses zero page `$e0`–`$e3`. The title tune sits at `$1000`–`$5150`, which is why the title screen is a
+In a music test build the game's tune follows the map and is copied to `$e000`–`$f2ff` at start, before
+the fourth colour memory routine is written over where it waited; its player also uses zero page
+`$e0`–`$e3`. The title tune sits at `$1000`–`$5150`, which is why the title screen is a
 separate program: its own code comes before the tune, the game waits after it, and the title screen moves
 the game into place when it hands over. The file runs past `$a000`, the end of BASIC's memory, which LOAD
 and RUN allow up to `$cfff` because the program starts at once with SYS and uses no BASIC variables; the

@@ -20,8 +20,8 @@ credit_wait     .byte ?
 credit_line     .byte ?
                 .send
 
-; Copy the tune to where it plays from, start it and show the first credit.
-init            lda #<tune_data
+; Copy the tune to where it plays from.
+copy            lda #<tune_data
                 sta from
                 lda #>tune_data
                 sta from + 1
@@ -43,7 +43,10 @@ init            lda #<tune_data
 -               sta (to),y
                 iny
                 bne -
-                ldx #$18                ; a quiet SID to start from
+                rts
+
+; Start the tune, once it has been copied, and show the first credit.
+init            ldx #$18                ; a quiet SID to start from
                 lda #0
 -               sta SID,x
                 dex

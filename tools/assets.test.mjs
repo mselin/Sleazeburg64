@@ -24,7 +24,7 @@ test('the city is the same one as in the browser game', () => {
 
 test('the files are the sizes the program expects', () => {
   assert.equal(chars.length, 2048, '256 characters of 8 bytes');
-  assert.equal(tiles.length, 6 * 256, 'four characters for each of 256 tiles, a colour for each character, a kind for each tile');
+  assert.equal(tiles.length, 7 * 256, 'four characters for each of 256 tiles, a colour for each character, a kind and a colour for each tile');
   assert.equal(car.length, 16 * 64, 'the car in 16 directions, a sprite each');
   assert.equal(map.length, MW * MW);
 });
@@ -48,6 +48,18 @@ test('every tile character has one colour, and it is a multicolour one', () => {
   for (const ch of used) {
     const colour = tiles[1024 + ch];
     assert.ok(colour >= 8 && colour <= 15, `character ${ch} has colour ${colour}: multicolour needs 8 to 15`);
+  }
+});
+
+test('colour memory can be worked out a tile at a time: a tile\'s characters that show a colour show its colour', () => {
+  for (const t of new Set(map)) {
+    const colour = tiles[1536 + t];
+    assert.ok(colour >= 8 && colour <= 15, `tile ${t} has colour ${colour}: multicolour needs 8 to 15`);
+    for (let quarter = 0; quarter < 4; quarter++) {
+      const ch = tiles[quarter * 256 + t];
+      const ownColour = [...chars.subarray(ch * 8, ch * 8 + 8)].some((b) => [0, 2, 4, 6].some((s) => ((b >> s) & 3) === 3));
+      if (ownColour) assert.equal(tiles[1024 + ch], colour, `tile ${t}, character ${ch}`);
+    }
   }
 });
 

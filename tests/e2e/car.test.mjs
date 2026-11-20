@@ -74,12 +74,15 @@ async function putCar(vice, m, x, y, angle = 0) {
   for (let i = 0; i < 2; i++) await pass(vice, m, 0, 'after being put there'); // draw, then swap and colour
 }
 
-test('the sine table and the car\'s axis are the ones the model uses', () =>
+test('the sine table, the car\'s axis and the multiplication tables are the ones the model uses', () =>
   run(async (vice) => {
     const lo = await vice.read(L['car.sin_lo'], 256), hi = await vice.read(L['car.sin_hi'], 256);
     assert.deepEqual([...lo].map((l, a) => signed(l, hi[a])), SIN);
     const squares = await vice.read(0xc000, 1024);
     for (let n = 0; n < 512; n++) assert.equal(squares[n & 255 | (n & 256)] | (squares[512 + (n & 255) + (n & 256)] << 8), (n * n) >> 2, `quarter square of ${n}`);
+    // The other half of a multiplication: the same, moved along by 255.
+    const moved = await vice.read(L.SQUARES2, 1024);
+    for (let n = 0; n < 512; n++) assert.equal(moved[n] | (moved[512 + n] << 8), ((n - 255) * (n - 255)) >> 2, `moved quarter square of ${n}`);
   }));
 
 test('the car starts in the middle of the window, standing still and facing east, on a street', () =>
@@ -113,6 +116,21 @@ for (const [name, script] of [
         for (let i = 0; i < frames; i++) await pass(vice, m, bits, `after ${++frame} frames`);
       await assertPicture(vice, m, `after ${frame} frames`);
     }));
+
+test('driving off in every direction, and on either side of each straight one, frame by frame as the model says', () =>
+  run(async (vice) => {
+    // Next to the compass points the sine table holds exactly 256 or -256, which the multiplication treats
+    // on its own: every direction a step either side of them is here too.
+    const directions = [];
+    for (let k = 0; k < 16; k++) directions.push(k * 16);
+    for (const d of [0, 64, 128, 192]) directions.push((d + 1) & 255, (d + 255) & 255);
+    const m = models();
+    for (const d of directions) {
+      await putCar(vice, m, 600, 9 * 16 + 9, d << 8); // a crossing, with room every way
+      for (let frame = 1; frame <= 24; frame++) await pass(vice, m, JOY.UP, `facing ${d}, after ${frame} frames`);
+      for (let frame = 1; frame <= 6; frame++) await pass(vice, m, JOY.UP | JOY.RIGHT, `facing ${d} and turning, after ${frame} frames`);
+    }
+  }));
 
 test('the car cannot drive through buildings: it bounces off them', () =>
   run(async (vice) => {
