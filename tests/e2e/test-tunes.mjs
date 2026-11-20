@@ -53,6 +53,8 @@ export const INGAME = {
     0x60,                   // e024       rts
     ...new Array(0x1b).fill(0),
     0xff, 0xff, 0xff,       // e040 song, counter: overwritten by init
+    // Padded to the real tune's size (4518 bytes), so the test builds are laid out like the real ones.
+    ...new Array(4518 - 0x43).fill(0),
   ],
 };
 
@@ -91,9 +93,9 @@ export const TITLE = (() => {
   const irqAt = load + init(0, 0).length;
   const irq = [0x48, 0xee, ...abs(irqCount), 0xa9, 0xff, 0x8d, 0x19, 0xd0, 0x68, 0x40]; // pha / inc / ack / pla / rti
   const nmi = [0x48, 0xee, ...abs(nmiCount), 0xad, 0x0d, 0xdd, 0x68, 0x40];
-  // Padded to about the real one's size, because the title screen keeps the game behind its tune and
-  // checks at build time that the game can be moved down from there.
-  const code = Object.assign(new Array(0x4000).fill(0), [...init(irqAt, irqAt + irq.length), ...irq, ...nmi]);
+  // Padded to the real one's size ($1000-$5150), so the title build is laid out like the real one: past
+  // the end of BASIC's memory, with the game waiting behind the tune.
+  const code = Object.assign(new Array(0x4151).fill(0), [...init(irqAt, irqAt + irq.length), ...irq, ...nmi]);
   return { load, mark, irqCount, nmiCount, code };
 })();
 

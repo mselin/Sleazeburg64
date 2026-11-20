@@ -147,9 +147,11 @@ The program switches BASIC and the KERNAL out and does not call them.
 
 In a music test build the game's tune follows the map and is copied to `$e000`–`$f2ff` at start; its player
 also uses zero page `$e0`–`$e3`. The title tune sits at `$1000`–`$5150`, which is why the title screen is a
-separate program: the start of the game's code waits in place below the tune, the rest after it, and the
-title screen moves it into place when it hands over. All of it has to end below `$a000` for BASIC to load
-and run it, and the build checks that it does.
+separate program: its own code comes before the tune, the game waits after it, and the title screen moves
+the game into place when it hands over. The file runs past `$a000`, the end of BASIC's memory, which LOAD
+and RUN allow up to `$cfff` because the program starts at once with SYS and uses no BASIC variables; the
+build checks the limit. (Two files on a disk would be the usual way, but the open-source ROMs the tests use
+cannot load from a disk, so it could not be tested.)
 
 ## Licence
 
