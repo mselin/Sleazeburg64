@@ -8,8 +8,9 @@ Each item has a matching issue; this page is the overview.
 ## Milestone 1: can it scroll and drive?
 
 - **1a. City viewer** (done). The city drawn in character mode, moved a tile at a time with the joystick.
-- **1b. Smooth scrolling.** Eight-way pixel scrolling using the VIC fine-scroll registers and a second screen
-  buffer, with colour memory updated in step. This is the classic hard problem and decides how fast cars can go.
+- **1b. Smooth scrolling** (done, not yet tried on real hardware). Eight-way pixel scrolling using the VIC
+  fine-scroll registers and a second screen, with colour memory worked out after each swap ahead of the beam.
+  Top speed 4 pixels a frame, one character every two frames, as fast as the browser game's sports car.
 - **1c. A car you can drive.** One sprite with pre-rotated frames, steering and speed in fixed-point
   arithmetic, and collision with buildings. The view follows the car.
 
@@ -17,7 +18,7 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
 
 ## Milestone 2: a city with things in it
 
-- A raster split so the status panel has its own colours.
+- A raster split so the status panel has its own colours (done with 1b: it had to be, to keep the panel still).
 - The player on foot, and getting in and out of the car.
 - Traffic: a few cars following the lanes, drawn with a sprite multiplexer.
 - Pedestrians, drawn as characters rather than sprites.

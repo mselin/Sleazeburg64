@@ -9,7 +9,9 @@ import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
 import { JOY, ROOT } from './vice.mjs';
 import { INGAME, TITLE, writeTestTunes } from './test-tunes.mjs';
-import { OUT, SCREEN, assemble, assets, expectedView, readPanel, readView, screenText, withProgram } from './game.mjs';
+import {
+  OUT, assemble, assets, camera, expectedReadout, pictureMismatches, readPanel, screenMismatches, screenText, withProgram,
+} from './game.mjs';
 
 const TUNES = `${OUT}/tunes`;
 const manifest = writeTestTunes(join(ROOT, TUNES));
@@ -25,11 +27,13 @@ const G = game.labels;
 const T = title.labels;
 
 const CREDIT_FRAMES = 200;
+const TITLE_SCREEN = 0x0400;
+const HINT = 'JOYSTICK IN PORT 2. FIRE GOES FASTER';
 const counter = async (vice) => (await vice.read(INGAME.counter, 2)).readUInt16LE(0);
 
 test('the tune is copied to its own address and started with the subtune the manifest names', () =>
   withProgram(game.prg, async (vice) => {
-    await vice.runTo(G.main_loop);
+    await vice.runTo(G.ready);
     const code = Buffer.from(INGAME.code);
     const fixed = INGAME.song - INGAME.load; // the bytes before the ones init and play change
     assert.ok((await vice.read(INGAME.load, fixed)).equals(code.subarray(0, fixed)), 'the tune is at $e000');
@@ -39,53 +43,62 @@ test('the tune is copied to its own address and started with the subtune the man
     assert.ok(after.every((b) => b === 0), 'the page after the tune is cleared, for tunes that read past their end');
   }));
 
-test('the tune is played exactly once for every pass of the main loop, moving or not', () =>
+test('the tune is played exactly once a frame, by the interrupt, moving or not', () =>
   withProgram(game.prg, async (vice) => {
-    await vice.runTo(G.main_loop);
-    await vice.frames(G.main_loop, 100);
-    assert.equal(await counter(vice), 100);
-    await vice.joystick(JOY.RIGHT | JOY.DOWN); // redrawing the view must not cost the tune a call
-    await vice.frames(G.main_loop, 200);
-    assert.equal(await counter(vice), 300);
+    await vice.runTo(G.ready);
+    const start = await counter(vice);
+    await vice.frames(G['frame.shown'], 100);
+    assert.equal(await counter(vice) - start, 100);
+    await vice.joystick(JOY.RIGHT | JOY.DOWN | JOY.FIRE); // moving the screens must not cost the tune a call
+    await vice.frames(G['frame.shown'], 200);
+    assert.equal(await counter(vice) - start, 300);
     await vice.joystick(0);
-    await vice.frames(G.main_loop, 100);
-    assert.equal(await counter(vice), 400);
-    assert.equal((await vice.registers()).SP, 0xff);
+    await vice.frames(G['frame.shown'], 100);
+    assert.equal(await counter(vice) - start, 400);
   }));
 
-test('the tune has not disturbed the game: the view still follows the stick and draws the city', () =>
+test('with the tune\'s load the game still makes every frame in time, and every frame is right', () =>
   withProgram(game.prg, async (vice) => {
-    await vice.runTo(G.main_loop);
-    await vice.joystick(JOY.RIGHT);
-    await vice.frames(G.main_loop, 30);
-    await vice.joystick(0);
-    await vice.frames(G.main_loop, 3);
-    const [x, y] = await vice.read(G.cam_x, 2);
-    assert.deepEqual([x, y], [19, 8]);
-    const shown = await readView(vice);
-    const wanted = expectedView(x, y);
-    assert.ok(shown.chars.equals(wanted.chars) && shown.colours.equals(wanted.colours));
+    await vice.runTo(G.ready);
+    const missed = async () => (await vice.read(G['frame.missed'], 2)).readUInt16LE(0);
+    const before = await missed();
+    await vice.joystick(JOY.RIGHT | JOY.DOWN | JOY.FIRE); // the most work there is: a new screen every other frame
+    for (let pass = 1; pass <= 40; pass++) {
+      await vice.runTo(G.ready);
+      const [x, y] = await camera(vice, G);
+      assert.deepEqual([x, y], [144 + 4 * pass, 128 + 4 * pass]);
+      assert.deepEqual(await screenMismatches(vice, x, y), [], `screen and colours after ${pass} frames`);
+      await vice.runTo(G['frame.bottom']);
+      assert.deepEqual(await pictureMismatches(vice, x, y), [], `the picture after ${pass} frames`);
+    }
+    assert.equal(await missed() - before, 0, 'no frame was late');
   }));
 
 test('the panel credits the tune: title, then author and copyright, then the hint, and round again', () =>
   withProgram(game.prg, async (vice) => {
-    await vice.runTo(G.main_loop);
+    await vice.runTo(G.ready);
     const bottomRow = async () => (await readPanel(vice))[2];
-    const lines = ['MUSIC: TEST TUNE', 'NOBODY (C) 2026 THE TESTS', 'JOYSTICK IN PORT 2 MOVES THE VIEW'];
-    assert.equal(await bottomRow(), lines[0], 'the title is up from the first frame');
-    for (let turn = 1; turn <= 4; turn++) {
-      await vice.frames(G.main_loop, CREDIT_FRAMES - 1);
-      assert.equal(await bottomRow(), lines[(turn - 1) % 3], 'each line stays its full time');
-      await vice.frames(G.main_loop, 1);
-      assert.equal(await bottomRow(), lines[turn % 3]);
+    const lines = ['MUSIC: TEST TUNE', 'NOBODY (C) 2026 THE TESTS', HINT];
+    assert.equal(await bottomRow(), lines[0], 'the title is up from the start');
+    // Find the frame where it first changes, then each line must stay exactly its time.
+    let waited = 0;
+    while ((await bottomRow()) === lines[0]) {
+      await vice.frames(G['frame.shown'], 1);
+      assert.ok(++waited <= CREDIT_FRAMES, 'the title changes within its time');
     }
-    assert.deepEqual((await readPanel(vice)).slice(0, 2), ['SLEAZEBURG 64 - THE CITY VIEWER', 'TILE 09,08    CROSSING 3-2'], 'the other rows are left alone');
+    for (let turn = 1; turn <= 4; turn++) {
+      assert.equal(await bottomRow(), lines[turn % 3]);
+      await vice.frames(G['frame.shown'], CREDIT_FRAMES - 1);
+      assert.equal(await bottomRow(), lines[turn % 3], 'each line stays its full time');
+      await vice.frames(G['frame.shown'], 1);
+    }
+    assert.deepEqual((await readPanel(vice)).slice(0, 2), ['SLEAZEBURG 64 - THE CITY VIEWER', expectedReadout(144, 128)], 'the other rows are left alone');
   }));
 
 test('the title screen credits both tunes, says the build is not for distribution, and starts its tune', () =>
   withProgram(title.prg, async (vice) => {
     await vice.runTo(T.wait_fire);
-    const rows = screenText(await vice.read(SCREEN, 1000)).match(/.{40}/g).map((row) => row.trim());
+    const rows = screenText(await vice.read(TITLE_SCREEN, 1000)).match(/.{40}/g).map((row) => row.trim());
     const shown = rows.filter((row) => row !== '');
     assert.deepEqual(shown, [
       'SLEAZEBURG 64',
@@ -119,30 +132,34 @@ test('fire on the title screen starts the game, moved into place whole and playi
     await vice.joystick(JOY.FIRE);
     // Before the game is moved the title tune must be stopped for good: its code is about to be overwritten.
     // The counters sit in the gap the move leaves alone, so they can be read again afterwards.
+    assert.ok(TITLE.irqCount >= G.code_end && TITLE.irqCount < 0x3000, 'the counters are out of the way of the move');
     await vice.runTo(T.move_game);
     const stoppedAt = await vice.read(TITLE.irqCount, 2);
-    await vice.runTo(G.main_loop);
+    await vice.runTo(G.start);
     await vice.joystick(0);
     assert.deepEqual(await vice.read(TITLE.irqCount, 2), stoppedAt, 'no interrupt of the title tune ran during the move');
 
-    // Every byte of the game is where the game built on its own has it: code, then the data from the
-    // character set to the end. (The gap between them holds nothing and is not carried.)
-    const codeSize = G.code_end - 0x0801;
-    assert.ok((await vice.read(0x0801, codeSize)).equals(game.bytes.subarray(2, 2 + codeSize)), 'code');
+    // Every byte of the game is where the game built on its own has it: code after its BASIC line, then the
+    // data from the character set to the end. (The gap between them, the screens, holds nothing and is not
+    // carried.) This is checked as the game starts, before it changes any of its own code.
+    const codeSize = G.code_end - 0x080d;
+    assert.ok((await vice.read(0x080d, codeSize)).equals(game.bytes.subarray(2 + 12, 2 + 12 + codeSize)), 'code');
     const dataAt = 2 + G.charset - 0x0801;
     // The tune's waiting copy is part of the data and nothing writes to it, so it compares too.
     assert.ok((await vice.read(G.charset, G.program_end - G.charset)).equals(game.bytes.subarray(dataAt)), 'data');
     assert.ok((await vice.read(G.charset, 2048)).equals(assets.chars));
-
-    // The machine is the game's: the title tune's interrupts are off and the game draws and plays.
-    assert.equal((await vice.read(0x01, 1))[0] & 7, 5);
-    assert.equal((await vice.read(0xd01a, 1))[0] & 15, 0, 'no raster interrupts left on');
+    assert.equal((await vice.read(0xd01a, 1))[0] & 15, 0, 'the title tune\'s raster interrupt is off');
     assert.equal((await vice.read(0xdd0e, 1))[0] & 1, 1, 'the title tune did have its timer going');
-    const shown = await readView(vice);
-    const wanted = expectedView(9, 8);
-    assert.ok(shown.chars.equals(wanted.chars) && shown.colours.equals(wanted.colours), 'the city is drawn');
+
+    // The machine is the game's: it draws, keeps its frames, and plays its own tune.
+    await vice.runTo(G.ready);
+    assert.equal((await vice.read(0x01, 1))[0] & 7, 5);
+    assert.deepEqual(await screenMismatches(vice, 144, 128), [], 'the city is drawn');
     assert.equal((await readPanel(vice))[2], 'MUSIC: TEST TUNE');
-    await vice.frames(G.main_loop, 50);
-    assert.equal(await counter(vice), 50, 'the game tune is playing');
-    assert.equal((await vice.registers()).SP, 0xff);
+    const start = await counter(vice);
+    await vice.frames(G['frame.shown'], 50);
+    assert.equal(await counter(vice) - start, 50, 'the game tune is playing');
+    await vice.runTo(G.ready);
+    await vice.runTo(G['frame.bottom']);
+    assert.deepEqual(await pictureMismatches(vice, 144, 128), [], 'the picture, split and panel included');
   }));

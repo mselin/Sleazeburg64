@@ -1,20 +1,27 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-// What the end-to-end tests share: assembling a build to test, and working out from the asset files what
-// the screen ought to show, independently of the 6502 code that draws it.
+// What the end-to-end tests share: assembling a build to test, and a model of what the screen ought to show,
+// worked out from the asset files independently of the 6502 code that draws it.
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { ROOT, Vice, readLabels } from './vice.mjs';
 
-export const SCREEN = 0x0400;
+export const SCREEN_A = 0x3000;
+export const SCREEN_B = 0x3400;
 export const COLOUR_RAM = 0xd800;
+export const ROWS = 21; // rows of city in a screen; the panel is rows 21-23
 export const MAP_SIZE = 98;
-export const VIEW_W = 20;
-export const VIEW_H = 11;
-export const MOVE_EVERY = 3; // passes of the main loop between steps while the stick is held
-export const MAX_X = MAP_SIZE - VIEW_W;
-export const MAX_Y = MAP_SIZE - VIEW_H;
+export const MAP_PIXELS = MAP_SIZE * 16;
+export const VIEW_W = 304;
+export const VIEW_H = 161;
+export const MAX_X = MAP_PIXELS - VIEW_W;
+export const MAX_Y = MAP_PIXELS - VIEW_H;
+export const SPEED = 2;
+export const FAST = 4;
 export const OUT = 'build/e2e';
+
+// Colours
+const BLACK = 0, DARK_GREY = 11, LIGHT_GREY = 15;
 
 const ASMFLAGS = ['--cbm-prg', '--ascii', '--quiet', '-Wall', '-Wno-implied-reg'];
 
@@ -24,6 +31,7 @@ export const assets = {
   tiles: readFileSync(join(ROOT, 'build/tiles.bin')),
   map: readFileSync(join(ROOT, 'build/map.bin')),
 };
+const charColour = (ch) => assets.tiles[1024 + ch];
 
 /**
  * Assemble a program for a test. `defs` become -D options and `include` directories are searched before
@@ -32,12 +40,15 @@ export const assets = {
 export function assemble(name, { source = 'src/main.asm', defs = {}, include = [] } = {}) {
   const prg = `${OUT}/${name}.prg`;
   mkdirSync(dirname(join(ROOT, prg)), { recursive: true });
-  const labelFile = `${OUT}/${name}.labels.txt`;
+  const labelFile = `${OUT}/${name}.labels.txt`; // 64tass's own format, which other sources can include
+  const viceLabelFile = `${OUT}/${name}.vice-labels.txt`; // with the labels inside blocks too
   const args = [...ASMFLAGS];
   for (const dir of [...include, 'src', 'build']) args.push('-I', dir);
   for (const [key, value] of Object.entries(defs)) args.push('-D', `${key}=${value}`);
-  execFileSync('64tass', [...args, '--labels', labelFile, '-o', prg, source], { cwd: ROOT, stdio: ['ignore', 'inherit', 'inherit'] });
-  return { prg, labelFile, labels: readLabels(join(ROOT, labelFile)), bytes: readFileSync(join(ROOT, prg)) };
+  execFileSync('64tass', [...args, '-l', labelFile, '--vice-labels', '-l', viceLabelFile, '-o', prg, source],
+    { cwd: ROOT, stdio: ['ignore', 'inherit', 'inherit'] });
+  const labels = { ...readLabels(join(ROOT, labelFile)), ...readLabels(join(ROOT, viceLabelFile)) };
+  return { prg, labelFile, labels, bytes: readFileSync(join(ROOT, prg)) };
 }
 
 /** Run `body(vice)` against a freshly started program, and always shut VICE down afterwards. */
@@ -50,29 +61,47 @@ export async function withProgram(prg, body) {
   }
 }
 
-/** The 22 rows of characters and colours the city view should hold with its top left corner at a tile. */
-export function expectedView(camX, camY) {
-  const { tiles, map } = assets;
-  const chars = Buffer.alloc(VIEW_H * 2 * 40);
-  const colours = Buffer.alloc(VIEW_H * 2 * 40);
-  for (let row = 0; row < VIEW_H; row++)
-    for (let col = 0; col < VIEW_W; col++) {
-      const tile = map[(camY + row) * MAP_SIZE + camX + col];
-      const at = row * 80 + col * 2;
-      chars[at] = tiles[tile];
-      chars[at + 1] = tiles[256 + tile];
-      chars[at + 40] = tiles[512 + tile];
-      chars[at + 41] = tiles[768 + tile];
-      for (const offset of [0, 1, 40, 41]) colours[at + offset] = tiles[1024 + tile] & 15;
+/** The character the city has at a character position (each tile is two by two characters). */
+export function cityChar(col, row) {
+  const tile = assets.map[(row >> 1) * MAP_SIZE + (col >> 1)];
+  return assets.tiles[((row & 1) * 2 + (col & 1)) * 256 + tile];
+}
+
+/**
+ * What a screen's city rows should hold with the window's top left corner at pixel (x, y): characters, and
+ * the colours colour memory should have for them. Columns that are off the east edge of the city are never
+ * visible, so they are left out (null) and not compared.
+ */
+export function expectedScreen(x, y) {
+  const col0 = x >> 3, row0 = y >> 3;
+  const chars = [], colours = [];
+  for (let r = 0; r < ROWS; r++)
+    for (let c = 0; c < 40; c++) {
+      const inside = col0 + c < MAP_SIZE * 2;
+      const ch = inside ? cityChar(col0 + c, row0 + r) : null;
+      chars.push(ch);
+      colours.push(inside ? charColour(ch) : null);
     }
   return { chars, colours };
 }
 
-/** What the city view holds now. Colour memory is four bits wide: the rest of each byte is noise. */
-export async function readView(vice) {
-  const chars = await vice.read(SCREEN, VIEW_H * 2 * 40);
-  const colours = (await vice.read(COLOUR_RAM, VIEW_H * 2 * 40)).map((b) => b & 15);
-  return { chars, colours: Buffer.from(colours) };
+/** The screen in front, from the video chip's memory register. */
+export async function frontScreen(vice) {
+  return ((await vice.read(0xd018, 1))[0] >> 4) * 0x400;
+}
+
+/** Compare a screen's city rows and colour memory with what they should be for a window position. */
+export async function screenMismatches(vice, x, y, screen) {
+  const wanted = expectedScreen(x, y);
+  const chars = await vice.read(screen ?? (await frontScreen(vice)), ROWS * 40);
+  const colours = await vice.read(COLOUR_RAM, ROWS * 40);
+  const wrong = [];
+  for (let i = 0; i < ROWS * 40; i++) {
+    if (wanted.chars[i] === null) continue;
+    if (chars[i] !== wanted.chars[i]) wrong.push(`character at row ${Math.floor(i / 40)} column ${i % 40}`);
+    else if ((colours[i] & 15) !== wanted.colours[i]) wrong.push(`colour at row ${Math.floor(i / 40)} column ${i % 40}`);
+  }
+  return wrong;
 }
 
 /** Screen codes to text, for the font's range: @, letters, then the same as ASCII. */
@@ -80,15 +109,98 @@ export function screenText(codes) {
   return [...codes].map((c) => (c === 0 ? '@' : c <= 26 ? String.fromCharCode(64 + c) : c >= 32 && c < 64 ? String.fromCharCode(c) : '?')).join('');
 }
 
-/** The three rows of the status panel, as text without trailing spaces. */
+/** The three rows of the status panel, as text without trailing spaces. Both screens must agree on them. */
 export async function readPanel(vice) {
-  const codes = await vice.read(SCREEN + 22 * 40, 120);
-  return [0, 40, 80].map((at) => screenText(codes.subarray(at, at + 40)).trimEnd());
+  const a = await vice.read(SCREEN_A + ROWS * 40, 120);
+  const b = await vice.read(SCREEN_B + ROWS * 40, 120);
+  if (!a.equals(b)) throw new Error(`the two screens have different panels:\n${screenText(a)}\n${screenText(b)}`);
+  return [0, 40, 80].map((at) => screenText(a.subarray(at, at + 40)).trimEnd());
 }
 
-/** The second panel row for a view position, as the clues number crossings: streets are 12 tiles apart. */
-export function expectedReadout(camX, camY) {
+/** The second panel row for a window position. */
+export function expectedReadout(x, y) {
   const two = (n) => String(n).padStart(2, '0');
   const crossing = (tile) => Math.floor((tile + 5) / 12) + 1;
-  return `TILE ${two(camX)},${two(camY)}    CROSSING ${crossing(camX + VIEW_W / 2)}-${crossing(camY + VIEW_H / 2)}`;
+  return `TILE ${two(x >> 4)},${two(y >> 4)}    CROSSING ${crossing((x + VIEW_W / 2) >> 4)}-${crossing((y + (VIEW_H >> 1)) >> 4)}`;
+}
+
+/**
+ * The colour of every pixel inside the borders (x 24-343, lines 51-249) for a window position. The city is
+ * drawn from the map and the character set, pixel by pixel: it does not care how the program got it there.
+ * The panel is drawn from what is in its rows of screen and colour memory, so this checks where and how it
+ * is shown; what it says is checked separately.
+ */
+export function expectedPicture(x, y, panelCodes, panelColours) {
+  const { chars } = assets;
+  return (px, line) => {
+    if (line < 55 || line > 246 || (line > 215 && line < 223)) return BLACK; // borders, and the black band
+    if (line <= 215) {
+      if (px < 31 || px > 334) return BLACK; // 38-column mode
+      const wx = x + px - 31, wy = y + line - 55;
+      const ch = cityChar(wx >> 3, wy >> 3);
+      const pair = (chars[ch * 8 + (wy & 7)] >> (6 - 2 * ((wx & 7) >> 1))) & 3;
+      return [DARK_GREY, LIGHT_GREY, BLACK, charColour(ch) & 7][pair];
+    }
+    const at = ((line - 223) >> 3) * 40 + ((px - 24) >> 3);
+    const bit = (chars[panelCodes[at] * 8 + ((line - 223) & 7)] >> (7 - ((px - 24) & 7))) & 1;
+    return bit ? panelColours[at] & 15 : BLACK;
+  };
+}
+
+/** The pixels that differ between what VICE drew and the model, as up to five descriptions and a count. */
+export async function pictureMismatches(vice, x, y) {
+  const panelCodes = await vice.read((await frontScreen(vice)) + ROWS * 40, 120);
+  const panelColours = await vice.read(COLOUR_RAM + ROWS * 40, 120);
+  const wanted = expectedPicture(x, y, panelCodes, panelColours);
+  const shown = await vice.display();
+  const wrong = [];
+  let count = 0;
+  for (let line = 51; line <= 249; line++) // line 250 is still being drawn when the bottom interrupt starts
+    for (let px = 24; px <= 343; px++) {
+      const got = shown.at(px, line), want = wanted(px, line);
+      if (got !== want && count++ < 5) wrong.push(`x ${px} line ${line}: colour ${got}, not ${want}`);
+    }
+  return count ? [`${count} pixels wrong`, ...wrong] : [];
+}
+
+/**
+ * A model of how the window moves, the same rules as move_camera in src/main.asm, kept here as a second
+ * opinion. step(bits) is one pass of the main loop with the joystick held as given.
+ */
+export class Camera {
+  constructor(x, y) {
+    this.pos = [x, y];
+    this.cell = [x >> 3, y >> 3];
+    this.busy = false; // the pass after a swap goes on colour memory
+  }
+  get x() {
+    return this.pos[0];
+  }
+  get y() {
+    return this.pos[1];
+  }
+  step(bits) {
+    const pace = bits & 16 ? FAST : SPEED;
+    const way = (minus, plus) => (bits & plus && !(bits & minus) ? pace : bits & minus && !(bits & plus) ? -pace : 0);
+    const steps = [way(4, 8), way(1, 2)];
+    const max = [MAX_X, MAX_Y];
+    let swapped = false;
+    for (const a of [0, 1]) {
+      let v = Math.min(max[a], Math.max(0, this.pos[a] + steps[a]));
+      if (this.busy && v >> 3 !== this.cell[a]) v = v >> 3 > this.cell[a] ? this.cell[a] * 8 + 7 : this.cell[a] * 8;
+      this.pos[a] = v;
+    }
+    for (const a of [0, 1]) {
+      if (this.pos[a] >> 3 !== this.cell[a]) swapped = true;
+      this.cell[a] = this.pos[a] >> 3;
+    }
+    this.busy = swapped;
+  }
+}
+
+/** Where the program's window is, from its variables. */
+export async function camera(vice, labels) {
+  const lo = await vice.read(labels.cam_lo, 2);
+  const hi = await vice.read(labels.cam_hi, 2);
+  return [lo[0] + 256 * hi[0], lo[1] + 256 * hi[1]];
 }

@@ -23,7 +23,7 @@ test('the city is the same one as in the browser game', () => {
 
 test('the files are the sizes the program expects', () => {
   assert.equal(chars.length, 2048, '256 characters of 8 bytes');
-  assert.equal(tiles.length, 5 * 256, 'four characters and a colour for each of 256 tiles');
+  assert.equal(tiles.length, 5 * 256, 'four characters for each of 256 tiles, and a colour for each character');
   assert.equal(map.length, MW * MW);
 });
 
@@ -37,9 +37,20 @@ test('every map byte names a tile that exists, and every tile uses real tile cha
       assert.ok(ch >= 64, `tile ${t} uses character ${ch}, which is in the font`);
       assert.ok(chars.subarray(ch * 8, ch * 8 + 8) !== undefined);
     }
-    const colour = tiles[1024 + t];
-    assert.ok(colour >= 8 && colour <= 15, `tile ${t} has colour ${colour}: multicolour needs 8 to 15`);
   }
+});
+
+test('every tile character has one colour, and it is a multicolour one', () => {
+  const used = new Set();
+  for (const t of new Set(map)) for (let quarter = 0; quarter < 4; quarter++) used.add(tiles[quarter * 256 + t]);
+  for (const ch of used) {
+    const colour = tiles[1024 + ch];
+    assert.ok(colour >= 8 && colour <= 15, `character ${ch} has colour ${colour}: multicolour needs 8 to 15`);
+  }
+});
+
+test('the last byte of the character set is empty: it is what the video chip shows when idle', () => {
+  assert.equal(chars[2047], 0);
 });
 
 test('the font is in place: A is character 1 and is not blank', () => {

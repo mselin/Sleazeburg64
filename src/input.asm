@@ -6,15 +6,16 @@ input           .block
 ; Out: A = JOY_ bits, set while held.
 read
 .if AUTOPILOT != 0
-                ; Emulator test: head down and right for a while, then stop, so a screenshot can be compared.
+                ; Emulator test: head down and right at full speed for a while, then stop, so a screenshot can
+                ; be compared. 160 frames at 4 pixels is 40 tiles each way.
                 lda steps_left
                 beq +
                 dec steps_left
-                lda #JOY_RIGHT | JOY_DOWN
+                lda #JOY_RIGHT | JOY_DOWN | JOY_FIRE
                 rts
 +               lda #0
                 rts
-steps_left      .byte 120
+steps_left      .byte 160
 .else
                 lda CIA1_PORT_A
                 eor #$ff                ; the port reads 0 for a closed switch
