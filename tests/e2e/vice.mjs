@@ -89,7 +89,8 @@ export class Vice {
     const args = ['-a', 'x64sc', '-default', '-kernal', join(ROMS, ROM_FILES.kernal), '-basic', join(ROMS, ROM_FILES.basic),
       '-chargen', join(ROMS, ROM_FILES.chargen), '-controlport2device', '37', '-sounddev', 'dummy', '-warp',
       '-autostartprgmode', '1', '-binarymonitor', '-binarymonitoraddress', `ip4://127.0.0.1:${port}`];
-    const child = spawn('xvfb-run', args, { cwd: ROOT, stdio: 'ignore' });
+    // In a process group of its own, so that quitting can stop xvfb-run's virtual display along with VICE.
+    const child = spawn('xvfb-run', args, { cwd: ROOT, stdio: 'ignore', detached: true });
     const vice = new Vice(child, await connect(port, child), timeoutMs);
     await vice.joystick(0);
     const name = Buffer.from(prg, 'latin1');
@@ -272,6 +273,10 @@ export class Vice {
       // It is going away either way.
     }
     this.socket.destroy();
-    this.child.kill();
+    try {
+      process.kill(-this.child.pid, 'SIGTERM'); // the whole group: xvfb-run, Xvfb and VICE
+    } catch {
+      // Already gone.
+    }
   }
 }
