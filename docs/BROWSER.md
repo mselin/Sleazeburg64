@@ -21,9 +21,15 @@ this: a page in a browser hands its ROMs to every visitor, so it would still use
 could fetch the Commodore ROMs from a repository like that in the visitor's browser, the way the browser game's
 radio streams tunes from HVSC, but that is a rights question for the owner.)
 
-One thing is not known yet and decides it: **whether VirtualC64 shows the raster split exactly as VICE
-does.** VirtualC64 is a cycle-exact emulator too, but a different one, and the split has writes timed to the
-cycle (see `src/irq.asm`). That needs trying before building a page around it; see "Next steps".
+**Tried on 20 November 2026 and it works.** The owner loaded `sleazeburg64.prg` into VirtualC64 Web (on the
+Commodore ROMs) and drove the car. The picture was as in VICE: the city in its 38-column window, the car in the
+middle, the black band, and the panel on black with the readout following. So VirtualC64 handles the raster
+split's cycle-timed writes. Not yet tried there: the Open ROMs, which is what the play link uses (VICE runs the
+program the same on either).
+
+One thing to know when trying a `.prg` in it by hand: it puts the program at its load address and types
+`run:`. With ROMs that start BASIC somewhere other than `$0801` that fails with `?SYNTAX ERROR` (the start-up
+screen then shows fewer than 38911 bytes free); with the standard ROMs or its Open ROMs it works.
 
 ## What exists
 
@@ -68,10 +74,14 @@ cycle (see `src/irq.asm`). That needs trying before building a page around it; s
 
 They follow the KERNAL's public entry points rather than copying it, so programs that call the KERNAL in ways it does not cover may differ. This program switches the KERNAL out and never calls it, so that does not matter here.
 
-## Next steps
+## What is done, and what is next
 
-1. **Try it.** `VICE_ROMS=open make test` already shows the program runs the same in VICE on the Open ROMs. To
-   see it in VirtualC64, open <https://vc64web.github.io/>, pick the Open ROMs when asked, and drop `sleazeburg64.prg` on it (from `make`, or the `sleazeburg64` artifact of any CI run). Set port 2 to the keyboard joystick. Then check two things: that the black band and the panel sit still while the car drives, and that the car drives. I could not do this here: running the downloaded site locally was refused by this session's permissions.
-2. **If it works, publish the program.** CI on `main` builds `sleazeburg64.prg`; publish it with GitHub Pages so it has a fixed address.
-3. **Add a page:** either a link to `vc64web.github.io` with that address in it, or a copy of VirtualC64 Web's built files hosted next to the browser game on mselin.github.io (2.2 MB of emulator, plus a link to the source). The link is less work. The copy does not depend on someone else's site and can be tested in CI.
-4. **Test it.** If it is self-hosted, an end-to-end test can load the page in Playwright's Chromium with the program and compare a screenshot, as the VICE tests do.
+1. **Done: the play page.** After the tests pass on `main`, CI publishes the tested program and a small page
+   (`site/index.html`) with GitHub Pages, at <https://mselin.github.io/Sleazeburg64/>. The page links to
+   VirtualC64 Web with the program's address in the link, for the keyboard and for touch, and offers the
+   `.prg` to download for a real machine.
+2. **Next: try the link** once it is published, to see the Open ROMs in VirtualC64 Web as well.
+3. **Later, if wanted:** host a copy of VirtualC64 Web's built files instead of linking to its site (2.2 MB of
+   emulator, plus a link to its source, as GPL-3.0 asks), so the page does not depend on someone else's site
+   and can be tested in CI by loading it in Playwright's Chromium and comparing a screenshot, as the VICE tests
+   do. And a link to the page from the browser game on mselin.github.io.
