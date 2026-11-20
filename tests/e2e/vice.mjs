@@ -6,17 +6,37 @@
 // moves when the test tells it to, so the tests give the same result on a slow machine as on a fast one.
 //
 // VICE packages do not include the Commodore ROMs, which are copyrighted. Like the screenshot tests this
-// uses the open-source Open ROMs from the MEGA65 project, downloaded once into .cache/.
+// fetches them into .cache/ from a fixed commit of the VICE project's own repository
+// (github.com/VICE-Team/svn-mirror) and checks their SHA-256, or
+// with VICE_ROMS=open uses the MEGA65 project's open-source Open ROMs. See tools/vice-lib.sh.
 import { execFileSync, spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import net from 'node:net';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..');
-const ROMS = join(ROOT, '.cache/open-roms');
-const ROM_URL = 'https://raw.githubusercontent.com/MEGA65/open-roms/master/bin';
-const ROM_FILES = { kernal: 'kernal_generic.rom', basic: 'basic_generic.rom', chargen: 'chargen_openroms.rom' };
+const ROM_SETS = {
+  commodore: {
+    dir: '.cache/vice-roms',
+    url: 'https://raw.githubusercontent.com/VICE-Team/svn-mirror/83095dcbf3a535167fb864fc4801b0c8ef5be517/vice/data/C64',
+    kernal: ['kernal-901227-03.bin', '83c60d47047d7beab8e5b7bf6f67f80daa088b7a6a27de0d7e016f6484042721'],
+    basic: ['basic-901226-01.bin', '89878cea0a268734696de11c4bae593eaaa506465d2029d619c0e0cbccdfa62d'],
+    chargen: ['chargen-901225-01.bin', 'fd0d53b8480e86163ac98998976c72cc58d5dd8eb824ed7b829774e74213b420'],
+  },
+  open: {
+    dir: '.cache/open-roms',
+    url: 'https://raw.githubusercontent.com/MEGA65/open-roms/ad178dbe4d48cd6a317737a8e0e7e662f7e33d32/bin',
+    kernal: ['kernal_generic.rom', '88e86ed3d0c710edab8f90ad146faa8de1ead11f43494b176c7b54724ca721c6'],
+    basic: ['basic_generic.rom', '54a1464b4b27c9dc61bbd62a818fdd12ec99af9089111005a5add0ad0e6bd5ec'],
+    chargen: ['chargen_openroms.rom', '5e3451466841b93df7e01e4b635b07b8d8633351bae483b1961d96b3131186e7'],
+  },
+};
+const ROM_SET = ROM_SETS[process.env.VICE_ROMS || 'commodore'];
+if (!ROM_SET) throw new Error(`VICE_ROMS must be one of ${Object.keys(ROM_SETS).join(', ')}`);
+const ROMS = join(ROOT, ROM_SET.dir);
+const ROM_FILES = { kernal: ROM_SET.kernal[0], basic: ROM_SET.basic[0], chargen: ROM_SET.chargen[0] };
 
 export const JOY = { UP: 1, DOWN: 2, LEFT: 4, RIGHT: 8, FIRE: 16 };
 
@@ -28,9 +48,12 @@ const EVENT = 0xffffffff;
 
 function roms() {
   mkdirSync(ROMS, { recursive: true });
-  for (const file of Object.values(ROM_FILES))
-    if (!existsSync(join(ROMS, file)))
-      execFileSync('curl', ['-fsSL', '-o', join(ROMS, file), `${ROM_URL}/${file}`], { stdio: 'inherit' });
+  for (const [file, sha256] of [ROM_SET.kernal, ROM_SET.basic, ROM_SET.chargen]) {
+    const path = join(ROMS, file);
+    if (!existsSync(path)) execFileSync('curl', ['-fsSL', '-o', path, `${ROM_SET.url}/${file}`], { stdio: 'inherit' });
+    if (createHash('sha256').update(readFileSync(path)).digest('hex') !== sha256)
+      throw new Error(`${path} is not the expected ROM`);
+  }
 }
 
 function freePort() {
