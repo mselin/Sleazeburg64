@@ -14,6 +14,20 @@ cd "$(dirname "$0")/.."
 # The title screen as it is built for use, waiting for fire.
 vice_shot music-title 25000000 build/sleazeburg64-music.prg
 
+# The same, loaded the way a person would: LOAD"*",8,1 and RUN from a disk, through the KERNAL and BASIC,
+# though the file runs past the end of BASIC's memory at $a000. (VICE's fast virtual drive needs the original
+# KERNAL, so this check is skipped with VICE_ROMS=open.)
+if [ "$VICE_ROMS" != open ]; then
+  rm -f build/music-title.d64
+  c1541 -format "sleazeburg 64,64" d64 build/music-title.d64 -write build/sleazeburg64-music.prg "sleazeburg 64" >/dev/null
+  vice_shot music-title-loaded 60000000 build/music-title.d64 +drive8truedrive -virtualdev8
+  if ! cmp -s build/screenshot-music-title.png build/screenshot-music-title-loaded.png; then
+    echo "the title screen loaded from a disk does not look like the one injected into memory" >&2
+    exit 1
+  fi
+  echo "ok: LOAD and RUN from a disk give the same title screen"
+fi
+
 # Autopilot builds: the game with its tune, started directly and by way of the title screen. Once the view
 # has stopped moving the two screens must be the same, which shows the game survived being moved in memory
 # while the title tune had the machine.
@@ -35,8 +49,8 @@ echo "ok: the game looks the same started from the title screen"
 sound() {
   local name=$1 prg=$2
   rm -f "build/sound-$name.wav"
-  xvfb-run -a x64sc -default -kernal "$ROMS/kernal_generic.rom" -basic "$ROMS/basic_generic.rom" \
-    -chargen "$ROMS/chargen_openroms.rom" -sounddev wav -soundarg "build/sound-$name.wav" \
+  xvfb-run -a x64sc -default -kernal "$KERNAL" -basic "$BASIC" \
+    -chargen "$CHARGEN" -sounddev wav -soundarg "build/sound-$name.wav" \
     -limitcycles 12000000 -autostartprgmode 1 -autostart "$prg" >"build/vice-sound-$name.log" 2>&1 || true
   node -e '
     const b = require("fs").readFileSync(process.argv[1]);

@@ -49,8 +49,9 @@ Milestone 1 (smooth scrolling, the raster split and the car) is done in the emul
 port is practical, so the next step is mine: try it on the C64 and the C128D. After that, milestone 2,
 starting with traffic and a sprite multiplexer, which is the next hardest part. Sprites steal cycles on the
 lines they are on, so the split's timed writes and the frame budget need checking as sprites are added: the
-pixel tests and the late-frame tests show both. I also want the issue "Play the C64 version in a browser with a WebAssembly build of
-VICE" looked into at some point: find which builds exist, their licence, and how they handle system ROMs.
+pixel tests and the late-frame tests show both. The issue "Play the C64 version in a browser with a WebAssembly
+build of VICE" has been researched: see `docs/BROWSER.md`. It recommends VirtualC64 Web on the Open ROMs
+rather than VICE, and the first step is mine: trying the program in it.
 
 ### The two SID tunes: in test builds only
 
@@ -78,9 +79,11 @@ Decided: the two Rob Hubbard tunes are used in **test builds**, not in the publi
 apt-get update && apt-get install -y 64tass vice xvfb
 ```
 
-- Ubuntu's VICE package has no Commodore ROMs (copyrighted). `tools/emulator-test.sh` downloads the
-  open-source MEGA65 Open ROMs into `.cache/` and runs `x64sc` under `xvfb-run` with `-autostartprgmode 1`.
-  Do not commit ROMs.
+- Ubuntu's VICE package has no Commodore ROMs (copyrighted). The tests fetch the C64 ones into `.cache/`
+  from the VICE project's own repository (https://github.com/VICE-Team/svn-mirror) at a fixed commit and
+  check their SHA-256 (`tools/vice-lib.sh`,
+  `tests/e2e/vice.mjs`), and run `x64sc` under `xvfb-run`. `VICE_ROMS=open` uses the MEGA65 Open ROMs
+  instead. Do not commit ROMs.
 - Emulator screenshots can be used to check graphics. An assistant cannot hear the SID or feel the controls,
   and should say so rather than guess.
 - Network access may be restricted. The cloud environment allows the HVSC hosts (`hvsc.c64.org`,
@@ -112,6 +115,10 @@ apt-get update && apt-get install -y 64tass vice xvfb
 - **2026-11-19.** Merging used to wait for my word every time. Changed at my request, now that end-to-end
   tests run in CI: an assistant may merge its own pull request once CI is green, with the exceptions listed
   under "How I like to work".
+- **2026-11-20.** The tests used the open-source Open ROMs because the Commodore ones are copyrighted. At
+  my request they now fetch the Commodore C64 ROMs at test time, from the VICE project's own repository (the
+  same files as in asig/vice-roms, which I suggested first). They stay out of both
+  repositories and are never published; a page playing the game in a browser would still use the Open ROMs.
 
 ## Open threads
 
@@ -126,6 +133,7 @@ apt-get update && apt-get install -y 64tass vice xvfb
 
 - Don't commit copyrighted SID tunes or Commodore ROMs to either repository, and don't publish a program or
   recording that contains the tunes (`build/sleazeburg64-music.prg`, `build/sleazeburg64-ingame.prg`,
-  `build/sound-*.wav`).
+  `build/sound-*.wav`), or anything that contains the Commodore ROMs (CI's artifacts hold only this program,
+  screenshots and logs).
 - Don't rename or rebrand the game after any existing commercial game.
 - Don't push to `main` in either repo except through a merged pull request.

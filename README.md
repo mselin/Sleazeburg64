@@ -62,9 +62,14 @@ This runs three things:
 The end-to-end tests talk to VICE's binary monitor and step the emulated machine themselves, so they do not
 depend on how fast the computer running them is.
 
-It needs `x64sc`, `xvfb-run` and `curl`. VICE packages come without the Commodore ROMs, so the tests download
-the open-source [Open ROMs](https://github.com/MEGA65/open-roms) once into `.cache/`. They are used only to
-start the emulated machine; nothing from them is part of this program or this repository.
+It needs `x64sc`, `xvfb-run` and `curl`. VICE packages come without the Commodore ROMs, so the tests fetch
+the C64 KERNAL, BASIC and character ROMs once into `.cache/` (which git ignores) from the VICE project's own
+repository ([VICE-Team/svn-mirror](https://github.com/VICE-Team/svn-mirror)), at a fixed commit, and check
+their SHA-256. They are copyrighted and are only used to run the emulated machine:
+they are never committed to this repository and never published. `VICE_ROMS=open make test` runs the tests
+on the open-source [Open ROMs](https://github.com/MEGA65/open-roms) instead, which is what a page playing the
+game in a browser would use (see [docs/BROWSER.md](docs/BROWSER.md)); the program does not call the ROMs, so
+it runs the same on either.
 
 What no test here can tell: how anything sounds, how the controls feel, and whether it behaves the same on a
 real C64.
@@ -169,8 +174,8 @@ also uses zero page `$e0`–`$e3`. The title tune sits at `$1000`–`$5150`, whi
 separate program: its own code comes before the tune, the game waits after it, and the title screen moves
 the game into place when it hands over. The file runs past `$a000`, the end of BASIC's memory, which LOAD
 and RUN allow up to `$cfff` because the program starts at once with SYS and uses no BASIC variables; the
-build checks the limit. (Two files on a disk would be the usual way, but the open-source ROMs the tests use
-cannot load from a disk, so it could not be tested.)
+build checks the limit, and `make test-music` checks that the title screen comes up after a real `LOAD` and
+`RUN` from a disk image.
 
 ## Licence
 
