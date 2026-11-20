@@ -1,12 +1,12 @@
 ; SPDX-License-Identifier: GPL-2.0-or-later
 ; The raster interrupts, and the handshake with the main loop.
 ;
-; Two interrupts a frame:
+; Three interrupts a frame, and the sprite multiplexer's (sprites.asm) between the bottom one and the split:
 ;
 ;   line 213  The split. The city ends after line 215 whatever its fine scroll and lines 216-222 are black.
 ;   line 221  The panel starts on line 223 in its own mode, colours and scroll.
-;   line 250  In the bottom border. Puts in place the city's mode, fine scroll and screen for the next
-;             frame, and plays the music.
+;   line 250  In the bottom border. Puts in place the city's mode, fine scroll, screen and sprites for the
+;             next frame, and plays the music.
 ;
 ; How the split works. The video chip fetches a row of characters on a "bad line", a line whose low three
 ; bits equal the vertical fine scroll, and shows the row for eight lines. The city's last row (20) has its bad
@@ -58,6 +58,7 @@ cur_sxh         .byte ?
 cur_sy          .byte ?
 cur_sp          .byte ?
 cur_d015        .byte ?
+fresh           .byte ?         ; bottom: 1 when it put a new frame in place, 0 when it showed the last again
 count           .word ?         ; frames shown
 missed          .word ?         ; frames shown again because the main loop had not finished the next one
                 .send
@@ -72,6 +73,7 @@ init            lda #0
                 sta SPRITE_BEHIND
                 lda #RED
                 sta SPRITE_COLOUR
+                jsr sprites.init
                 lda #0
                 sta commit
                 sta count
@@ -214,11 +216,14 @@ bottom          pha
                 .cerror next_d015 - next_sx != 4 || cur_d015 - cur_sx != 4, "the sprite registers are copied as five"
                 lda #0
                 sta commit
-                beq +
+                lda #1
+                bne ++
 late            inc missed
                 bne +
                 inc missed + 1
-+               lda cur_d011
++               lda #0
++               sta fresh
+                lda cur_d011
                 sta VIC_CTRL1
                 lda cur_d016
                 sta VIC_CTRL2
@@ -226,26 +231,19 @@ late            inc missed
                 sta VIC_MEMORY
                 lda #DARK_GREY
                 sta VIC_BACKGROUND
-                lda cur_sx
-                sta SPRITE_X
-                lda cur_sxh
-                sta SPRITE_X_HIGH
+                lda cur_sx              ; sprite 0, the player's car (sprites.show_frame sets its x bit 8 and
+                sta SPRITE_X            ; switches it on with the others)
                 lda cur_sy
                 sta SPRITE_Y
                 lda cur_sp
                 sta SCREEN_A + $3f8
                 sta SCREEN_B + $3f8
-                lda cur_d015
-                sta SPRITE_ON
                 inc count
                 bne +
                 inc count + 1
-+               lda #SPLIT_LINE
-                sta VIC_RASTER
-                lda #<split
-                sta $fffe
-                lda #>split
-                sta $ffff
++               lda fresh
+                lsr
+                jsr sprites.show_frame  ; sprites 1-7, and the next interrupt: the multiplexer's or the split's
                 lda #1
                 sta VIC_IRQ
 .if MUSIC != 0

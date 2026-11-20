@@ -20,10 +20,11 @@ A briefing for whoever picks this project up next, person or assistant. Written 
 **2. Commodore 64 port (just started, the active work)**
 
 - Repo: `mselin/Sleazeburg64` (this one). 6502 assembly in 64tass syntax.
-- State: milestone 1c, a car you can drive. The city in multicolour characters, scrolled smoothly to follow
+- State: milestone 2 started, with traffic. The city in multicolour characters, scrolled smoothly to follow
   a car driven with a joystick in port 2, with the browser game's handling and collisions with buildings and
-  trees. A raster split keeps the panel still on black. No traffic, people or sound yet. None of it has been
-  tried on real hardware.
+  trees. Up to six traffic cars follow the lanes and stop for what is in front of them, shown with a sprite
+  multiplexer. A raster split keeps the panel still on black. The player's car does not collide with
+  traffic yet (next), and there are no people or sound. None of it has been tried on real hardware.
 - The city comes from the same generator as the browser game (`tools/city.mjs`, checksum-checked).
 - `make` builds `build/sleazeburg64.prg`; `make test` runs asset tests and a headless VICE run that saves
   screenshots. `make music` and `make test-music` do the same for the music test builds.
@@ -39,26 +40,37 @@ A briefing for whoever picks this project up next, person or assistant. Written 
 - Read `README.md` and `docs/ROADMAP.md` first. The issues cover the roadmap.
 - Memory: see the table in the README. ROMs are banked out; the program does not call the KERNAL. Three
   raster interrupts a frame (lines 213, 221 and 250); `src/irq.asm` explains the split.
-- Build option `VIEWER=1` has no car and lets the stick move the view, as in 1b. The scrolling tests use it.
-- Frame budget: in the tests' drives the busiest frame is done 218 raster lines after the bottom interrupt
-  with the car flat out, 256 with a tune as well, of 312. The tests fail if any frame is late in their
-  drives. On a rough drive (turning, sliding, bouncing off walls) the worst frame is one that moves the
-  screen a character: 295 lines without a tune, so a tune can make one late. Colour memory after a swap,
-  once the busiest, is now worked out a tile at a time and is done by 227. Anything new that runs every frame
-  has to fit in what is left, or move work out of that frame. The room to make next is in the frames that
-  move the screen (the copy and its new edges, about 180 lines) and in the car's collisions.
+- Build options: `VIEWER=1` has no car and no traffic and lets the stick move the view, as in 1b (the
+  scrolling tests use it); `CARS` sets how many traffic cars (6); `SPAWN=0` stops traffic appearing by
+  itself, for tests that place their own.
+- Frame budget: with traffic, the tests' drives are done at worst 231 raster lines after the bottom
+  interrupt with the car flat out, 260 with a tune too, of 312, and a rough drive (turning, sliding,
+  bouncing) about 280; the tests fail if any frame is late in their drives. A frame that moves the screen a
+  character and the one after it, which works out colour memory, are the busy ones and now take about the
+  same. Anything new that runs every frame has to fit in what is left, or move work out of those frames:
+  traffic only moves its cars in a colour memory frame. Six cars is what fits; a tune on a rough drive is
+  tight.
+- Room is short: the code ends near `$2d60` (the screens start at `$3000`) and zero page is used up to about
+  `$d6` (the music builds' tune has `$e0` on). Variables with no starting value go in the panel screen's
+  rows 0-20 (`$0400`-`$0747`), which the video chip never shows.
+- Sprites cannot be cut off part way down: switching one off only stops it starting, so a sprite carries on
+  over the black band and the panel, and its fetches take cycles the split's timed writes need. So traffic is
+  only shown while all of its sprite is above the band.
+- 64tass counts anonymous labels (`+`, `-`) in the branch of an `.if`/`.else` that is not assembled. Don't let
+  an anonymous branch cross an `.else`; use named labels (a macro called with a label has its own scope).
 - The end-to-end tests compare VICE's actual picture with a model pixel by pixel, which is how the timing of
   the split was got right. Keep that for anything that draws.
 
 ## What to do next
 
 Milestone 1 (smooth scrolling, the raster split and the car) is done in the emulator. It decides whether the
-port is practical, so the next step is mine: try it on the C64 and the C128D. After that, milestone 2,
-starting with traffic and a sprite multiplexer, which is the next hardest part. Sprites steal cycles on the
-lines they are on, so the split's timed writes and the frame budget need checking as sprites are added: the
-pixel tests and the late-frame tests show both. The issue "Play the C64 version in a browser with a WebAssembly
-build of VICE" is done in its first form: VirtualC64 Web runs the program correctly, and CI publishes the
-tested program and a play page with GitHub Pages after every merge to `main`, at
+port is practical, so trying it on the C64 and the C128D is still mine to do. Milestone 2 has started with
+traffic and the sprite multiplexer. Next: the player's car colliding with traffic as in the browser game,
+then the player on foot. Sprites steal cycles on the lines they are on, so the split's timed writes and the
+frame budget need checking as sprites are added: the pixel tests and the late-frame tests show both. The
+issue "Play the C64 version in a browser with a WebAssembly build of VICE" is done in its first form:
+VirtualC64 Web runs the program correctly, and CI publishes the tested program and a play page with GitHub
+Pages after every merge to `main`, at
 <https://mselin.github.io/Sleazeburg64/>; I have played it from there, on VirtualC64 Web's Open ROMs. See
 `docs/BROWSER.md`.
 
@@ -137,6 +149,9 @@ apt-get update && apt-get install -y 64tass vice xvfb
 - **Balance (browser game):** I am happy with the difficulty. Do not retune it unasked.
 - **C64 on real hardware:** the smooth scrolling and the split have only run in VICE (x64sc, cycle exact). I
   have not yet tried them on my C64 and C128D.
+- **The player's car at the south edge of the city:** within a few pixels of it, the car's sprite can reach
+  below the city, over the black band (see the note on sprites above). Found while adding traffic; not fixed
+  yet. The test that meant to check it never puts the car low enough.
 
 ## Don't
 

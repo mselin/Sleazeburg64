@@ -1,15 +1,18 @@
 ; SPDX-License-Identifier: GPL-2.0-or-later
 ; Sleazeburg 64 for the Commodore 64.
 ;
-; Milestone 1c: a car to drive around the city. A joystick in port 2 drives it, the view scrolls smoothly to
-; follow it, and a raster split keeps the status panel still under the city. Traffic, people and the game
-; itself come later.
+; Milestone 2, started: a car to drive around a city with traffic in it. A joystick in port 2 drives it, the
+; view scrolls smoothly to follow it, and a raster split keeps the status panel still under the city. Traffic
+; follows the lanes, shown with a sprite multiplexer. People and the game itself come later.
 ;
 ; Assemble with 64tass (see the Makefile). Build options, set with -D on the command line:
 ;   START_X, START_Y   the tile in the top left corner of the view at start; the car starts in its middle
 ;   AUTOPILOT          1 makes the car drive itself for a while, for the emulator test
 ;   MUSIC              1 plays a tune during the game: a test build, see music/README.md
-;   VIEWER             1 has no car: the stick moves the view itself, as in milestone 1b, for testing scrolling
+;   VIEWER             1 has no car and no traffic: the stick moves the view itself, as in milestone 1b, for
+;                      testing scrolling
+;   CARS               how many traffic cars at most (traffic.asm)
+;   SPAWN              0: no traffic appears by itself, for tests that place their own
 
         .cpu "6502"
         .include "c64.inc"
@@ -106,6 +109,9 @@ start           sei
                 jsr tune.copy           ; out of the way of a colour routine (video.asm) before it is written
 .endif
                 jsr video.init          ; draws the first picture and sets up the raster interrupts
+.if VIEWER == 0
+                jsr traffic.init        ; after video.init clears the panel's screen, where its tables are
+.endif
                 jsr panel.init
                 jsr panel.update
 .if MUSIC != 0
@@ -123,7 +129,10 @@ ready           jsr input.read          ; A = which directions are held
                 jsr car.update
                 jsr follow_car
                 jsr move_both
-                jsr car.show
+                jsr traffic.update      ; after the window has moved: it needs to know whether the screen will
+                jsr car.show            ; move a character this frame
+                jsr traffic.show
+                jsr sprites.plan
 .else
                 jsr move_camera
 .endif
@@ -306,14 +315,23 @@ char_of         lda cam_hi,x
                 .include "input.asm"
                 .include "video.asm"
                 .include "panel.asm"
+                .include "sprites.asm"
 .if VIEWER == 0
                 .include "car.asm"
+                .include "traffic.asm"
 .endif
 .if MUSIC != 0
                 .include "music.asm"
 .endif
 code_end
                 .cerror * > SCREEN_A, "code has run into the screens"
+
+; ---------- variables with no starting value: in the panel's screen, whose rows 0-20 are never shown ----------
+                .virtual PANEL_SCREEN
+                .dsection bss
+bss_end
+                .endv
+                .cerror bss_end > PANEL_SCREEN + ROWS * 40, "the variables have run into the panel's rows"
 
 ; ---------- data ----------
                 * = $3800
