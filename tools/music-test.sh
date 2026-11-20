@@ -30,9 +30,11 @@ fi
 
 # Autopilot builds: the game with its tune, started directly and by way of the title screen. Once the view
 # has stopped moving the two screens must be the same, which shows the game survived being moved in memory
-# while the title tune had the machine.
+# while the title tune had the machine. Without traffic (SPAWN=0), which would still be moving, and starts at
+# a different time in each; the end-to-end tests drive with traffic and a tune.
 mkdir -p build/music-test
-64tass $ASMFLAGS -I src -I build -D MUSIC=1 -D AUTOPILOT=1 --labels build/music-test/labels-ingame.txt \
+64tass $ASMFLAGS -I src -I build -D MUSIC=1 -D AUTOPILOT=1 -D SPAWN=0 \
+  --labels build/music-test/labels-ingame.txt \
   -o build/music-test/sleazeburg64-ingame.prg src/main.asm
 64tass $ASMFLAGS -I src -I build/music-test -I build -D AUTOPILOT=1 -o build/music-test/sleazeburg64-music.prg \
   src/title.asm
