@@ -39,7 +39,6 @@ city_row        .byte ?         ; the row of characters in the city that is bein
 rows_left       .byte ?
 k               .byte ?         ; tile in the map row
 j               .byte ?         ; screen column
-colour_from     .byte ?         ; which screen `colour` reads: 0 for SCREEN_A, 1 for SCREEN_B
                 .send
 
 ; Add an 8-bit constant to a 16-bit zero page pointer.
@@ -89,11 +88,7 @@ init            lda #BLACK
                 lda #>SCREEN_A
                 sta target
                 jsr draw_all
-                lda #0                  ; `colour` is assembled to read SCREEN_A
-                sta colour_from
-                jsr colour
-                ldx #1                  ; the next screen to colour will be SCREEN_B
-                jsr point_colour
+                jsr colour_a
                 jsr fine
                 lda frame.next_d011
                 sta frame.cur_d011
@@ -175,11 +170,10 @@ d018_of         .byte D018_A, D018_B
 after_swap      lda swapped
                 sta busy
                 beq +
-                jsr colour
-                lda front               ; screens take turns, so the next one to colour is the other
-                eor #1
-                tax
-                jmp point_colour
+                lda front
+                beq colour_a_far
+                jmp colour_b
+colour_a_far    jmp colour_a
 +               rts
 
 ; Fill the back screen with the front one moved by dcol and drow, then draw what came into view.
@@ -377,17 +371,15 @@ lower           lda tile_bl,x
                 bne -
                 rts
 
-; Colour memory for the city rows from the screen in front: each character's colour from char_colour. Row
-; by row from the top, ten columns at a time, so it keeps ahead of the video chip. The loop is unrolled for
-; speed and assembled to read SCREEN_A; point_colour turns it to the other screen by changing the high bytes
-; of its addresses, rather than the program carrying a second copy (the music test build has no room for
-; one). That is done straight after colouring, in the frame that has time to spare, for the next swap.
-colour
+; Colour memory for the city rows from a screen: each character's colour from char_colour. Row by row from
+; the top, ten columns at a time, so it keeps ahead of the video chip. One copy for each screen, unrolled for
+; speed: this is the busiest work there is.
+colour_of       .macro screen
                 .for r := 0, r < ROWS, r += 1
                 ldx #9
 -
                 .for c := 0, c < 40, c += 10
-                ldy SCREEN_A + 40 * r + c,x
+                ldy \screen + 40 * r + c,x
                 lda char_colour,y
                 sta COLOUR_RAM + 40 * r + c,x
                 .next
@@ -395,32 +387,10 @@ colour
                 bpl -
                 .next
                 rts
-COLOUR_ROW      = 2 + 4 * 9 + 3                 ; bytes of code per row: ldx, four lots of three, dex and bpl
-                .cerror * - colour != ROWS * COLOUR_ROW + 1, "point_colour expects a different layout of colour"
+                .endm
 
-; Make `colour` read screen X (0 for SCREEN_A, 1 for SCREEN_B).
-point_colour    cpx colour_from
-                beq pointed
-                stx colour_from
-                lda #<(colour + 4)      ; the high byte of the first ldy's address
-                sta ptr
-                lda #>(colour + 4)
-                sta ptr + 1
-                ldx #ROWS
-next_row        ldy #0
--               lda (ptr),y
-                eor #>(SCREEN_A ^ SCREEN_B)
-                sta (ptr),y
-                tya
-                clc
-                adc #9
-                tay
-                cpy #4 * 9
-                bne -
-                #advance ptr, COLOUR_ROW
-                dex
-                bne next_row
-pointed         rts
+colour_a        #colour_of SCREEN_A
+colour_b        #colour_of SCREEN_B
 
 row40_lo        .byte <(range(ROWS) * 40)
 row40_hi        .byte >(range(ROWS) * 40)

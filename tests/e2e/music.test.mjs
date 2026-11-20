@@ -112,6 +112,11 @@ test('the title screen credits both tunes, says the build is not for distributio
     ]);
     assert.equal((await vice.read(TITLE.mark, 1))[0], 42, 'the title tune was started');
     assert.equal((await vice.read(0xdc02, 1))[0], 0, 'the joystick lines are inputs');
+    // The file goes past the end of BASIC's memory, and BASIC still ran it: its end-of-program pointer, set
+    // as LOAD sets it, is where the file ends.
+    const end = (await vice.read(0x2d, 2)).readUInt16LE(0);
+    assert.equal(end, 0x0801 + title.bytes.length - 2, 'BASIC knows where the program ends');
+    assert.ok(end > 0xa000 && end <= 0xd000, `the program ends at ${end.toString(16)}, past a000 and before d000`);
   }));
 
 test('the title screen waits for fire while its tune runs from interrupts: directions do not start the game', () =>
