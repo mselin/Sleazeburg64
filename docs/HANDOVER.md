@@ -37,8 +37,10 @@ A briefing for whoever picks this project up next, person or assistant. Written 
   `main` then publishes the tested `.prg` and `site/index.html` with GitHub Pages (the repository's Pages
   source is "GitHub Actions"). That `pages` job is the only thing that deploys the site: don't add another
   Pages workflow, such as GitHub's suggested Jekyll one, because two deploys race and the other lacks the
-  built `.prg`. The workflow's actions are pinned to release commits, kept up to date by Dependabot, the same
-  way as in the browser game's repository. Branch protection should require the one check "All checks
+  built `.prg`. Its deploy step gets three tries, with a wait between them: GitHub's deploy action sometimes
+  cannot find the page it was handed a moment before, and finds it a little later (seen on 21 November 2026
+  in both repositories). The workflow's actions are pinned to release commits, kept up to date by Dependabot,
+  the same way as in the browser game's repository. Branch protection should require the one check "All checks
   passed", so jobs can be added or renamed without changing the repository settings.
 - `make test` also runs end-to-end tests (`tests/e2e/`) that drive the program in VICE through its binary
   monitor: joystick in, memory out, one frame at a time. Add to them with every feature.
