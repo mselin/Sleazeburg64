@@ -126,6 +126,16 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
   desktop versions" in the design). It should say plainly when the emulator cannot run, and note what will not
   work, such as no sound or, on a phone, no full screen. For now the page links to VirtualC64 Web, which runs
   on its own site.
+  - **Tested in every engine.** The page's tests should run in Chromium, Firefox and WebKit (Safari's engine, and
+    that of every browser on an iPhone), as the browser game's do (mselin/gta-c64#35). Its
+    `tests/e2e/helpers.cjs` picks the engine from `SLEAZEBURG_BROWSER`. What that turned up, which applies
+    here too:
+    - Run them on macOS. It is the nearest CI has to Safari, and it has a sound device; on a Linux runner,
+      Firefox's sound never starts.
+    - Wait on the emulator's own clock, not on seconds. Headless browsers draw without a graphics card and run
+      slow, so "hold the stick for half a second" is not the same distance everywhere.
+    - WebKit's phone mode cannot go full screen, like an iPhone, and Firefox has no phone mode at all.
+    - Real phones need a device cloud on top.
 
 ## What will not carry over from the browser game
 
