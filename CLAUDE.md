@@ -6,6 +6,9 @@ Working agreements from the owner, for every Claude Code session in this reposit
   checks pass, merge it (a merge commit) without asking first. Never merge a pull request with a failing or
   unfinished check, never push to `main`, and never get round a required check: if something fails, fix it on
   the branch and wait again, or say what is wrong.
+- **A branch that falls behind `main`.** The ruleset here merges a branch only when it is up to date with `main`,
+  and other sessions merge too, so a green pull request can still be refused. Then merge `main` into its branch
+  (a merge commit), push, and wait for the checks again. Don't rebase and force-push.
 - Every item in `docs/ROADMAP.md` has an issue here.
 - The game's rules and look come from the browser game's design document, `specs/design.md` in
   mselin/gta-c64.
