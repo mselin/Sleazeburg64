@@ -72,7 +72,7 @@ export function assemble(name, { source = 'src/main.asm', defs = {}, include = [
   const args = [...ASMFLAGS];
   for (const dir of [...include, 'src', 'build']) args.push('-I', dir);
   for (const [key, value] of Object.entries(defs)) args.push('-D', `${key}=${value}`);
-  const run = (extra) => execFileSync('64tass', [...args, ...extra, '-l', labelFile, '--vice-labels', '-l', viceLabelFile, '-o', prg, source],
+  const run = (extra) => execFileSync('64tass', [...extra, ...args, '-l', labelFile, '--vice-labels', '-l', viceLabelFile, '-o', prg, source],
     { cwd: ROOT, stdio: ['ignore', 'inherit', 'inherit'] });
   run([]);
   let labels = { ...readLabels(join(ROOT, labelFile)), ...readLabels(join(ROOT, viceLabelFile)) };

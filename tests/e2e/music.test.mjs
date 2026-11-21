@@ -142,7 +142,7 @@ test('with the game itself, which has no tune: the title says so, and fire start
     // (Not the whole of it: the panel's values live there too.) A routine of it, byte for byte.
     const at = (label) => 2 + P.extra_image - 0x0801 + (P[label] - P.EXTRA_CODE);
     assert.ok(P['status.say'] >= 0xe000 && P['status.update'] > P['status.say'], 'the panel runs from $e000');
-    const say = plain.bytes.subarray(at('status.say'), at('status.update'));
+    const say = plain.unpacked.subarray(at('status.say'), at('status.update')); // (packed in the file itself)
     assert.ok((await vice.read(P['status.say'], say.length)).equals(say), 'its code at $e000, copied up');
     assert.equal((await readPanel(vice))[0], '$000000 HEAT ***** HP????? CAR??? AMMO12', 'and the game runs it');
   });
