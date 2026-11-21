@@ -37,6 +37,8 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
   pictures swimming. Fire with the stick centred gets out of a slow car, and into the nearest car within
   reach, a passing one included. Still to come, with the things they need: the driver of a car that is taken
   (people), being hurt by cars (health), and something for fire to do away from a car (fists and weapons).
+  The player's frames come from the design's figure (`tools/assets.mjs`), so fighting adds four more poses to
+  them: the arm out with a gun, a fist or a knife, and lying knocked down.
 - Traffic: a few cars following the lanes, drawn with a sprite multiplexer (done, not yet tried on real
   hardware: six cars, which is what the frame time allows; the multiplexer shares sprites 1-7 and the tests try
   it with sixteen). The player's car bounces off traffic, and wrecks a car it hits hard.
@@ -47,6 +49,11 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
   down. See the design's
   [People on foot](https://github.com/mselin/gta-c64/blob/main/specs/design.md#people-on-foot) and its C64 note
   on characters and sprites.
+  - **The same figure as the player.** The player's frames in `tools/assets.mjs` already draw the design's
+    figure, so passers-by and the police can reuse that code with their own colours.
+  - **Memory is the limit.** A figure has nine poses in each direction it keeps: five walking, the arm out with
+    a gun, a fist or a knife, and knocked down. Mirror images save some, as they do for the player. The handover
+    notes say more sprite frames mean moving code out of the way, or keeping fewer frames.
 - Water: cars flood and sink, people swim.
 - Big Honk, the crime boss (done, not yet tried on real hardware): a goose who wanders The Moat, crossing a
   bridge now and then, and whom nothing hurts. A car that runs into him only makes him flap and run off. One
