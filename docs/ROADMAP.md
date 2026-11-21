@@ -69,9 +69,17 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
 
 - **Play it in a browser.** Run the `.prg` on a web page with a WebAssembly build of the VICE emulator, so the
   C64 version can be tried without hardware. Needs a look at which builds exist, how they are licensed and what
-  they do about system ROMs.
+  they do about system ROMs. Once the emulator runs on our own page, that page should check the browser first,
+  as the browser game does on its loading screen (its `js/compat.js`, described under "Only in the browser and
+  desktop versions" in the design). It should say plainly when the emulator cannot run, and note what will not
+  work, such as no sound or, on a phone, no full screen. For now the page links to VirtualC64 Web, which runs
+  on its own site.
 
 ## What will not carry over from the browser game
+
+- **The browser check.** The browser game checks the browser on its loading screen and says what is missing.
+  A real C64 has no browser to check. The nearest thing here is the title screen's note on an NTSC machine
+  (`src/title.asm`), which says the game is written for PAL; NTSC support is in milestone 4.
 
 - **The radio.** The browser game streams tunes from the High Voltage SID Collection. On a real machine each
   tune brings its own player code at a fixed address, takes all three voices, and would have to be shipped on
