@@ -36,11 +36,17 @@ top_end
                 .endlogical
 extra_image
                 .logical EXTRA_CODE
+                .include "video.asm"    ; (up here to leave room for the passers-by's frames lower down)
                 .include "status.asm"
+.if CROWD != 0
+                .include "people.asm"
+.endif
                 .dsection status
                 .dsection car_extra
 extra_end
                 .endlogical
+people_image    .binary "people.bin"    ; the passers-by's frames, copied to PEOPLE_FRAMES at start
+                .cerror PEOPLE_FRAMES + size(people_image) > PLAYER_FRAMES, "the passers-by's frames reach the player's"
 HIGH_PAGES      = (high_end - HIGH_CODE + 255) / 256
 MORE_PAGES      = (more_end - MORE_CODE + 255) / 256
 TOP_PAGES       = (top_end - TOP_CODE + 255) / 256

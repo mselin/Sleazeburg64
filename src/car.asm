@@ -84,6 +84,9 @@ nx              .byte ?, ?, ?
 d16             .byte ?
 held_grip       .byte ?
 ground          .byte ?                 ; the kind of tile under the car's middle this frame
+open_col        .byte ?                 ; open: the tile last asked about, and whether it is walled
+open_row        .byte ?
+open_walled     .byte ?                 ; (bit 0 a wall near, bit 1 water)
 pos_off         .byte ?                 ; axis_move: 0 or 3 into pos_x, and 0 or 2 into vel_x
 vel_off         .byte ?
 along           .byte ?, ?, ?           ; lead: the three points' offsets along the moving axis ...
@@ -360,7 +363,8 @@ trig            ldx angle + 1
                 rts
 
 ; Turn by up to 2.46 directions a frame, scaled down below TURN_SPEED forward, a quarter more on the
-; handbrake, and backwards when reversing. Refused if the turn would put the car into a wall.
+; handbrake, and backwards when reversing. Refused if the turn would put the car into a wall, and in a frame
+; of colour memory if it would turn the car's picture a step, which is when that has to be looked at.
 steer           lda turn
                 bne +
                 rts
@@ -448,12 +452,14 @@ hold            jsr hold_turn
                 and #$f0
                 cmp tb
                 beq take
+                lda busy                ; a frame of colour memory has no time to look: the picture turns a
+                bne no_turn             ; step in the next frame instead (at most a fiftieth of a second)
                 jsr here
                 lda nf + 1
                 sta dir
                 jsr hits
                 bcc take
-                rts
+no_turn         rts
 take            #mov16 nf, angle
                 rts
 
@@ -969,9 +975,98 @@ one_tile        lda video.row_lo,x
                 clc
                 rts
 
+; What the 3 by 3 tiles round the tile (px, py) is in hold, kept for the tile last asked about (open_col,
+; open_row), which is usually the same one: A bit 0 set if any is a wall, bit 1 if any is water, both if they
+; are not all in the city.
+survey          lda px + 1              ; (well inside the city: a high byte of 6 or less)
+                cmp #7
+                bcs edge_of_city
+                lda py + 1
+                cmp #7
+                bcs edge_of_city
+                lda px
+                ldx px + 1
+                jsr tile_of
+                sta tx0
+                lda py
+                ldx py + 1
+                jsr tile_of
+                sta ty0
+                lda tx0                 ; not on the city's edge
+                beq edge_of_city
+                cmp #MAP_SIZE - 1
+                bcs edge_of_city
+                lda ty0
+                beq edge_of_city
+                cmp #MAP_SIZE - 1
+                bcs edge_of_city
+                lda tx0
+                cmp open_col
+                bne +
+                lda ty0
+                cmp open_row
+                bne +
+                lda open_walled         ; the same tile: as before
+                rts
++               lda tx0
+                sta open_col
+                lda ty0
+                sta open_row
+                lda #0
+                sta open_walled
+                ldx ty0
+                dex
+                stx ty1
+-               ldx ty1
+                lda video.row_lo,x
+                sta mp
+                lda video.row_hi,x
+                sta mp + 1
+                ldy tx0
+                dey
+                jsr survey_tile
+                iny
+                jsr survey_tile
+                iny
+                jsr survey_tile
+                inc ty1
+                lda ty1
+                sec
+                sbc ty0
+                cmp #2
+                bne -
+                lda open_walled
+                rts
+edge_of_city    lda #3
+                rts
+survey_tile     lda (mp),y
+                tax
+                lda tile_kind,x
+                cmp #WALL
+                bne +
+                lda #1
+                ora open_walled
+                sta open_walled
+                rts
++               cmp #WATER_KIND
+                bne +
+                lda #2
+                ora open_walled
+                sta open_walled
++               rts
+; C clear if none of those is a wall (and all are in the city).
+open            jsr survey
+                lsr
+                rts
+
 ; C set if the car, centred at (px, py) and facing dir, touches a wall or the edge of the city: three points
 ; along it (the middle, and 6 pixels to the front and back), each with a 9 by 9 box, as the browser game does.
-hits            lda dir
+; Every point of those is within 10 pixels of the middle, so within the 3 by 3 tiles round the middle's tile:
+; if none of those is a wall, none touches one (open), which is what the streets mostly are, and much quicker.
+hits            jsr open
+                bcs +
+                rts                     ; (C clear: clear)
++               lda dir
                 clc
                 adc #8
                 lsr

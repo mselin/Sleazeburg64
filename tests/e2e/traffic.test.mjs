@@ -12,6 +12,7 @@ import { Honk, readHonk } from './honk-model.mjs';
 import { modelTraffic, readTraffic } from './play.mjs';
 import { Player } from './foot-model.mjs';
 import { waterStep } from './water-model.mjs';
+import { People, readPeople } from './people-model.mjs';
 
 const START = [9 * 16, 8 * 16];
 const RED = 2;
@@ -28,19 +29,22 @@ function spritesFor(car, cam, list) {
 /** The models of everything that moves, starting as the program does. */
 function models(traffic) {
   const car = new Car(START[0] + CENTRE_X, START[1] + CENTRE_Y);
-  return { car, player: new Player(car), cam: new Camera(...START), traffic, honk: new Honk(), list: [] };
+  // Passers-by come by themselves only in a build whose traffic does (SPAWN).
+  return { car, player: new Player(car), cam: new Camera(...START), traffic, honk: new Honk(), people: new People({ arrive: traffic.spawn }), list: [] };
 }
 
 /** One pass of the main loop in the models, with the joystick held as given. */
 function step(m, bits) {
   const busy = m.cam.busy; // this pass works out colour memory if the last one swapped the screens
   const cell = [...m.cam.cell]; // the character the window is in before it moves
-  m.car.step(bits, m.traffic);
+  m.car.step(bits, m.traffic, busy);
   m.cam.follow(m.car.px, m.car.py);
   m.traffic.step(m.car.px, m.car.py, m.cam, busy);
   waterStep(m, cell);
   m.honk.step(m.car, m.traffic, m.cam, cell);
-  m.list = [...m.traffic.show(m.cam), ...m.honk.show(m.cam)].slice(0, 16); // the multiplexer lists sixteen
+  const moves = ((m.cam.x >> 3) ^ cell[0]) & 31 || ((m.cam.y >> 3) ^ cell[1]) & 31;
+  m.people.step(!moves && !busy, [m.car.px, m.car.py], m.cam);
+  m.list = [...m.traffic.show(m.cam), ...m.honk.show(m.cam), ...m.people.show(m.cam)].slice(0, 16); // the multiplexer lists sixteen
 }
 
 const signed = (lo, hi) => ((hi << 8) | lo) << 16 >> 16;
@@ -59,6 +63,7 @@ async function pass(vice, L, m, bits, what) {
   assert.deepEqual(await camera(vice, L), [m.cam.x, m.cam.y], `the window ${what}`);
   assert.deepEqual(await readTraffic(vice, L, m.traffic.n), modelTraffic(m.traffic), `the traffic ${what}`);
   assert.deepEqual(await readHonk(vice, L), m.honk.state, `Big Honk ${what}`);
+  assert.deepEqual(await readPeople(vice, L), m.people.state, `the passers-by ${what}`);
 }
 
 /** At the top of a pass: the whole picture of the frame being shown, every sprite included. */
@@ -99,7 +104,7 @@ test('a long drive with traffic: every car as the model says every frame, on its
       assertInLanes(m.traffic, `after ${frame} frames`);
       most = Math.max(most, m.traffic.cars.filter((c) => c.on).length);
     }
-    assert.equal(most, 6, 'there were six cars at once');
+    assert.equal(most, 5, 'there were five cars at once');
     assert.equal(await missed() - before, 0, 'no frame was late');
   }));
 

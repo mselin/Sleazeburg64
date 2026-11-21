@@ -64,7 +64,9 @@ changed         .byte ?                 ; 1: draw row 1 again
 car_shown       .byte ?                 ; 1: draw the CAR part again (getting in or out)
 stars_shown     .byte ?                 ; 1: colour the stars again
 redraw3         .byte ?                 ; 1: draw row 3 again
-row3_ink        .byte ?                 ; the colour row 3 has in colour memory now
+row3_ink        .byte ?                 ; the colour row 3 has in colour memory now ...
+want_ink        .byte ?                 ; ... and the one it is to have
+ink_due         .byte ?                 ; 1: write that, in the next frame with the time
 text            .word ?                 ; the message: where its text is ...
 most            .byte ?                 ; ... how far along it can scroll ...
 left            .word ?                 ; ... frames before it goes, or 0 for none ...
@@ -112,7 +114,8 @@ init            lda #0
                 jsr draw_row1
                 ldx #MSG_CAR
                 jsr say
-                jmp draw_row3
+                jsr draw_row3
+                jmp write_ink
 
 ; Show message X in row 3, from the next frame that has the time.
 say             lda msg_lo,x
@@ -175,9 +178,7 @@ timed
                 rts
 +               lda busy                ; colour memory this frame: only row 3, the rest waits
                 beq +
-                lda redraw3
-                beq written
-                jmp draw_row3
+                jmp row3_work
 +               lda changed
                 beq +
                 jsr draw_row1
@@ -187,10 +188,25 @@ timed
 +               lda stars_shown
                 beq +
                 jsr colour_stars
-+               lda redraw3
-                beq written
++               jmp row3_work
+
+; Row 3: its text if it has changed, else its colour if that has. (A new colour comes a frame after the text,
+; so that no frame has to write both: 80 bytes is about 16 raster lines.)
+row3_work       lda redraw3
+                beq +
                 jmp draw_row3
++               lda ink_due
+                bne write_ink
 written         rts
+write_ink       lda #0
+                sta ink_due
+                lda want_ink
+                sta row3_ink
+                ldx #39
+-               sta COLOURS + ROW3,x
+                dex
+                bpl -
+                rts
 
 ; ---------- row 1 ----------
 
@@ -443,14 +459,12 @@ digit           tay
                 sta lead                ; not 0
 +               rts
 
-; Row 3's colour memory to A, if it is not that already.
-row3_colour     cmp row3_ink
+; Row 3 is to be in colour A: from the next frame with the time, if it is not that already.
+row3_colour     sta want_ink
+                cmp row3_ink
                 beq +
-                sta row3_ink
-                ldx #39
--               sta COLOURS + ROW3,x
-                dex
-                bpl -
+                lda #1
+                sta ink_due
 +               rts
 
 ; ---------- what it says ----------

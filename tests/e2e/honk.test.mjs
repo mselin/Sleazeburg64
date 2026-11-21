@@ -38,7 +38,7 @@ function models() {
 function step(m, bits) {
   const busy = m.cam.busy; // this pass works out colour memory if the last one swapped the screens
   const cell = [...m.cam.cell]; // the character the window is in before it moves
-  m.player.step(bits, m.traffic);
+  m.player.step(bits, m.traffic, busy);
   m.cam.follow(m.player.px, m.player.py);
   m.traffic.step(m.player.px, m.player.py, m.cam, busy);
   waterStep(m, cell);
@@ -124,7 +124,7 @@ test('a new game finds Big Honk on the west bank of The Moat, by the water, in h
   withProgram(game.prg, async (vice) => {
     await vice.runTo(L.ready);
     assert.deepEqual(await readHonk(vice, L), new Honk().state, 'as the model starts him, before he has moved');
-    assert.equal(kindAt(H.X, H.Y), 0, 'on open ground ...');
+    assert.equal(kindAt(H.X, H.Y), 4, 'on a pavement ...');
     assert.equal(rowMod12(H.Y) >= 2 && H.X >> 4 === 50, true, '... the bank, not a bridge');
     assert.equal(kindAt(H.X + 16, H.Y), WATER, 'with the canal beside him');
     const [multi1, multi2] = await vice.read(0xd025, 2);

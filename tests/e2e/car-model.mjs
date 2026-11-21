@@ -55,9 +55,10 @@ export class Car {
   }
   /**
    * One frame with the joystick held as given (JOY bits). `traffic`, if given, is the traffic model, which the
-   * car can run into (traffic-model.mjs).
+   * car can run into (traffic-model.mjs). `busy`: the frame works out colour memory (the window's `busy` before
+   * it moves), and then the car's picture does not turn a step.
    */
-  step(bits, traffic = null) {
+  step(bits, traffic = null, busy = false) {
     const thr = (bits & 1 && !(bits & 2) ? 1 : 0) - (bits & 2 && !(bits & 1) ? 1 : 0);
     const turn = (bits & 8 && !(bits & 4) ? 1 : 0) - (bits & 4 && !(bits & 8) ? 1 : 0);
     const hand = !!(bits & 16);
@@ -74,7 +75,8 @@ export class Car {
         // Never sharper than the tyres hold (not on the handbrake): rate <= grip * 10430 / speed, by the table.
         else rate = Math.min(rate, (grip * MOST_TURN[Math.min(Math.abs(f0) >> 4, 64)]) >> 2);
         const next = (this.angle + turn * sign(f0) * rate) & 0xffff;
-        if (inside || !hits(this.px, this.py, next >> 8)) this.angle = next;
+        const same = direction16(next) === direction16(this.angle); // the same picture: still clear
+        if (inside || same || (!busy && !hits(this.px, this.py, next >> 8))) this.angle = next;
       }
       c = COS(this.angle >> 8);
       s = SIN[this.angle >> 8];

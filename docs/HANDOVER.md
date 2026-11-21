@@ -55,7 +55,7 @@ A briefing for whoever picks this project up next, person or assistant. Written 
   their drives. A frame that moves the screen a character and the one after it, which works out colour
   memory, are the busy ones. Anything new that runs every frame has to fit in what is left, or move work out
   of those frames: traffic only moves its cars in a colour memory frame, and Big Honk stands still in a frame
-  that moves the screen. Six cars is what fits; a tune on a rough drive is tight.
+  that moves the screen. Five cars and four passers-by is what fits (six cars before the passers-by).
   - Measured on the traffic tests' long random drive (2026-11-21, with the player on foot's code in): a frame
     that moves the screen is done at worst 306 lines after the bottom interrupt, a colour memory frame 290,
     and any other frame under 180. The late-frame checks catch it when something new does not fit.
@@ -65,9 +65,14 @@ A briefing for whoever picks this project up next, person or assistant. Written 
     step, which is when it looks whether the turn would put it into a wall. Those are the places to look for
     time.
   - Steering held to the grip (`car.hold_turn`) costs about 85-130 cycles a turning frame, and nothing at full
-    grip below 52 sixteenths of a pixel a frame, where it cannot hold. With it the long drive with traffic
-    (`tests/e2e/traffic.test.mjs`) has a frame ready 311 lines after the bottom interrupt, of 312 (309
-    before): the busiest frames, turning in a frame of colour memory with six cars, have no time left.
+    grip below 52 sixteenths of a pixel a frame, where it cannot hold.
+  - What made room for the passers-by (21 November 2026): one traffic car fewer (the owner's choice); the 3 by 3
+    tiles round the car's middle surveyed once a tile and kept (`car.survey`), so the car's wall test and the
+    water's look are next to free on open streets away from water; in a frame of colour memory a turn that would
+    turn the car's picture a step waits a frame (it is when that turn has to be looked at); the status panel
+    writes a new colour a frame after the new text; and the passers-by move only in a frame that neither moves
+    the screen nor works out colour memory. With them, the long drive with traffic has its busiest frame ready
+    310 lines after the bottom interrupt, of 312: the busiest frames still have almost no time left.
   - The status panel (`src/status.asm`) writes only what changed, and only in a frame that does not move the
     screen: row 3 about 8 lines, 16 when its colour changes, and row 1 whole about 25, which also waits for a
     frame with no colour memory. The city viewer keeps the old readout (`src/panel.asm`, `src/digits.asm`).
@@ -76,11 +81,13 @@ A briefing for whoever picks this project up next, person or assistant. Written 
     are the player on foot's 42 sprite frames, made at start.
   - Four blocks of code are copied up at start. `EXTRA_CODE` (`$e000`-`$f2ff`, under the KERNAL ROM, which is
     switched out) took the status panel and the steering limit on 21 November 2026, when the owner chose to
-    give the game the room the in-game test tune had: about 3.5K is left there, the place for new features.
-    `HIGH_CODE` (`$b2a3`-`$bbff`, right after the third colour routine: Big Honk, the player on foot) has about
-    265 left; `MORE_CODE` (`$cd80`-`$cfff`, after the screen copies: the water) about 325; `TOP_CODE`
-    (`$f300`-`$fff9`: the traffic) about 615; and below the screens about 470 (`car.init`, which makes the
-    multiplication tables, runs once from where it waits in the program file, as `src/frames.asm` does).
+    give the game the room the in-game test tune had, then drawing the city (`src/video.asm`, which left room
+    for the passers-by's frames at `$2000`) and the passers-by: about 1K is left there. `HIGH_CODE`
+    (`$b2a3`-`$bbff`, right after the third colour routine: Big Honk, the player on foot) has about 265 left;
+    `MORE_CODE` (`$cd80`-`$cfff`, after the screen copies: the water) about 315; `TOP_CODE` (`$f300`-`$fff9`:
+    the traffic) about 615; and below the screens, up to the passers-by's frames at `$2000`, about 220
+    (`car.init`, which makes the multiplication tables, runs once from where it waits in the program file, as
+    `src/frames.asm` does).
     `$a1a3`-`$a1ff`, the 93 bytes after the second colour routine, are free too.
     All four are assembled with `.logical` and wait after the map in the program file; start copies them up
     before `video.init` writes the colour routines over where they waited.
@@ -88,7 +95,7 @@ A briefing for whoever picks this project up next, person or assistant. Written 
   - Zero page is full: it is used up to `$d7`, and up to `$df` in the city viewer's music build, whose tune
     has `$e0` on.
     New variables go in the panel screen's rows 0-20 (`$0400`-`$0747`, `.section bss`), which the video chip
-    never shows and `video.init` clears: about 250 bytes are left there, 8 in a build with sixteen cars
+    never shows and `video.init` clears: about 270 bytes are left there, 6 in a build with sixteen cars
     (which is why the status panel's money, heat, health and ammo are kept with its code, at `EXTRA_CODE`).
   - The program file is packed (the owner's choice, with `$e000`): `tools/build-game.sh` assembles the game,
     packs what waits after the tiles (`src/waiting.asm`: the map, the code start copies up, the player's
@@ -96,7 +103,8 @@ A briefing for whoever picks this project up next, person or assistant. Written 
     `PACKED=1`, where that part is assembled only for its labels and the packed bytes take its place. Both
     builds must put everything in the same place, which the script and the tests' `assemble` check: so the
     unpacker is assembled in both, and called only in the packed one. At start it moves the packed bytes to
-    `$a000` and unpacks them from `city_map` up, in about half a second. The game file went from 33K to 25K,
+    just past where they unpack to (`PACK_HOME`) and unpacks them from `city_map` up, in about half a second.
+    The game file went from 33K to 25K (28K with the passers-by),
     and the music title build, which carries it, from 45K to 39K, well below the `$d000` it must LOAD under.
     The tests build the game packed too (`tests/e2e/game.mjs`), and `tests/e2e/pack.test.mjs` checks the
     unpacking byte for byte.

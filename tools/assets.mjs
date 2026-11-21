@@ -101,9 +101,9 @@ const typeAt = (x, y) => (x < 0 || y < 0 || x >= MW || y >= MW ? WATER : map[y *
 const sameBuilding = (x, y, id) => x >= 0 && y >= 0 && x < MW && y < MW && bid[y * MW + x] === id;
 
 // What each tile is to a car: 0 open, 1 a wall (buildings and trees), 2 grass (less grip), 3 water (the canal and
-// the fountain: open for now; cars flood in it later). Tiles that look the same share a design, so every
+// the fountain, where cars flood), 4 a pavement or a plaza (open to a car; where people like to walk). Tiles that look the same share a design, so every
 // city tile type behind a design must agree on its kind.
-const KIND_OF = { [BLD]: 1, [TREE]: 1, [GRASS]: 2, [WATER]: 3, [FOUNT]: 3 };
+const KIND_OF = { [BLD]: 1, [TREE]: 1, [GRASS]: 2, [WATER]: 3, [FOUNT]: 3, [WALK]: 4, [PLAZA]: 4 };
 const tileKinds = [];
 
 const out = new Uint8Array(MW * MW);
@@ -387,6 +387,28 @@ export function playerFrames() {
   return { all, stored, made };
 }
 const player = playerFrames();
+
+// ---------- passers-by: the player's figure in four directions and five poses, in their own colours ----------
+// The design's passers-by wear a shirt in one of eight colours, which is the sprite's own; hair, feet and
+// the outline are black, and hands and face yellow, the two colours all multicolour sprites share. They have
+// no white outline: that is the player's alone. Frame direction * 5 + pose, the directions east, south, west
+// and north (the player's 0, 2, 4 and 6).
+export const PEOPLE_DIRS = 4, PEOPLE_FRAME_COUNT = PEOPLE_DIRS * PLAYER_POSES;
+export function personPixels(d, p) {
+  const a = (d * Math.PI) / 2, cs = Math.round(Math.cos(a)), sn = Math.round(Math.sin(a));
+  const px = new Array(12 * 21).fill(0);
+  for (let br = 0; br < 10; br++)
+    for (let m = 0; m < 12; m++) {
+      const dx = 2 * m + 1 - 12, dy = 2 * br + 1 - 10;
+      const c = [0, 1, 3, 2][personAt(p, cs * dx + sn * dy, -sn * dx + cs * dy)]; // shirt and skin swap places
+      px[2 * br * 12 + m] = px[(2 * br + 1) * 12 + m] = c;
+    }
+  ring(px, 1);
+  return px;
+}
+const people = [];
+for (let d = 0; d < PEOPLE_DIRS; d++) for (let p = 0; p < PLAYER_POSES; p++) people.push(spriteBytes(personPixels(d, p)));
+writeFileSync(join(dir, 'people.bin'), Buffer.concat(people));
 writeFileSync(join(dir, 'player.bin'), Buffer.concat(player.stored)); // what the program file holds
 writeFileSync(join(dir, 'player-made.bin'), Uint8Array.from(player.made)); // and how it makes the rest
 writeFileSync(join(dir, 'player-all.bin'), Buffer.concat(player.all)); // what it should end up with: for the tests
