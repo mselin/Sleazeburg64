@@ -22,7 +22,7 @@ text2           .text "tile 00,00    crossing 0-0              "
 .if VIEWER != 0
 text3           .text "joystick in port 2. fire goes faster    "
 .else
-text3           .text "up go, down brake, fire handbrake       "
+text3           .text "fire: handbrake. standing still: get out"
 .endif
                 .enc "none"
 
@@ -44,23 +44,24 @@ init            ldx #39
                 rts
 
 ; Show where the view is: the tile in its top left corner, and the crossing nearest its middle, numbered as
-; the game's clues number them (avenues from the west, streets from the north, starting at 1).
-; Only when it has changed: writing it costs ten raster lines.
-update          ldx #0
-                lda #0
-                jsr tile_under
+; the game's clues number them (avenues from the west, streets from the north, starting at 1). Written only
+; when it has changed. Worked out from the window's corner in characters, and with tables (digits.asm): this
+; runs every frame, before colour memory is worked out.
+update          lda cell                ; a tile is two characters
+                lsr
                 sta now
-                ldx #1
-                lda #0
-                jsr tile_under
+                lda cell + 1
+                lsr
                 sta now + 1
-                ldx #0
-                lda #VIEW_W / 2
-                jsr tile_under
+                lda cell                ; the window's middle is 152 pixels across and 80 down from its corner:
+                clc                     ; 19 characters and 10
+                adc #VIEW_W / 16
+                lsr
                 sta now + 2
-                ldx #1
-                lda #VIEW_H / 2
-                jsr tile_under
+                lda cell + 1
+                clc
+                adc #VIEW_H / 16
+                lsr
                 sta now + 3
                 ldx #3
 -               lda now,x
@@ -74,60 +75,34 @@ changed         ldx #3
                 sta shown,x
                 dex
                 bpl -
-                lda now
+                ldx now
                 ldy #0
                 jsr two_digits
-                lda now + 1
+                ldx now + 1
                 ldy #3
                 jsr two_digits
-                lda now + 2
-                jsr crossing
+                ldx now + 2
+                lda crossing_digit,x
                 sta PANEL_SCREEN + CROSSING_AT
-                lda now + 3
-                jsr crossing
+                ldx now + 3
+                lda crossing_digit,x
                 sta PANEL_SCREEN + CROSSING_AT + 2
                 rts
 now             .byte 0, 0, 0, 0        ; tile across and down, and the tiles the crossings are worked out from
 shown           .byte $ff, $ff, $ff, $ff ; what the panel shows: nothing yet
 
-; A = the tile under the point A pixels into the window on axis X.
-tile_under         clc
-                adc cam_lo,x
-                sta tmp
-                lda cam_hi,x
-                adc #0
-                ldy #4
--               lsr
-                ror tmp
-                dey
-                bne -
-                lda tmp
-                rts
-
-; Print A (0-99) as two digits at TILE_AT + Y.
-two_digits      ldx #'0'
--               cmp #10
-                bcc +
-                sbc #10
-                inx
-                bne -
-+               ora #'0'
-                sta PANEL_SCREEN + TILE_AT + 1,y
-                txa
+; Print tile X as two digits at TILE_AT + Y.
+two_digits      lda tens_ones,x
+                lsr
+                lsr
+                lsr
+                lsr
+                ora #'0'
                 sta PANEL_SCREEN + TILE_AT,y
-                rts
-
-; In: A = a tile coordinate. Out: A = the digit of the nearest crossing on that axis.
-; Streets are 12 tiles apart and two tiles wide, so the nearest one is (tile + 5) / 12, counted from 1.
-crossing        clc
-                adc #5
-                ldy #'1'
--               cmp #12
-                bcc +
-                sbc #12
-                iny
-                bne -
-+               tya
+                lda tens_ones,x
+                and #15
+                ora #'0'
+                sta PANEL_SCREEN + TILE_AT + 1,y
                 rts
 
                 .bend

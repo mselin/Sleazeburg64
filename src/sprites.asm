@@ -75,8 +75,8 @@ init            lda #0
                 sta ptrs
                 rts
 
-; Add a thing to the next frame's list: sx, sy, sp and sc as its sprite registers would be. One too many
-; is not listed.
+; Add a thing to the next frame's list: sx, sy, sp and sc as its sprite registers would be, but with bit 7 of
+; sc set for a multicolour sprite. One too many is not listed.
 add             ldx n
                 cpx #MAX_SPRITES
                 bcs +
@@ -214,12 +214,23 @@ show_frame      bcc +                   ; a new frame: its plan is shown, and th
                 lda used,y
                 ora frame.cur_d015
                 sta SPRITE_ON
+                lda frame.cur_sc        ; two-colour sprites, but those whose colour has bit 7 set: sprite 0 ...
+                asl
+                lda #0
+                rol
+                sta SPRITE_MC
                 ldx cur
 -               cpx cur_end
                 beq split_next
                 lda b_free,x            ; a reuse: that is for the multiplexer's interrupt
                 bne mux_next
-                jsr put
+                lda b_c,x               ; ... and each of the others
+                bpl +
+                ldy b_hw,x
+                lda SPRITE_MC
+                ora bit_set,y
+                sta SPRITE_MC
++               jsr put
                 inx
                 bne -
 split_next      lda #<frame.split
@@ -267,7 +278,15 @@ again           lda b_free,x            ; wait until its sprite is free (it usua
 -               cmp VIC_RASTER
                 beq +
                 bcs -
-+               jsr put
++               ldy b_hw,x              ; multicolour or not, as its colour's bit 7 says
+                lda b_c,x
+                asl
+                lda SPRITE_MC
+                and bit_clear,y
+                bcc +
+                ora bit_set,y
++               sta SPRITE_MC
+                jsr put
                 inx
                 cpx cur_end
                 beq last

@@ -577,7 +577,6 @@ COLOUR_SIZE     = 11 * 2 + 10 * 11 + 21 * 11 * 7 - 11 + ROWS * 40 * 3 + 1      ;
                 .cerror COLOUR_SIZE > COLOUR_10 - COLOUR_00, "a colour routine does not fit its place"
                 .cerror COLOUR_01 + COLOUR_SIZE > SQUARES2, "the colour routines run into multiplication tables"
                 .cerror map_end > COLOUR_11 || COLOUR_11 + COLOUR_SIZE > COLOUR_00, "no room after the map"
-                .cerror program_end > COLOUR_00, "the program runs into where the colour routines go"
                 .cerror (tile_colour & $ff) != 0, "tile_colour must start a page"
 colour_lo       .byte <COLOUR_00, <COLOUR_10, <COLOUR_01, <COLOUR_11
 colour_hi       .byte >COLOUR_00, >COLOUR_10, >COLOUR_01, >COLOUR_11

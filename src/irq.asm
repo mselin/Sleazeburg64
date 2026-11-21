@@ -45,11 +45,12 @@ commit          .byte ?         ; 1 when next_ holds a frame for the bottom inte
 next_d011       .byte ?
 next_d016       .byte ?
 next_d018       .byte ?
-next_sx         .byte ?         ; the car's sprite: x (low 8 bits), x bit 8, y, pointer, and whether it is on
-next_sxh        .byte ?
-next_sy         .byte ?
+next_sx         .byte ?         ; sprite 0, the player's car or the player on foot: x (low 8 bits), x bit 8,
+next_sxh        .byte ?         ; y, pointer, whether it is on, and its colour, with bit 7 set for a
+next_sy         .byte ?         ; multicolour sprite
 next_sp         .byte ?
 next_d015       .byte ?
+next_sc         .byte ?
 cur_d011        .byte ?         ; what the city is shown with this frame
 cur_d016        .byte ?
 cur_d018        .byte ?
@@ -58,7 +59,11 @@ cur_sxh         .byte ?
 cur_sy          .byte ?
 cur_sp          .byte ?
 cur_d015        .byte ?
+cur_sc          .byte ?
 fresh           .byte ?         ; bottom: 1 when it put a new frame in place, 0 when it showed the last again
+                .send
+
+                .section bss
 count           .word ?         ; frames shown
 missed          .word ?         ; frames shown again because the main loop had not finished the next one
                 .send
@@ -71,8 +76,6 @@ init            lda #0
                 sta SPRITE_EXPAND_X
                 sta SPRITE_EXPAND_Y
                 sta SPRITE_BEHIND
-                lda #RED
-                sta SPRITE_COLOUR
                 jsr sprites.init
                 lda #0
                 sta commit
@@ -208,12 +211,12 @@ bottom          pha
                 sta cur_d016
                 lda next_d018
                 sta cur_d018
-                ldx #4
+                ldx #5
 -               lda next_sx,x
                 sta cur_sx,x
                 dex
                 bpl -
-                .cerror next_d015 - next_sx != 4 || cur_d015 - cur_sx != 4, "the sprite registers are copied as five"
+                .cerror next_sc - next_sx != 5 || cur_sc - cur_sx != 5, "the sprite registers are copied as six"
                 lda #0
                 sta commit
                 lda #1
@@ -231,10 +234,12 @@ late            inc missed
                 sta VIC_MEMORY
                 lda #DARK_GREY
                 sta VIC_BACKGROUND
-                lda cur_sx              ; sprite 0, the player's car (sprites.show_frame sets its x bit 8 and
-                sta SPRITE_X            ; switches it on with the others)
-                lda cur_sy
+                lda cur_sx              ; sprite 0, the player's car or the player (sprites.show_frame sets its
+                sta SPRITE_X            ; x bit 8 and whether it is multicolour, and switches it on with the
+                lda cur_sy              ; others)
                 sta SPRITE_Y
+                lda cur_sc
+                sta SPRITE_COLOUR
                 lda cur_sp
                 sta SCREEN_A + $3f8
                 sta SCREEN_B + $3f8

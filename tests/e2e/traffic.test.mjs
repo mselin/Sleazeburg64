@@ -1,73 +1,42 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // End-to-end tests of the traffic: the real program in VICE, with its cars held frame by frame to the model
-// in traffic-model.mjs, the player's car and the window to the models the car tests use, and the picture,
-// every sprite included, compared pixel by pixel.
+// in traffic-model.mjs, the player's car and the window to the models the car tests use, Big Honk to his in
+// honk-model.mjs, and the picture, every sprite included, compared pixel by pixel.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JOY } from './vice.mjs';
 import { C, Car, direction16 } from './car-model.mjs';
-import { CAR_SPRITE, CENTRE_X, CENTRE_Y, Camera, assemble, assets, camera, pictureMismatches, withProgram } from './game.mjs';
+import { CENTRE_X, CENTRE_Y, Camera, assemble, assets, camera, pictureMismatches, planned, withProgram } from './game.mjs';
 import { LOWEST, T, Traffic, TrafficCar, plan } from './traffic-model.mjs';
+import { Honk, readHonk } from './honk-model.mjs';
+import { modelTraffic, readTraffic } from './play.mjs';
 
 const START = [9 * 16, 8 * 16];
 const RED = 2;
 const LANE = { 0: 24, 1: 8, 2: 8, 3: 24 }; // each direction's lane, from the road's edge
-
-/** Read the program's traffic: every car, and the counters and random seed that decide what comes next. */
-async function readTraffic(vice, L, n) {
-  const n1 = n + 1;
-  const get = (name, length) => vice.read(L[`traffic.${name}`], length);
-  const [on, pf, pl, ph] = await Promise.all([get('on', n), get('pf', 2 * n1), get('pl', 2 * n1), get('ph', 2 * n1)]);
-  const fields = {};
-  for (const f of ['dir', 'sp', 'cruise', 'face', 'col', 'turn', 'tal', 'tah', 'held', 'ghost', 'blocked', 'entered', 'wreck']) fields[f] = await get(f, n);
-  const cars = [];
-  for (let i = 0; i < n; i++) {
-    if (!on[i]) {
-      cars.push({ on: 0 });
-      continue;
-    }
-    const car = { on: 1, x: (ph[i] << 16) | (pl[i] << 8) | pf[i], y: (ph[n1 + i] << 16) | (pl[n1 + i] << 8) | pf[n1 + i] };
-    for (const f of ['dir', 'sp', 'cruise', 'face', 'col', 'turn', 'held', 'ghost', 'blocked', 'entered', 'wreck']) car[f] = fields[f][i];
-    car.ta = car.turn === 0xff ? null : fields.tal[i] | (fields.tah[i] << 8);
-    cars.push(car);
-  }
-  const seed = await get('seed', 2);
-  const [tick, rot, wait, turns] = await Promise.all([get('tick', 1), get('rot', 1), get('spawn_wait', 1), get('turns', 1)]);
-  return { cars, seed: [seed[0], seed[1]], tick: tick[0], turns: turns[0], rot: rot[0], spawnWait: wait[0] };
-}
-
-/** The same, from the model. */
-function modelTraffic(t) {
-  const cars = t.cars.map((c) => {
-    if (!c.on) return { on: 0 };
-    const car = { on: 1, x: c.x, y: c.y };
-    for (const f of ['dir', 'sp', 'cruise', 'face', 'col', 'turn', 'held', 'ghost', 'blocked', 'entered', 'wreck']) car[f] = c[f];
-    car.ta = c.turn === 0xff ? null : c.ta;
-    return car;
-  });
-  return { cars, seed: [t.rnd.lo, t.rnd.hi], tick: t.tick, turns: t.turns, rot: t.rot, spawnWait: t.spawnWait };
-}
 
 /** Every sprite the model says is on screen, the one in front first: the player's car, then sprites 1-7. */
 function spritesFor(car, cam, list) {
   const bitmap = (frame) => assets.car.subarray(frame * 64, frame * 64 + 63);
   const player = { x: car.px - cam.x + 31 - 12, y: car.py - cam.y + 55 - 10 - 1, colour: RED, bitmap: bitmap(direction16(car.angle)) };
   const shown = plan(list).sort((a, b) => a.hw - b.hw);
-  return [player, ...shown.map((s) => ({ x: s.x, y: s.y, colour: s.colour, bitmap: bitmap(s.pointer - CAR_SPRITE) }))];
+  return [player, ...shown.map(planned)];
 }
 
 /** The models of everything that moves, starting as the program does. */
 function models(traffic) {
-  return { car: new Car(START[0] + CENTRE_X, START[1] + CENTRE_Y), cam: new Camera(...START), traffic, list: [] };
+  return { car: new Car(START[0] + CENTRE_X, START[1] + CENTRE_Y), cam: new Camera(...START), traffic, honk: new Honk(), list: [] };
 }
 
 /** One pass of the main loop in the models, with the joystick held as given. */
 function step(m, bits) {
   const busy = m.cam.busy; // this pass works out colour memory if the last one swapped the screens
+  const cell = [...m.cam.cell]; // the character the window is in before it moves
   m.car.step(bits, m.traffic);
   m.cam.follow(m.car.px, m.car.py);
   m.traffic.step(m.car.px, m.car.py, m.cam, busy);
-  m.list = m.traffic.show(m.cam);
+  m.honk.step(m.car, m.traffic, m.cam, cell);
+  m.list = [...m.traffic.show(m.cam), ...m.honk.show(m.cam)].slice(0, 16); // the multiplexer lists sixteen
 }
 
 const signed = (lo, hi) => ((hi << 8) | lo) << 16 >> 16;
@@ -85,6 +54,7 @@ async function pass(vice, L, m, bits, what) {
   assert.deepEqual(await readCar(vice, L), carState(m.car), `the player's car ${what}`);
   assert.deepEqual(await camera(vice, L), [m.cam.x, m.cam.y], `the window ${what}`);
   assert.deepEqual(await readTraffic(vice, L, m.traffic.n), modelTraffic(m.traffic), `the traffic ${what}`);
+  assert.deepEqual(await readHonk(vice, L), m.honk.state, `Big Honk ${what}`);
 }
 
 /** At the top of a pass: the whole picture of the frame being shown, every sprite included. */
@@ -143,7 +113,7 @@ test('flat out east with traffic: the window keeps up and every frame is in time
       await vice.runTo(G['frame.publish']);
       latest = Math.max(latest, ((await vice.registers()).LIN - 250 + 312) % 312);
       await vice.runTo(G.ready);
-      assert.deepEqual(await readTraffic(vice, G, 6), modelTraffic(m.traffic), `the traffic after ${frame} frames`);
+      assert.deepEqual(await readTraffic(vice, G, m.traffic.n), modelTraffic(m.traffic), `the traffic after ${frame} frames`);
     }
     t.diagnostic(`with traffic, the busiest pass was ready ${latest} raster lines after the bottom interrupt, of 312`);
     assert.equal(m.car.vx, C.TOP, 'at top speed');
