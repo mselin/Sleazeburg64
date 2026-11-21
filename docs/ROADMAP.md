@@ -49,6 +49,10 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
 
 - Heat and police, by the design's rules: the heat levels and what each crime adds, the distances the police
   notice from, and the stolen police car (driving one where the police notice it raises the heat to 2).
+  - **The siren and the flashing border.** The border flashes red and blue (`$D020`, every 25 frames) only while
+    the siren sounds: the police near, in play. It never flashes with nobody about, on the busted screen or
+    while paused. The browser game got this wrong and kept flashing as long as there was any heat
+    (mselin/gta-c64#18), so it is worth getting right from the start. See the design's "The siren".
 - Fighting on foot, by the design's
   [Fighting on foot](https://github.com/mselin/gta-c64/blob/main/specs/design.md#fighting-on-foot): fire uses
   the gun while there is ammo, then the knife if the player has one, otherwise fists. A punch knocks someone
