@@ -25,6 +25,12 @@ people, cars and walls, heat and the police, the title and the icon. The items b
     it; and a car found inside a wall is moved out to the nearest clear spot rather than left free to move.
     `src/car.asm` lets a car that is inside a wall move anywhere until it is out, which is the idea behind
     the browser bug, so it is worth checking that a car can never get there by driving.
+  - **To bring up to the design's new handling** (mselin/gta-c64#31, #46). Without the handbrake the browser
+    game's cars now turn no sharper than their grip holds, so the fastest take a wider line near top speed:
+    for the sports car, whose 200 px/s this car matches, from 163 px/s (3.3 pixels a frame). Grass now slows a
+    car as well as making it slide. `src/car.asm` follows the old handling, so it needs both: a table of the most
+    turn for each speed, and the grass drag. See the design's
+    [Handling](https://github.com/mselin/gta-c64/blob/main/specs/design.md#handling).
 
 If 1b and 1c feel right on real hardware, the rest is a long list of known work.
 
@@ -41,7 +47,10 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
   them: the arm out with a gun, a fist or a knife, and lying knocked down.
 - Traffic: a few cars following the lanes, drawn with a sprite multiplexer (done, not yet tried on real
   hardware: six cars, which is what the frame time allows; the multiplexer shares sprites 1-7 and the tests try
-  it with sixteen). The player's car bounces off traffic, and wrecks a car it hits hard.
+  it with sixteen). The player's car bounces off traffic, and wrecks a car it hits hard. By the design's
+  [Car against car](https://github.com/mselin/gta-c64/blob/main/specs/design.md#car-against-car), crashes now go
+  by each kind's weight (a table of shares for each pair of kinds), and a knock off a car's middle spins it,
+  which can wait until there are crashes to spin (#46).
 - Pedestrians, drawn as characters rather than sprites. The design now draws people about 12 pixels across in
   chunky 2 × 2 pixels with a black outline, more than one character, and police officers in light blue with a
   white cap; passers-by never look like the player or the police. Walkers have five walking poses, arms and feet
@@ -80,6 +89,12 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
 - Jobs, starting with deliveries and the cult of 6-7.
 - Pickups, money, getting arrested, the hospital. Pickups include the knife (a **K**, also dropped now and then
   by someone the player kills), and ammo stops at 99 so the panel always shows two digits.
+  - **Never where the player appears.** No pickup lies within 32 pixels of the hospital or the police station,
+    where the player starts and comes back. Both sit between two tile middles, 8 pixels from each, and the
+    browser game used to let a pickup land there and be taken the moment the player appeared, in about 1 game
+    in 27 (mselin/gta-c64#33). See the design's
+    [Pickups](https://github.com/mselin/gta-c64/blob/main/specs/design.md#pickups): what there is, how often,
+    what each does and what people drop.
   - **Banners that fit the screen.** BUSTED, FLATLINED and the job banners put big text across the middle of the
     screen with a line or more under it. By the design's
     [Banners](https://github.com/mselin/gta-c64/blob/main/specs/design.md#banners): a title of at most 19
