@@ -193,23 +193,6 @@ export function honkFrames() {
 }
 
 
-// ---------- the map, packed for the music title build (src/title.asm), which has to fit below $d000 ----------
-// A byte is a tile, except MAP_RUN: then the next two bytes are how many (1-255) and which tile. Only runs of
-// four or more are worth it.
-export const MAP_RUN = 255;
-export function packMap(map) {
-  const packed = [];
-  for (let i = 0; i < map.length; ) {
-    if (map[i] === MAP_RUN) throw new Error('a tile numbered as the run marker');
-    let j = i;
-    while (j < map.length && map[j] === map[i] && j - i < 255) j++;
-    if (j - i >= 4) packed.push(MAP_RUN, j - i, map[i]);
-    else for (let k = i; k < j; k++) packed.push(map[k]);
-    i = j;
-  }
-  return Uint8Array.from(packed);
-}
-
 // ---------- the character set: font first, then the tile characters ----------
 const charset = new Uint8Array(2048);
 for (let code = 0; code < FIRST_TILE_CHAR; code++) {
@@ -252,7 +235,6 @@ mkdirSync(dir, { recursive: true });
 writeFileSync(join(dir, 'chars.bin'), charset);
 writeFileSync(join(dir, 'tiles.bin'), tileData);
 writeFileSync(join(dir, 'map.bin'), out);
-writeFileSync(join(dir, 'map-packed.bin'), packMap(out));
 
 // ---------- the car: a two-colour sprite in 16 directions ----------
 // Sprite pixel (i, j) is the city pixel (x + i - 12, y + j - 10) for a car whose centre is at (x, y). The car

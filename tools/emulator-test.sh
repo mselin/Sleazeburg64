@@ -11,7 +11,7 @@ cd "$(dirname "$0")/.."
 shot() {
   local name=$1 cycles=$2
   shift 2
-  64tass $ASMFLAGS -I src -I build "$@" -o "build/test-$name.prg" src/main.asm
+  tools/build-game.sh "build/test-$name.prg" "build/test-$name-labels.txt" "$@"
   vice_shot "$name" "$cycles" "build/test-$name.prg"
 }
 

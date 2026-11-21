@@ -1,0 +1,59 @@
+; SPDX-License-Identifier: GPL-2.0-or-later
+; What waits after the tiles in the program file (main.asm): the city map, then the code start copies up and
+; the player's frames, which video.init later writes the colour routines over. Included once, either as it is
+; or, in a packed build, only for where everything will be.
+
+city_map        .binary "map.bin"               ; one tile number per tile, row by row
+map_end
+.if MUSIC != 0
+; The tune waits here and is copied to the address it was written for when the program starts. Padded with
+; zeroes to a whole page, because the copy works in pages.
+tune_data       .binary "tune-ingame.bin"
+                .fill tune.PAGES * 256 - ingame_size, 0
+                .cerror * > ingame_load, "the program has run into where the tune plays from"
+.endif
+.if VIEWER == 0
+; Code that runs from higher up, where there is room: above the colour routines (HIGH_CODE) and at the top of
+; memory (TOP_CODE). It waits here, and start copies it up before the colour routines are written over this.
+; Lower down, the video chip needs what room there is for sprites: it sees only the first 16K.
+high_image
+                .logical HIGH_CODE
+.if HONK != 0
+                .include "honk.asm"
+.endif
+                .include "foot.asm"
+high_end
+                .endlogical
+more_image
+                .logical MORE_CODE
+                .include "water.asm"
+more_end
+                .endlogical
+top_image
+                .logical TOP_CODE
+                .include "traffic.asm"
+top_end
+                .endlogical
+extra_image
+                .logical EXTRA_CODE
+                .include "status.asm"
+                .dsection status
+                .dsection car_extra
+extra_end
+                .endlogical
+HIGH_PAGES      = (high_end - HIGH_CODE + 255) / 256
+MORE_PAGES      = (more_end - MORE_CODE + 255) / 256
+TOP_PAGES       = (top_end - TOP_CODE + 255) / 256
+EXTRA_PAGES     = (extra_end - EXTRA_CODE + 255) / 256
+                .cerror HIGH_CODE < video.COLOUR_01 + video.COLOUR_SIZE, "HIGH_CODE is in a colour routine"
+                .cerror high_end > SQUARES2, "the code at HIGH_CODE runs into the tables"   ; (the rest of its last
+                                        ; page is copied over them too, before car.init makes them)
+                .cerror top_end > $fffa, "the code at TOP_CODE runs into the interrupt vectors"
+                .cerror MORE_CODE < video.COPIES + 18 * video.COPY_SIZE, "MORE_CODE is in the screen copies"
+                .cerror more_end > $d000, "the code at MORE_CODE runs into the I/O area"
+                .cerror EXTRA_CODE + EXTRA_PAGES * 256 > TOP_CODE, "the code at EXTRA_CODE runs into TOP_CODE"
+                .cerror * > HIGH_CODE, "what waits after the map reaches where it is copied to"
+                .include "frames.asm"   ; runs once, from here
+                .dsection once          ; and so does car.init, before video.init writes over this
+.endif
+program_end

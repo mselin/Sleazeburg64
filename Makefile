@@ -19,7 +19,7 @@ VICE     ?= x64sc
 PRG       = build/sleazeburg64.prg
 MUSIC_PRG = build/sleazeburg64-music.prg
 INGAME_PRG = build/sleazeburg64-ingame.prg
-ASSETS    = build/chars.bin build/tiles.bin build/map.bin build/map-packed.bin
+ASSETS    = build/chars.bin build/tiles.bin build/map.bin
 SOURCES   = $(wildcard src/*.asm src/*.inc)
 ASMFLAGS  = --cbm-prg --ascii --quiet -Wall -Wno-implied-reg -I src -I build
 # Extra -D options, for example: make DEFS="-D START_X=40 -D START_Y=60"
@@ -30,15 +30,15 @@ all: $(PRG)
 $(ASSETS) &: tools/assets.mjs tools/city.mjs tools/font.mjs
 	$(NODE) tools/assets.mjs build
 
-$(PRG): $(SOURCES) $(ASSETS)
-	$(ASM) $(ASMFLAGS) $(DEFS) --labels build/labels.txt -o $@ src/main.asm
+$(PRG): $(SOURCES) $(ASSETS) tools/pack.mjs tools/build-game.sh
+	tools/build-game.sh $@ build/labels.txt $(DEFS)
 	@ls -l $@
 
 build/tune-%.bin build/tune-%.inc &: tools/sid.mjs tools/font.mjs music/tunes.json
 	$(NODE) tools/sid.mjs $* build
 
-$(INGAME_PRG): $(SOURCES) $(ASSETS)
-	$(ASM) $(ASMFLAGS) $(DEFS) --labels build/labels-ingame.txt -o $@ src/main.asm
+$(INGAME_PRG): $(SOURCES) $(ASSETS) tools/pack.mjs tools/build-game.sh
+	tools/build-game.sh $@ build/labels-ingame.txt $(DEFS)
 	@ls -l $@
 
 $(MUSIC_PRG): $(SOURCES) $(INGAME_PRG) build/tune-title.bin
