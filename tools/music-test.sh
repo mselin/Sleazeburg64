@@ -3,8 +3,8 @@
 # Runs the music test builds in VICE without a display. Needs `make music` to have been run.
 #
 # It checks what a machine can check: that the title screen comes up with its credits, that the game the
-# title screen starts is the same as the game started directly, and that both tunes make sound. It cannot
-# tell whether they sound right. That takes ears, and a real SID.
+# title screen starts is the same as the game started directly, and that the title tune makes sound. It
+# cannot tell whether it sounds right. That takes ears, and a real SID.
 #
 # The recordings in build/sound-*.wav contain the tunes: do not publish them (see music/README.md).
 set -euo pipefail
@@ -28,12 +28,12 @@ if [ "$VICE_ROMS" != open ]; then
   echo "ok: LOAD and RUN from a disk give the same title screen"
 fi
 
-# Autopilot builds: the game with its tune, started directly and by way of the title screen. Once the view
-# has stopped moving the two screens must be the same, which shows the game survived being moved in memory
-# while the title tune had the machine. Without traffic (SPAWN=0), which would still be moving, and starts at
-# a different time in each; the end-to-end tests drive with traffic and a tune.
+# Autopilot builds: the game, started directly and by way of the title screen. Once the view has stopped
+# moving the two screens must be the same, which shows the game survived being moved in memory while the title
+# tune had the machine. Without traffic (SPAWN=0), which would still be moving, and starts at a different time
+# in each.
 mkdir -p build/music-test
-64tass $ASMFLAGS -I src -I build -D MUSIC=1 -D AUTOPILOT=1 -D SPAWN=0 \
+64tass $ASMFLAGS -I src -I build -D AUTOPILOT=1 -D SPAWN=0 \
   --labels build/music-test/labels-ingame.txt \
   -o build/music-test/sleazeburg64-ingame.prg src/main.asm
 64tass $ASMFLAGS -I src -I build/music-test -I build -D AUTOPILOT=1 -o build/music-test/sleazeburg64-music.prg \
@@ -65,4 +65,3 @@ sound() {
   ' "build/sound-$name.wav"
 }
 sound title build/sleazeburg64-music.prg
-sound ingame build/sleazeburg64-ingame.prg

@@ -74,20 +74,19 @@ A briefing for whoever picks this project up next, person or assistant. Written 
 - Room is short everywhere, and where things are is decided by what the video chip must see:
   - Below the screens (`$0c40`-`$257f`) there are about 170 bytes of code left. From `$2580` to the screens
     are the player on foot's 42 sprite frames, made at start.
-  - The status panel took what was left, spread over four places (64tass sections, `status_low` and so on).
-    Below the screens about 140 bytes are left, or 135 in a music build (`car.init`, which makes the
-    multiplication tables, now runs once from where it waits in the program file, as `src/frames.asm` does); `HIGH_CODE` (`$b2a3`-`$bbff`, starting
-    right after the third colour routine: Big Honk, the player on foot, the election fund, the tyres' grip and
-    the steering limit) about 15, or 90; `MORE_CODE` (`$cd80`-`$cfff`, after the screen copies: the water and
-    most of the panel) about 45, or 20; and `TOP_CODE` (`$f300`-`$fff9`: the traffic, the panel's text, the
-    steering table, and in a music build the tune's code) about 170, or 50 in a music build. One more place
-    is free: `$a1a3`-`$a1ff`, the 93 bytes after the second colour routine, past the end of the program file,
-    so a fourth copied-up block could go there. The next feature of any size needs room made first: the
-    colour routines, the screen copies, or fewer frames.
-    All three are assembled with `.logical` and wait after the map in the program file; start copies them up
+  - Four blocks of code are copied up at start. `EXTRA_CODE` (`$e000`-`$f2ff`, under the KERNAL ROM, which is
+    switched out) took the status panel and the steering limit on 21 November 2026, when the owner chose to
+    give the game the room the in-game test tune had: about 3.5K is left there, the place for new features.
+    `HIGH_CODE` (`$b2a3`-`$bbff`, right after the third colour routine: Big Honk, the player on foot) has about
+    265 left; `MORE_CODE` (`$cd80`-`$cfff`, after the screen copies: the water) about 325; `TOP_CODE`
+    (`$f300`-`$fff9`: the traffic) about 615; and below the screens about 470 (`car.init`, which makes the
+    multiplication tables, runs once from where it waits in the program file, as `src/frames.asm` does).
+    `$a1a3`-`$a1ff`, the 93 bytes after the second colour routine, are free too.
+    All four are assembled with `.logical` and wait after the map in the program file; start copies them up
     before `video.init` writes the colour routines over where they waited.
     `src/frames.asm` and the twelve frames it reads wait there too and run once from there.
-  - Zero page is full: it is used up to `$d7`, and up to `$df` in a music build, whose tune has `$e0` on.
+  - Zero page is full: it is used up to `$d7`, and up to `$df` in the city viewer's music build, whose tune
+    has `$e0` on.
     New variables go in the panel screen's rows 0-20 (`$0400`-`$0747`, `.section bss`), which the video chip
     never shows and `video.init` clears: about 250 bytes are left there, 8 in a build with sixteen cars
     (which is why the status panel's money, heat, health and ammo are kept with its text, at `TOP_CODE`).
@@ -132,7 +131,9 @@ Pages after every merge to `main`, at
 Decided: the two Rob Hubbard tunes are used in **test builds**, not in the published program.
 
 - *Skate or Die (intro)*, 1987 Electronic Arts (https://www.hvsc.c64.org/search?sid=139169), on the title
-  screen. *Nemesis the Warlock*, 1987 Martech (https://www.hvsc.c64.org/search?sid=130260), in the game.
+  screen. *Nemesis the Warlock*, 1987 Martech (https://www.hvsc.c64.org/search?sid=130260), in the game until
+  21 November 2026, when the game took `$e000`-`$f2ff`, where it plays from, for code (the owner's choice, to
+  make room for pedestrians). The end-to-end tests still build a made-up tune into the city viewer.
 - `make music` builds them; `make test-music` runs them in the emulator. See the README and `music/README.md`.
 - **Rights.** The tune files are fetched from HVSC into `.cache/` at build time and are never committed. The
   programs built with them are for my own machines and are not published; CI does not build them. Title,
@@ -142,8 +143,8 @@ Decided: the two Rob Hubbard tunes are used in **test builds**, not in the publi
   `$1000`–`$5150`, right across the game, so the title screen is a separate program (`src/title.asm`) that
   moves the game into place on fire.
 - **Nemesis the Warlock** is an ordinary PSID tune at `$e000`, called once a frame, about 27 raster lines at
-  worst. It uses all three SID voices, so sound effects will have to interrupt a voice or wait. It is called
-  from the main loop for now and should move to the raster interrupt once there is one.
+  worst. It uses all three SID voices. The game no longer has room for it (above); a tune in the game again
+  would need a smaller one, somewhere else, and frame time the game no longer has.
 - **Not yet heard by anyone.** The emulator test only shows that both tunes produce sound. How they sound,
   and how the sampled drums in the title tune come out on a real 6581, is for me to check on hardware.
 

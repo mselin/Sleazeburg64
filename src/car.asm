@@ -548,7 +548,7 @@ tyres           lda held_grip           ; (worked out already if the car turned)
                 #sub16 nl, mr, nl
                 rts
 
-                .section car_high
+                .section car_extra
 ; held_grip = what the tyres hold sideways now, for the forward speed in fwd: less on the handbrake, braking,
 ; on grass and in the water.
 grip_of         ldx #GRIP
@@ -590,7 +590,7 @@ nf_less         #mov16 nf, mr
                 #sub16 nf, mr, nf
                 rts
 
-                .section car_high
+                .section car_extra
 ; Turning at rate (in fwd) asks the tyres for the speed times it sideways; never more than they hold, so
 ; rate <= grip * 10430 / speed (10430 = 65536 / 2 pi: a radian in the angle's units). With the speed in
 ; sixteenths from A, by the table: rate <= grip * most_turn[A] / 4.
@@ -636,7 +636,7 @@ hold_turn       tax                     ; nf = grip * most_turn, by quarter squa
                 #mov16 nf, fwd
 +               rts
                 .send
-                .section car_top
+                .section car_extra
 ; 4 * 10430 / the middle of each sixteenth, no more than 255 (which never limits: the turn is slower there).
 most_turn
 .for n = 0, n < 65, n += 1
