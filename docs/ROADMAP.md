@@ -82,6 +82,10 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
     characters in double-size letters, and the text under it broken into even lines of at most 38 of the 40
     columns. The browser game used to let lines over 40 characters run off both sides (mselin/gta-c64#14). On
     the C64 the screen is 40 columns too, so the same limits hold.
+- The status panel, by the design's
+  [The status panel](https://github.com/mselin/gta-c64/blob/main/specs/design.md#the-status-panel), in place
+  of today's demo text (#44). Row 1: money, heat, health, the car while in one, and what fire does, `AMMO12`
+  (two digits, as ammo stops at 99) or `KNIFE` or `FIST` in columns 34-39. Row 2: the job. Row 3: messages.
 - Title screen, game-over and victory pictures.
 
 ## Milestone 4: sound and polish
