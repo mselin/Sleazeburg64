@@ -18,6 +18,8 @@ const kindAt = (x, y) => assets.tiles[1280 + assets.map[(y >> 4) * MAP_SIZE + (x
 export const WADE = { ACCEL: [18, 14, 11, 7], TOP: [1024, 785, 546, 307] };
 WADE.BACK = WADE.TOP.map((t) => Math.floor((t * 2) / 5));
 export const direction16 = (angle) => (((angle >> 8) + 8) >> 4) & 15;
+/** The most turn for a unit of grip, by the speed in sixteenths of a pixel a frame (car.most_turn), times 4. */
+export const MOST_TURN = Array.from({ length: 65 }, (_, s) => Math.min(255, Math.trunc((4 * 10430.378) / (16 * s + 8) + 0.5)));
 
 /** Whether a car centred at pixel (x, y) facing direction a (0-255) touches a wall or the edge. */
 export function hits(x, y, a) {
@@ -34,6 +36,12 @@ export function hits(x, y, a) {
 }
 
 export class Car {
+  /** What the tyres hold sideways at forward speed f: less on the handbrake, braking, on grass, in the water. */
+  grip(f, thr, hand) {
+    let grip = hand ? C.GRIP_HAND : thr < 0 && f > C.BRAKING ? C.GRIP_BRAKING : C.GRIP;
+    if (kindAt(this.px, this.py) === C.GRASS) grip = (grip * 9) >> 4;
+    return grip - this.wet * Math.floor(grip / 6);
+  }
   /** A car at pixel (x, y), facing east, standing still. */
   constructor(x, y) {
     // wet: thirds of it in the water, as water-model.mjs last found (water.wet).
@@ -55,12 +63,16 @@ export class Car {
     const hand = !!(bits & 16);
     const inside = hits(this.px, this.py, this.angle >> 8);
     let c = COS(this.angle >> 8), s = SIN[this.angle >> 8];
+    let grip = null; // what the tyres hold: from the speed before turning if the car turns, as the design
     if (turn) {
       let f0 = mul(this.vx, c) + mul(this.vy, s);
       if (f0 !== 0) {
+        grip = this.grip(f0, thr, hand);
         const m = Math.min(Math.abs(f0), C.TURN_SPEED);
         let rate = 2 * m + (m >> 2);
         if (hand) rate += rate >> 2;
+        // Never sharper than the tyres hold (not on the handbrake): rate <= grip * 10430 / speed, by the table.
+        else rate = Math.min(rate, (grip * MOST_TURN[Math.min(Math.abs(f0) >> 4, 64)]) >> 2);
         const next = (this.angle + turn * sign(f0) * rate) & 0xffff;
         if (inside || !hits(this.px, this.py, next >> 8)) this.angle = next;
       }
@@ -77,11 +89,9 @@ export class Car {
     nf -= nf >> 7;
     if (!thr) nf = shrink(nf, C.COAST);
     nf -= wet * (nf >> 5);
+    if (kindAt(this.px, this.py) === C.GRASS) nf -= nf >> 6; // grass is hard going
     nf = Math.max(-WADE.BACK[wet], Math.min(WADE.TOP[wet], nf));
-    let grip = hand ? C.GRIP_HAND : thr < 0 && fwd > C.BRAKING ? C.GRIP_BRAKING : C.GRIP;
-    if (kindAt(this.px, this.py) === C.GRASS) grip = (grip * 9) >> 4;
-    grip -= wet * Math.floor(grip / 6);
-    let nl = shrink(lat, grip);
+    let nl = shrink(lat, grip ?? this.grip(fwd, thr, hand));
     nl -= nl >> 6;
     const dF = nf - fwd, dL = nl - lat;
     this.vx += mul(dF, c) - mul(dL, s);

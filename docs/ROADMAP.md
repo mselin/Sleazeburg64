@@ -25,12 +25,11 @@ people, cars and walls, heat and the police, the title and the icon. The items b
     it; and a car found inside a wall is moved out to the nearest clear spot rather than left free to move.
     `src/car.asm` lets a car that is inside a wall move anywhere until it is out, which is the idea behind
     the browser bug, so it is worth checking that a car can never get there by driving.
-  - **To bring up to the design's new handling** (mselin/gta-c64#31, #46). Without the handbrake the browser
-    game's cars now turn no sharper than their grip holds, so the fastest take a wider line near top speed:
-    for the sports car, whose 200 px/s this car matches, from 163 px/s (3.3 pixels a frame). Grass now slows a
-    car as well as making it slide. `src/car.asm` follows the old handling, so it needs both: a table of the most
-    turn for each speed, and the grass drag. See the design's
-    [Handling](https://github.com/mselin/gta-c64/blob/main/specs/design.md#handling).
+  - **The design's new handling** (mselin/gta-c64#31, #46; done, not yet tried on real hardware). Without the
+    handbrake the car turns no sharper than its grip holds, so flat out it takes a wider line: from about 3.2
+    pixels a frame on the road (163 px/s), with a table of the most turn for each speed, and sooner where the
+    grip is less (braking, on grass, in the water). Grass slows the car as well as making it slide. See the
+    design's [Handling](https://github.com/mselin/gta-c64/blob/main/specs/design.md#handling).
 
 If 1b and 1c feel right on real hardware, the rest is a long list of known work.
 

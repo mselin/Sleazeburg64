@@ -7,7 +7,9 @@
 ; know: 0 is east, 64 south (the screen's y grows downwards), so angles go clockwise on screen.
 ;
 ; Each frame, as the browser game does with seconds: split the velocity into forward and sideways parts
-; along the car, steer (faster turning the faster the car goes, up to a limit), push the forward part with
+; along the car, steer (faster turning the faster the car goes, up to a limit, and never sharper than the
+; tyres hold: the turn asks them for the speed times it sideways, so it is kept to grip / speed, which holds
+; only the fastest, above 3.2 pixels a frame on the road), push the forward part with
 ; the throttle, brake, handbrake, drag and coasting, wear the sideways part down by the tyres' grip, which is
 ; what makes the car slide when it turns fast, and put the changes back into the velocity. Then move one
 ; axis at a time; an axis that would put the car into a wall bounces back at a quarter of the speed. The
@@ -17,7 +19,8 @@
 ; Numbers per frame at 50 frames a second, from the browser game's sports car (per second there):
 ; acceleration 18 (180 px/s/s), braking 40, reverse 11, handbrake 22, coasting 5, top speed 1024 (4 pixels
 ; a frame, as fast as the screen can scroll; the browser's is 4.3) and backwards 410, grip 50, 30 while
-; braking, 14 on the handbrake, and about half that on grass. Drag takes 1/128 of the speed a frame.
+; braking, 14 on the handbrake, and about half that on grass. Drag takes 1/128 of the speed a frame, and
+; on grass 1/64 more (the design's 0.8 of it a second): there the car gets up to 3 pixels a frame at most.
 ;
 ; tests/e2e/car-model.mjs does the same sums in JavaScript, and the tests hold the two to each other exactly.
 
@@ -80,6 +83,7 @@ sign_of         .byte ?, ?, ?           ; and their signs
 nx              .byte ?, ?, ?
 d16             .byte ?
 held_grip       .byte ?
+ground          .byte ?                 ; the kind of tile under the car's middle this frame
 pos_off         .byte ?                 ; axis_move: 0 or 3 into pos_x, and 0 or 2 into vel_x
 vel_off         .byte ?
 along           .byte ?, ?, ?           ; lead: the three points' offsets along the moving axis ...
@@ -141,6 +145,7 @@ mul             .macro v, s, to         ; to = v * s / 256, rounded towards 0, f
                 #mov16 mr, \to
                 .endm
 
+                .section once           ; runs once, from where it waits in the program file (main.asm)
 ; Build the quarter square tables: SQUARES[n] = n * n / 4, rounded down, for n = 0..511, low bytes then high
 ; bytes, and SQUARES2[n] = SQUARES[|n - 255|], so that a * b = SQUARES[a + b] - SQUARES2[b - a + 255].
 init            lda #0
@@ -209,6 +214,7 @@ init            lda #0
                 inx
                 bne -
                 rts
+                .send
 
 ; Put the car at pixel (A low, X high) across and (Y low, sum high) down, facing east, standing still.
 ; The tests do the same through memory, then set `inside` to 1.
@@ -267,7 +273,11 @@ update          tay
                 lda #0
                 rol
                 sta inside
-+
++               jsr here                ; what it is on, for the grip and the drag
+                jsr kind_at
+                sta ground
+                lda #0                  ; the grip: not worked out yet this frame
+                sta held_grip
                 jsr steer
                 jsr trig
                 #mul vel_x, cs, fwd     ; forward = vx cos + vy sin
@@ -362,11 +372,29 @@ steer           lda turn
                 ora fwd + 1
                 bne +
                 rts                     ; standing still: no turning
-+               lda fwd + 1             ; m = min(|fwd|, TURN_SPEED)
++               jsr grip_of             ; what the tyres hold, from the speed before turning, as the design
+                lda fwd + 1             ; m = min(|fwd|, TURN_SPEED)
                 php                     ; N: going backwards
                 bpl +
                 #neg16 fwd
-+               lda fwd
++               lda fwd + 1             ; the speed in sixteenths of a pixel a frame, at most 64, for the limit
+                cmp #4
+                bcc +
+                lda #64
+                bne ++
++               asl
+                asl
+                asl
+                asl
+                sta tb
+                lda fwd
+                lsr
+                lsr
+                lsr
+                lsr
+                ora tb
++               pha
+                lda fwd
                 cmp #<TURN_SPEED
                 lda fwd + 1
                 sbc #>TURN_SPEED
@@ -383,9 +411,17 @@ steer           lda turn
                 asl fwd
                 rol fwd + 1
                 #add16 fwd, mr, fwd
-                lda hand                ; handbrake: a quarter more
-                beq +
-                #mov16 fwd, mr
+                pla
+                ldx hand                ; handbrake: a quarter more, and no limit
+                bne +
+                ldx held_grip           ; else never sharper than the tyres hold: at full grip that can only
+                cpx #GRIP               ; be from 52 sixteenths up (and this is the busiest part of the
+                bne hold                ; busiest frames)
+                cmp #52
+                bcc ++
+hold            jsr hold_turn
+                jmp ++
++               #mov16 fwd, mr
                 lsr mr + 1
                 ror mr
                 lsr mr + 1
@@ -459,17 +495,19 @@ drag            lda hand
                 beq +
                 ldx #HANDBRAKE
                 jsr shrink_nf
-+               #mov16 nf, mr           ; nf -= nf >> 7
-                ldx #7
--               #asr16 mr
-                dex
-                bne -
-                #sub16 nf, mr, nf
++               ldx #7                  ; nf -= nf >> 7
+                jsr nf_less
                 lda thr
                 bne +
                 ldx #COAST
                 jsr shrink_nf
 +               jsr water.drag          ; and more drag in the water
+                lda ground              ; and on grass, hard going: nf -= nf >> 6, the design's 0.8 of the
+                cmp #GRASS              ; speed a second
+                bne +
+                ldx #6
+                jsr nf_less
++
                 ldy water.wet           ; no faster than TOP forwards or TOP_BACK backwards, less in the water
                 lda nf + 1
                 bmi backwards
@@ -495,7 +533,25 @@ backwards       lda nf
 limited         rts
 
 ; nl = the sideways speed after the tyres' grip: towards 0 by the grip, then 1/64 less.
-tyres           ldx #GRIP
+tyres           lda held_grip           ; (worked out already if the car turned)
+                bne +
+                jsr grip_of
++
+                #mov16 lat, nl
+                ldx held_grip
+                jsr shrink_nl
+                #mov16 nl, mr           ; nl -= nl >> 6
+                ldx #6
+-               #asr16 mr
+                dex
+                bne -
+                #sub16 nl, mr, nl
+                rts
+
+                .section car_high
+; held_grip = what the tyres hold sideways now, for the forward speed in fwd: less on the handbrake, braking,
+; on grass and in the water.
+grip_of         ldx #GRIP
                 lda hand
                 beq not_hand
                 ldx #GRIP_HAND
@@ -510,8 +566,7 @@ not_hand        lda thr                 ; braking: down, going forward faster th
                 bcc gripped
 is_braking      ldx #GRIP_BRAKING
 gripped         stx held_grip
-                jsr here                ; on grass: 9/16 of it
-                jsr kind_at
+                lda ground              ; on grass: 9/16 of it
                 cmp #GRASS
                 bne grip_set
                 ldx held_grip
@@ -523,17 +578,71 @@ gripped         stx held_grip
                 beq on_grass
                 lda #GRIP_HAND * 9 / 16
 on_grass        sta held_grip
-grip_set        jsr water.grip          ; and less in the water
-                #mov16 lat, nl
-                ldx held_grip
-                jsr shrink_nl
-                #mov16 nl, mr           ; nl -= nl >> 6
-                ldx #6
+grip_set        jmp water.grip          ; and less in the water
+
+                .send
+
+; nf -= nf >> X, the shift keeping the sign.
+nf_less         #mov16 nf, mr
 -               #asr16 mr
                 dex
                 bne -
-                #sub16 nl, mr, nl
+                #sub16 nf, mr, nf
                 rts
+
+                .section car_high
+; Turning at rate (in fwd) asks the tyres for the speed times it sideways; never more than they hold, so
+; rate <= grip * 10430 / speed (10430 = 65536 / 2 pi: a radian in the angle's units). With the speed in
+; sixteenths from A, by the table: rate <= grip * most_turn[A] / 4.
+hold_turn       tax                     ; nf = grip * most_turn, by quarter squares (see init):
+                lda most_turn,x         ; (t + g)^2 / 4 - (t - g)^2 / 4
+                sta mr
+                clc
+                adc held_grip
+                tax
+                bcs +
+                lda SQUARES,x
+                sta nf
+                lda SQUARES + 512,x
+                sta nf + 1
+                jmp ++
++               lda SQUARES + 256,x
+                sta nf
+                lda SQUARES + 768,x
+                sta nf + 1
++               lda mr
+                sec
+                sbc held_grip
+                bcs +
+                eor #$ff
+                adc #1
++               tax
+                sec
+                lda nf
+                sbc SQUARES,x
+                sta nf
+                lda nf + 1
+                sbc SQUARES + 512,x
+                sta nf + 1
+                lsr nf + 1              ; / 4
+                ror nf
+                lsr nf + 1
+                ror nf
+                lda nf                  ; rate = min(rate, that)
+                cmp fwd
+                lda nf + 1
+                sbc fwd + 1
+                bcs +
+                #mov16 nf, fwd
++               rts
+                .send
+                .section car_top
+; 4 * 10430 / the middle of each sixteenth, no more than 255 (which never limits: the turn is slower there).
+most_turn
+.for n = 0, n < 65, n += 1
+                .byte 4 * 10430.378 / (16 * n + 8) + 0.5 > 255 ? 255 : int(4 * 10430.378 / (16 * n + 8) + 0.5)
+.next
+                .send
 
 ; Towards 0 by X, no further: nf, or nl.
 shrink_nf       stx tb

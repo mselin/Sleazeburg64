@@ -11,7 +11,7 @@ Early. Milestone 1 is done (in the emulator) and **milestone 2, a city with thin
 traffic, getting out of the car and walking, and Big Honk. The program draws the city of Sleazeburg in
 multicolour character mode, and you drive a car around it with a joystick in port 2 while the view scrolls
 smoothly to follow. The car handles like the browser game's: it speeds up, brakes, reverses, slides when you
-turn fast, turns tighter on the handbrake, has less grip on grass, and bounces off buildings and trees. A
+turn fast, takes a wider line flat out, turns tighter on the handbrake, slides and slows on grass, and bounces off buildings and trees. A
 handful of other cars drive the streets on their lanes, turn at crossings and stop behind whatever is in front
 of them, you included; your car bounces off them, and a car you hit hard is wrecked. You can get out and walk,
 swim across the canal, and get into any car, a passing one included. Drive into the canal or a fountain and
@@ -277,14 +277,14 @@ screen of its own, which the split switches to for its three rows.
 | `$4700` | City map |
 | `$6d00` | Made at start: the fourth colour memory routine |
 | `$8000` | Made at start: the other three colour memory routines |
-| `$b300` | Copied at start: code there is no room for lower down (Big Honk, the player on foot, the election fund) |
+| `$b2a3` | Copied at start: code there is no room for lower down (Big Honk, the player on foot, the election fund, the tyres) |
 | `$bc00` | Made at start: quarter squares moved along, the second half of a multiplication |
 | `$c000` | Made at start: quarter squares for multiplying, then the 18 screen copies |
 | `$cd80` | Copied at start: more code (the water, the status panel's timing and its bottom row) |
 | `$f300` | Copied at start: more code (the traffic), and the status panel's text, up to the interrupt vectors |
 
 The video chip sees only the first 16K, and not `$1000`–`$1fff`, so sprites have to be there, and code that
-was there has moved up to make room. What runs from `$b300`, `$cd80` and `$f300`, the code that makes the player's
+was there has moved up to make room. What runs from `$b2a3`, `$cd80` and `$f300`, the code that makes the player's
 frames and the twelve frames it makes them from all wait after the map in the program file. At start the
 code is copied up and the frames are made, before the colour memory routines are written over where they
 waited.
