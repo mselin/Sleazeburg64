@@ -105,28 +105,38 @@ test('driving the car flat out with the tune playing: the car follows the model 
   });
 });
 
-test('with the car, the hint between the credits says what fire does: in the car, and on foot once the player is out', () => {
+test('with the car, the panel\'s messages come first, and the credits take turns, in light blue, when there is none', () => {
   const withCar = assemble('music/car', { defs: { MUSIC: 1 }, include: [TUNES] });
   const C = withCar.labels;
   const IN_CAR = 'FIRE: HANDBRAKE. STANDING STILL: GET OUT', ON_FOOT = 'STAND BY A CAR AND PRESS FIRE TO GET IN';
   const CREDITS = ['MUSIC: TEST TUNE', 'NOBODY (C) 2026 THE TESTS'];
+  const LIGHT_BLUE = 14;
+  const message = (text) => Math.max(200, text.length * 7 + 75); // frames it is up (status.asm)
   return withProgram(withCar.prg, async (vice) => {
     await vice.runTo(C.ready);
-    /** Every line the bottom row shows over one round of the three and a little more. */
-    const round = async () => {
-      const seen = new Set();
-      for (let frame = 0; frame < 3 * CREDIT_FRAMES + 40; frame += 20) {
+    /** Every line the bottom row shows, every 20 frames for `frames`. */
+    const lines = async (frames) => {
+      const seen = [];
+      for (let frame = 0; frame < frames; frame += 20) {
         await vice.frames(C.ready, 20);
-        seen.add((await readPanel(vice))[2]);
+        const row = (await readPanel(vice))[2];
+        if (seen[seen.length - 1] !== row) seen.push(row);
       }
-      return [...seen].sort();
+      return seen;
     };
-    assert.deepEqual(await round(), [IN_CAR, ...CREDITS].sort(), 'in the car');
+    const first = await lines(message(IN_CAR) + 2 * CREDIT_FRAMES + 40);
+    assert.equal(first[0], IN_CAR, 'the message first');
+    assert.deepEqual(new Set(first.slice(1)), new Set(CREDITS), 'then the credits, both, in turn');
+    assert.ok(first.length >= 4, `taking turns: ${first}`);
+    const colours = await vice.read(0xd800 + 23 * 40, 40);
+    assert.deepEqual([...colours].map((c) => c & 15), Array(40).fill(LIGHT_BLUE));
     await vice.joystick(JOY.FIRE); // with the stick centred and the car standing: out
     await vice.frames(C.ready, 2);
     await vice.joystick(0);
     assert.equal((await vice.read(C['foot.on'], 1))[0], 1, 'the player is out of the car');
-    assert.deepEqual(await round(), [ON_FOOT, ...CREDITS].sort(), 'on foot: its hint takes the same turn, and the credits stay');
+    const after = await lines(message(ON_FOOT) + 2 * CREDIT_FRAMES + 40);
+    assert.equal(after[0], ON_FOOT, 'on foot: its message, and then ...');
+    assert.deepEqual(new Set(after.slice(1)), new Set(CREDITS), '... the credits again');
   });
 });
 

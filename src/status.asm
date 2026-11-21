@@ -1,0 +1,554 @@
+; SPDX-License-Identifier: GPL-2.0-or-later
+; The status panel of the game, by the browser game's design (specs/design.md there, "The status panel"):
+; three rows of 40 characters under the city, on black.
+;
+;   0         1         2         3
+;   0123456789012345678901234567890123456789
+;   $000000 HEAT *****  HP##### CAR### AMMO12
+;   NO JOB. FOLLOW THE ARROW TO A "J".
+;   FIRE: HANDBRAKE. STANDING STILL: GET OUT
+;
+; Row 1: the money, light green; HEAT, and a star for each level, which flash red and yellow four times a
+; second (the rest dark grey); HP and the health bar, green, red at 30 or below; CAR and the car's bar, cyan,
+; red under 40, only in a car; and what fire does, at the right: AMMO and two digits in yellow, or KNIFE in
+; light grey or FIST in light red once the ammo runs out. The design puts the stars, HP and CAR between
+; character columns; here they are rounded to whole ones. A bar is characters filled a pixel column at a time
+; (tools/assets.mjs): the health bar is 40 pixels, as the browser game fills its own, and the car's 24 rather
+; than 26. A character has one colour, so the part of a bar that is not filled is dark grey only in whole
+; characters, and black in the one it ends in.
+;
+; Row 2: the job. There are no jobs yet, so it is the line for no job, in grey.
+;
+; Row 3: the latest message, in white, for max(4, 0.14 s a character + 1.5) seconds; one longer than 40
+; characters scrolls left after a second and stops at its end. The design scrolls 70 pixels a second; here it
+; is a character every 6 frames, 67. Otherwise ELECTION FUND: $ and the money / $25000, in dark grey; or in a
+; music build the tune's credits in turn, in light blue, as the radio is shown in the browser game.
+;
+; Nothing in the game changes the money, heat, health or ammo yet. What does will set `changed`, and row 1 is
+; drawn again in the next frame that has the time.
+;
+; Room. It is spread over what was left: what runs most and row 3 after the water (MORE_CODE), the rest of
+; row 1 below the screens, the election fund with Big Honk (HIGH_CODE), and the text at the top (TOP_CODE).
+;
+; The time. Only what changed is written, and only in a frame that does not move the screen a character,
+; which has none to spare (as for the water and Big Honk): the frame after one never moves it. In a frame of
+; colour memory, the one after that, only row 3 is written, about 8 raster lines (16 when its colour
+; changes); the rest of the panel, row 1 whole about 25 lines and the car's part about 10, waits for a frame
+; that does neither. Flat out there are none of those, so the car's part shows once the car slows.
+
+status          .block
+
+PANEL           = PANEL_SCREEN + ROWS * 40      ; its three rows on the screen ...
+COLOURS         = COLOUR_RAM + ROWS * 40        ; ... and in colour memory
+ROW2            = 40
+ROW3            = 80
+STARS_AT        = 13
+HP_BAR          = 21                    ; 5 characters, 40 pixels
+CAR_AT          = 27
+CAR_BAR         = 30                    ; 3 characters, 24 pixels
+WEAPON_AT       = 34                    ; AMMO99, KNIFE or FIST, right-aligned: columns 34-39
+BAR_FIRST       = 248                   ; character 247 + n: the left n pixel columns filled (tools/assets.mjs)
+BAR_FULL        = BAR_FIRST + 7
+FLASH_FRAMES    = 12                    ; the stars: four times a second, to within a frame in eight
+SCROLL_START    = 50                    ; a long message waits a second ...
+SCROLL_FRAMES   = 6                     ; ... then moves a character every 6 frames
+.if MUSIC != 0
+CREDIT_FRAMES   = tune.CREDIT_FRAMES    ; each credit four seconds
+.endif
+
+                .section status_top     ; (the variables are full in a build with sixteen cars)
+money           .fill 3                 ; binary-coded decimal, the lowest two digits first
+heat            .byte ?                 ; 0-5
+hp              .byte ?                 ; the player's health, 0-100
+car_hp          .byte ?                 ; the car's, 0-100
+ammo            .byte ?                 ; binary-coded decimal, 0-99
+knife           .byte ?                 ; 1 with a knife
+                .send
+                .section bss
+changed         .byte ?                 ; 1: draw row 1 again
+car_shown       .byte ?                 ; 1: draw the CAR part again (getting in or out)
+stars_shown     .byte ?                 ; 1: colour the stars again
+redraw3         .byte ?                 ; 1: draw row 3 again
+row3_ink        .byte ?                 ; the colour row 3 has in colour memory now
+text            .word ?                 ; the message: where its text is ...
+most            .byte ?                 ; ... how far along it can scroll ...
+left            .word ?                 ; ... frames before it goes, or 0 for none ...
+offset          .byte ?                 ; ... how far it has scrolled ...
+scroll_wait     .byte ?                 ; ... and frames before it does again
+flash           .byte ?                 ; the stars: 0 yellow, 1 red
+flash_wait      .byte ?
+value           .byte ?                 ; scale
+sum             .word ?
+                .send
+pixels          = value                 ; bar, which comes after scale
+cells           = sum
+ink             = sum + 1
+lead            = sum                   ; printing the money (whose byte is in value): 0 while its digits are leading zeros
+
+                .section status_more
+; The start of a game: nothing, full health, 12 bullets; and the first message.
+init            lda #0
+                ldx #2
+-               sta money,x
+                dex
+                bpl -
+                sta heat
+                sta knife
+                sta flash
+                sta changed
+                sta stars_shown
+                sta car_shown
+                lda #100
+                sta hp
+                sta car_hp
+                lda #$12
+                sta ammo
+                lda #FLASH_FRAMES
+                sta flash_wait
+                lda #$ff                ; row 3's colour memory: not yet any colour
+                sta row3_ink
+.if MUSIC != 0
+                lda #CREDIT_FRAMES
+                sta tune.credit_wait
+                lda #0
+                sta tune.credit_line
+.endif
+                ldx #39
+-               lda row2_text,x
+                sta PANEL + ROW2,x
+                lda #GREY
+                sta COLOURS + ROW2,x
+                dex
+                bpl -
+                jsr draw_row1
+                ldx #MSG_CAR
+                jsr say
+                jmp draw_row3
+
+                .send
+                .section status_top
+; Show message X in row 3, from the next frame that has the time.
+say             lda msg_lo,x
+                sta text
+                lda msg_hi,x
+                sta text + 1
+                lda msg_most,x
+                sta most
+                lda msg_left_lo,x
+                sta left
+                lda msg_left_hi,x
+                sta left + 1
+                lda #0
+                sta offset
+                lda #SCROLL_START + 1   ; (the same)
+                sta scroll_wait
+                lda #1
+                sta redraw3
+                rts
+
+                .send
+                .section status_more
+; Once a frame, after the window has moved: count the message's time and scrolling, the credits and the
+; flashing, then write what has changed if this frame has the time.
+update          lda left
+                ora left + 1
+                beq timed
+                lda left
+                bne +
+                dec left + 1
++               dec left
+                lda left
+                ora left + 1
+                bne +
+                lda #1                  ; its time is up
+                sta redraw3
+                bne timed
++               dec scroll_wait
+                bne timed
+                lda #SCROLL_FRAMES
+                sta scroll_wait
+                lda offset
+                cmp most
+                bcs timed               ; at its end
+                inc offset
+                lda #1
+                sta redraw3
+timed
+.if MUSIC != 0 && AUTOPILOT == 0        ; (the emulator test compares screenshots, so the panel keeps still)
+                dec tune.credit_wait
+                bne +
+                lda #CREDIT_FRAMES
+                sta tune.credit_wait
+                lda tune.credit_line
+                eor #1
+                sta tune.credit_line
+                lda #1
+                sta redraw3                ; (shown only once no message is)
++
+.endif
+                lda heat
+                beq +
+                dec flash_wait
+                bne +
+                lda #FLASH_FRAMES
+                sta flash_wait
+                lda flash
+                eor #1
+                sta flash
+                lda #1
+                sta stars_shown
++               jsr screen_moves
+                bcc +
+                rts
++               lda busy                ; colour memory this frame: only row 3, the rest waits
+                beq +
+                lda redraw3
+                beq written
+                jmp draw_row3
++               lda changed
+                beq +
+                jsr draw_row1
++               lda car_shown
+                beq +
+                jsr draw_car
++               lda stars_shown
+                beq +
+                jsr colour_stars
++               lda redraw3
+                beq written
+                jmp draw_row3
+written         rts
+
+                .send
+                .section status_low
+; ---------- row 1 ----------
+
+draw_row1       ldx #39
+-               lda row1_text,x
+                sta PANEL,x
+                lda row1_colours,x
+                sta COLOURS,x
+                dex
+                bpl -
+                lda #0
+                sta changed
+                lda #1                  ; and row 3, which may show the money
+                sta redraw3
+                ldx #1                  ; the money: $ and six digits
+                ldy #2
+-               lda money,y
+                lsr
+                lsr
+                lsr
+                lsr
+                ora #'0'
+                sta PANEL,x
+                lda money,y
+                and #15
+                ora #'0'
+                sta PANEL + 1,x
+                inx
+                inx
+                dey
+                bpl -
+                jsr colour_stars
+                lda hp                  ; health: a pixel for each 2.5
+                ldx #40
+                jsr scale
+                ldy #GREEN
+                ldx hp
+                cpx #31
+                bcs +
+                ldy #RED
++               sty ink
+                ldx #HP_BAR
+                ldy #5
+                jsr bar
+                jsr draw_car
+                lda ammo                ; what fire does
+                beq +
+                lsr
+                lsr
+                lsr
+                lsr
+                ora #'0'
+                sta PANEL + WEAPON_AT + 4
+                lda ammo
+                and #15
+                ora #'0'
+                sta PANEL + WEAPON_AT + 5
+                rts
++               ldy #5                  ; KNIFE, or FIST
+                lda knife
+                beq +
+                ldy #11
++               ldx #5
+-               lda weapon_text,y
+                sta PANEL + WEAPON_AT,x
+                lda weapon_ink,y
+                sta COLOURS + WEAPON_AT,x
+                dey
+                dex
+                bpl -
+                rts
+
+; CAR and its bar while the player is in a car; nothing there on foot.
+draw_car        lda #0
+                sta car_shown
+                lda foot.on
+                beq +
+                ldx #CAR_BAR - CAR_AT + 2
+                lda #' '
+-               sta PANEL + CAR_AT,x
+                dex
+                bpl -
+                rts
++               ldx #2
+-               lda row1_text + CAR_AT,x
+                sta PANEL + CAR_AT,x
+                dex
+                bpl -
+                lda car_hp
+                ldx #24
+                jsr scale
+                ldy #CYAN
+                ldx car_hp
+                cpx #40
+                bcs +
+                ldy #RED
++               sty ink
+                ldx #CAR_BAR
+                ldy #3
+                jmp bar
+
+; The stars: one for each level of heat, flashing; the rest dark grey.
+colour_stars    lda #0
+                sta stars_shown
+                ldx #0
+-               lda #DARK_GREY
+                cpx heat
+                bcs +
+                lda #YELLOW
+                ldy flash
+                beq +
+                lda #RED
++               sta COLOURS + STARS_AT,x
+                inx
+                cpx #5
+                bne -
+                rts
+
+; A = value * X / 100, to the nearest: how many pixels of a bar of X pixels a value from 0 to 100 fills.
+scale           sta value
+                lda #50
+                sta sum
+                lda #0
+                sta sum + 1
+-               clc
+                lda sum
+                adc value
+                sta sum
+                bcc +
+                inc sum + 1
++               dex
+                bne -
+                ldx #0
+-               sec
+                lda sum
+                sbc #100
+                tay
+                lda sum + 1
+                sbc #0
+                bcc +
+                sta sum + 1
+                sty sum
+                inx
+                bne -
++               txa
+                rts
+
+; A bar of Y characters from column X with A pixel columns filled, in the colour `ink`; the characters not
+; reached are dark grey.
+bar             sta pixels
+                sty cells
+-               lda pixels
+                beq empty
+                cmp #8
+                bcc part
+                sbc #8                  ; (C is set)
+                sta pixels
+                lda #BAR_FULL
+                ldy ink
+                bne put
+part            adc #BAR_FIRST - 1      ; (C is clear) the left A columns
+                ldy #0
+                sty pixels
+                ldy ink
+                bne put
+empty           lda #BAR_FULL
+                ldy #DARK_GREY
+put             sta PANEL,x
+                tya
+                sta COLOURS,x
+                inx
+                dec cells
+                bne -
+                rts
+
+                .send
+                .section status_more
+; ---------- row 3 ----------
+
+; The message, scrolled as far as it has; or with none, the election fund, or a credit.
+draw_row3       lda #0
+                sta redraw3
+                lda left
+                ora left + 1
+                bne +
+                jmp idle
++               lda #WHITE
+                jsr row3_colour
+                clc
+                lda text
+                adc offset
+                sta from + 1
+                lda text + 1
+                adc #0
+                sta from + 2
+                ldx #39
+from            lda $ffff,x             ; (the address is written above)
+                sta PANEL + ROW3,x
+                dex
+                bpl from
+                rts
+                .send
+                .section status_high
+.if MUSIC != 0
+idle            lda #LIGHT_BLUE
+                jsr row3_colour
+                ldx #39
+                lda tune.credit_line
+                bne +
+-               lda tune.credit_title,x
+                sta PANEL + ROW3,x
+                dex
+                bpl -
+                rts
++
+-               lda tune.credit_by,x
+                sta PANEL + ROW3,x
+                dex
+                bpl -
+                rts
+.else
+idle            lda #DARK_GREY
+                jsr row3_colour
+                ldx #0
+-               lda fund_text,x
+                sta PANEL + ROW3,x
+                inx
+                cpx #size(fund_text)
+                bne -
+                lda #0                  ; the money, without its leading zeros
+                sta lead
+                lda #2
+                sta value               ; (the byte of it)
+-               ldy value
+                lda money,y
+                lsr
+                lsr
+                lsr
+                lsr
+                jsr digit
+                ldy value               ; the last digit, even if it is 0
+                bne +
+                inc lead
++               lda money,y
+                and #15
+                jsr digit
+                dec value
+                bpl -
+                ldy #0
+-               lda goal_text,y
+                sta PANEL + ROW3,x
+                inx
+                iny
+                cpy #size(goal_text)
+                bne -
+                lda #' '
+-               sta PANEL + ROW3,x
+                inx
+                cpx #40
+                bne -
+                rts
+
+; Digit A at column X of row 3, and X + 1; or nothing for a leading zero.
+digit           tay
+                bne +
+                lda lead
+                beq ++                  ; a leading zero
+                tya
++               ora #'0'
+                sta PANEL + ROW3,x
+                inx
+                sta lead                ; not 0
++               rts
+.endif
+
+                .send
+                .section status_more
+; Row 3's colour memory to A, if it is not that already.
+row3_colour     cmp row3_ink
+                beq +
+                sta row3_ink
+                ldx #39
+-               sta COLOURS + ROW3,x
+                dex
+                bpl -
++               rts
+
+                .send
+                .section status_top
+; ---------- what it says ----------
+
+                .enc "screen"
+row1_text       .text "$000000 heat ***** hp      car    ammo12"
+ROW1_INKS       = [LIGHT_GREEN] x 7 .. [LIGHT_GREY] x 5 .. [DARK_GREY] x 6 .. [LIGHT_GREY] x 3 .. [DARK_GREY] x 6 .. [LIGHT_GREY] x 3 .. [DARK_GREY] x 4 .. [YELLOW] x 6
+row1_colours    .byte ROW1_INKS
+weapon_text     .text "  fist", " knife"
+weapon_ink      .byte [LIGHT_RED] x 6, [LIGHT_GREY] x 6
+row2_text       .text format("%-40s", 'no job. follow the arrow to a "j".')
+.if MUSIC == 0
+fund_text       .text "election fund: $"
+goal_text       .text " / $25000"
+.endif
+
+; The messages: each padded to at least 40 characters, how far it can scroll, and how long it stays.
+MSG_CAR         = 0
+MSG_FOOT        = 1
+MSG_SUNK        = 2
+MESSAGES        = ("fire: handbrake. standing still: get out", "stand by a car and press fire to get in", "the car is gone. swim for it. the warranty does not cover this.")
+msg_texts       .block
+m0              .text format("%-40s", MESSAGES[0])
+m1              .text format("%-40s", MESSAGES[1])
+m2              .text format("%-40s", MESSAGES[2])
+                .bend
+MSG_AT          = (msg_texts.m0, msg_texts.m1, msg_texts.m2)
+msg_lo          .byte <MSG_AT
+msg_hi          .byte >MSG_AT
+most_of         .function m
+                .endf len(m) > 40 ? len(m) - 40 : 0
+frames_of       .function m             ; 50 * max(4, 0.14 * its length + 1.5), and 1 for the frame it is said
+                .endf (len(m) * 7 + 75 > 200 ? len(m) * 7 + 75 : 200) + 1     ; in, which counts it down too
+msg_most        .byte most_of(MESSAGES[0]), most_of(MESSAGES[1]), most_of(MESSAGES[2])
+MSG_FRAMES      = (frames_of(MESSAGES[0]), frames_of(MESSAGES[1]), frames_of(MESSAGES[2]))
+msg_left_lo     .byte <MSG_FRAMES
+msg_left_hi     .byte >MSG_FRAMES
+                .enc "none"
+
+                .send
+
+                .cerror len(ROW1_INKS) != 40, "row 1 is not 40 colours"
+                .cerror size(row1_text) != 40, "row 1 is not 40 characters"
+
+                .bend

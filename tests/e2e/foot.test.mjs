@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JOY } from './vice.mjs';
-import { MAP_PIXELS, MAX_Y, PLAYER_FRAMES, PLAYER_FRAME_COUNT, PLAYER_SPRITE, assemble, assets, expectedReadout, readPanel, withProgram } from './game.mjs';
+import { MAP_PIXELS, MAX_Y, PLAYER_FRAMES, PLAYER_FRAME_COUNT, PLAYER_SPRITE, assemble, assets, readPanel, withProgram } from './game.mjs';
 import { World, assertPicture, missed, pass, putCar, putOnFoot, putTrafficCar } from './play.mjs';
 import { F, blocked, kindAt } from './foot-model.mjs';
 import { T } from './traffic-model.mjs';
@@ -378,19 +378,6 @@ test('traffic stops for the player standing in its lane, waits, then gives up wa
     assert.ok(stoppedAt >= T.AHEAD_MIN && stoppedAt <= T.AHEAD_MAX, `it stopped ${stoppedAt} pixels short`);
     assert.ok(waited >= T.HELD - 10, `it waited ${waited} frames`);
     assert.ok(c.px >= w.player.px + 30, 'and then drove on');
-  }));
-
-test('the panel says where the window is in a build with the car too', () =>
-  run(async (vice, w) => {
-    assert.equal((await readPanel(vice))[1], expectedReadout(w.cam.x, w.cam.y));
-    const seen = new Set();
-    for (let frame = 1; frame <= 120; frame++) {
-      await pass(vice, L, w, frame < 60 ? JOY.UP : JOY.UP | JOY.RIGHT, `driving, frame ${frame}`);
-      const row = (await readPanel(vice))[1];
-      assert.equal(row, expectedReadout(w.cam.x, w.cam.y), `after ${frame} frames`);
-      seen.add(row);
-    }
-    assert.ok(seen.size > 8, `it changed as the window moved (${seen.size} readouts)`);
   }));
 
 // ---------- everything at once ----------

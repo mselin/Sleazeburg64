@@ -64,23 +64,28 @@ A briefing for whoever picks this project up next, person or assistant. Written 
     and new cars, the sprites 10. In the car's 100, steering takes up to 28 when the car's picture turns a
     step, which is when it looks whether the turn would put it into a wall. Those are the places to look for
     time.
-  - The panel's readout used to take 5 lines every frame and 10 when it changed; it is now worked out from
-    the window's character and tables (`src/digits.asm`), which paid for the player on foot.
+  - The status panel (`src/status.asm`) writes only what changed, and only in a frame that does not move the
+    screen: row 3 about 8 lines, 16 when its colour changes, and row 1 whole about 25, which also waits for a
+    frame with no colour memory. The city viewer keeps the old readout (`src/panel.asm`, `src/digits.asm`).
 - Room is short everywhere, and where things are is decided by what the video chip must see:
   - Below the screens (`$0c40`-`$257f`) there are about 170 bytes of code left. From `$2580` to the screens
     are the player on foot's 42 sprite frames, made at start.
-  - `HIGH_CODE` (`$b300`-`$bbff`: Big Honk, the player on foot) has about 130 bytes left; `MORE_CODE`
-    (`$cd80`-`$cfff`, after the screen copies: the water and the panel's tables) about 125; and `TOP_CODE`
-    (`$f300`-`$fff9`: the traffic, and in a music build the tune's code) about 620, or 420 in a music build.
+  - The status panel took what was left, spread over four places (64tass sections, `status_low` and so on).
+    Below the screens about 25 bytes are left; `HIGH_CODE` (`$b300`-`$bbff`: Big Honk, the player on foot,
+    the election fund) about 65, or 140 in a music build; `MORE_CODE` (`$cd80`-`$cfff`, after the screen
+    copies: the water and most of the panel) about 45, or 20; and `TOP_CODE` (`$f300`-`$fff9`: the traffic,
+    the panel's text, and in a music build the tune's code) about 240, or 125 in a music build. The next
+    feature of any size needs room made first: the colour routines, the screen copies, or fewer frames.
     All three are assembled with `.logical` and wait after the map in the program file; start copies them up
     before `video.init` writes the colour routines over where they waited.
     `src/frames.asm` and the twelve frames it reads wait there too and run once from there.
   - Zero page is full: it is used up to `$d7`, and up to `$df` in a music build, whose tune has `$e0` on.
     New variables go in the panel screen's rows 0-20 (`$0400`-`$0747`, `.section bss`), which the video chip
-    never shows and `video.init` clears: about 280 bytes are left there, 48 in a build with sixteen cars.
-  - The music title build (`src/title.asm`) has to LOAD below `$d000` and carries the whole game: it has
-    about 650 bytes left. The next thing of any size will not fit in it as it is. Ways out: load the game as
-    a second file, pack it, or drop that build's title tune.
+    never shows and `video.init` clears: about 250 bytes are left there, 8 in a build with sixteen cars
+    (which is why the status panel's money, heat, health and ammo are kept with its text, at `TOP_CODE`).
+  - The music title build (`src/title.asm`) has to LOAD below `$d000` and carries the whole game. It now
+    carries the map packed (`build/map-packed.bin`, runs of a tile, from `tools/assets.mjs`) and unpacks it
+    as it moves the game into place, which leaves it about 1.9K. Packing more of the game is the way on.
 - Sprite data must be where the video chip can see it, in the first 16K and not `$1000`-`$1fff`. Big Honk's
   eight frames are in the character set's characters 184-247 (`$3dc0`), after the tile characters, which
   `tools/assets.mjs` checks; there is no more room there for tiles without moving him. The player on foot's

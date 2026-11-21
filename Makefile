@@ -19,7 +19,7 @@ VICE     ?= x64sc
 PRG       = build/sleazeburg64.prg
 MUSIC_PRG = build/sleazeburg64-music.prg
 INGAME_PRG = build/sleazeburg64-ingame.prg
-ASSETS    = build/chars.bin build/tiles.bin build/map.bin
+ASSETS    = build/chars.bin build/tiles.bin build/map.bin build/map-packed.bin
 SOURCES   = $(wildcard src/*.asm src/*.inc)
 ASMFLAGS  = --cbm-prg --ascii --quiet -Wall -Wno-implied-reg -I src -I build
 # Extra -D options, for example: make DEFS="-D START_X=40 -D START_Y=60"

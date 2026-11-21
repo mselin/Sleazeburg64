@@ -14,7 +14,7 @@ import { kindAt } from './foot-model.mjs';
 const game = assemble('water', { defs: { SPAWN: 0, HONK: 0 } });
 const L = game.labels;
 const WATER = 3, RED = 2, LIGHT_BLUE = 14, BLACK = 0;
-const HINT_FOOT = 'STAND BY A CAR AND PRESS FIRE TO GET IN';
+const GONE = 'THE CAR IS GONE. SWIM FOR IT. THE WARRANTY DOES NOT COVER THIS.'; // the panel's message
 
 const run = (body) =>
   withProgram(game.prg, async (vice) => {
@@ -57,7 +57,8 @@ test('driving into the canal: the car wades, slower the deeper, and floods; the 
     assert.equal(kindAt(sunk.px, sunk.py), WATER);
     assert.deepEqual([w.player.px, w.player.py], [sunk.px, sunk.py], 'the player is where it went down ...');
     assert.equal(w.player.swim, 1, '... swimming');
-    assert.equal((await readPanel(vice))[2], HINT_FOOT);
+    await pass(vice, L, w, 0, 'swimming'); // (the pass it floods in can be one that moves the screen and writes no panel)
+    assert.equal((await readPanel(vice))[2], GONE.slice(0, 40).trimEnd(), 'the panel says so');
     // Awash, in its own colour; then light blue; then black on the bottom, where it stays.
     for (const [frames, colour, what] of [[1, RED, 'awash'], [SINK.AWASH, LIGHT_BLUE, 'under the water'], [SINK.UNDER, BLACK, 'on the bottom']]) {
       await hold(vice, w, 0, frames - (sunk.sink - 1), `sinking to ${what}`);
