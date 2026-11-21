@@ -80,6 +80,12 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
 - Jobs, starting with deliveries and the cult of 6-7.
 - Pickups, money, getting arrested, the hospital. Pickups include the knife (a **K**, also dropped now and then
   by someone the player kills), and ammo stops at 99 so the panel always shows two digits.
+  - **Never where the player appears.** No pickup lies within 32 pixels of the hospital or the police station,
+    where the player starts and comes back. Both sit between two tile middles, 8 pixels from each, and the
+    browser game used to let a pickup land there and be taken the moment the player appeared, in about 1 game
+    in 27 (mselin/gta-c64#33). See the design's
+    [Pickups](https://github.com/mselin/gta-c64/blob/main/specs/design.md#pickups): what there is, how often,
+    what each does and what people drop.
   - **Banners that fit the screen.** BUSTED, FLATLINED and the job banners put big text across the middle of the
     screen with a line or more under it. By the design's
     [Banners](https://github.com/mselin/gta-c64/blob/main/specs/design.md#banners): a title of at most 19
