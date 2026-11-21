@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JOY } from './vice.mjs';
-import { C, Car, SIN, direction16, hits } from './car-model.mjs';
+import { C, Car, MOST_TURN, SIN, direction16, hits } from './car-model.mjs';
 import { Traffic } from './traffic-model.mjs';
 import { Player } from './foot-model.mjs';
 import { waterStep } from './water-model.mjs';
@@ -85,10 +85,11 @@ async function putCar(vice, m, x, y, angle = 0) {
   for (let i = 0; i < 2; i++) await pass(vice, m, 0, 'after being put there'); // draw, then swap and colour
 }
 
-test('the sine table, the car\'s axis and the multiplication tables are the ones the model uses', () =>
+test('the sine table, the car\'s axis, the steering limit and the multiplication tables are the ones the model uses', () =>
   run(async (vice) => {
     const lo = await vice.read(L['car.sin_lo'], 256), hi = await vice.read(L['car.sin_hi'], 256);
     assert.deepEqual([...lo].map((l, a) => signed(l, hi[a])), SIN);
+    assert.deepEqual([...(await vice.read(L['car.most_turn'], 65))], MOST_TURN, 'the most turn for each speed');
     const squares = await vice.read(0xc000, 1024);
     for (let n = 0; n < 512; n++) assert.equal(squares[n & 255 | (n & 256)] | (squares[512 + (n & 255) + (n & 256)] << 8), (n * n) >> 2, `quarter square of ${n}`);
     // The other half of a multiplication: the same, moved along by 255.
@@ -208,4 +209,60 @@ test('at the south edge of the city the window stops following, and the picture 
     await putCar(vice, m, 600, street - 8, 64);
     assert.equal(m.cam.y, MAX_Y);
     await assertPicture(vice, m, 'at the bottom edge');
+  }));
+
+// ---------- the handling's newer rules (the design's "Handling") ----------
+
+test('flat out, steering is held to what the tyres hold: a wider line; the handbrake lets the back go', () =>
+  run(async (vice) => {
+    const m = models();
+    await pass(vice, m, 0, 'first');
+    // Along the top street of the city, east, to top speed.
+    await putCar(vice, m, 40, 24, 0);
+    let frame = 0;
+    while (m.car.vx < C.TOP && frame < 300) await pass(vice, m, JOY.UP, `to top speed, ${++frame} frames`);
+    assert.equal(m.car.vx, C.TOP, 'flat out');
+    // Turning at 4 pixels a frame would ask the tyres for more than their grip: the turn is held to grip / speed,
+    // 50 * most_turn[64] / 4 = 500 a frame rather than the 630 it is from 1.1 pixels a frame up.
+    const turnFrom = (bits) => {
+      const probe = new Car(0, 0);
+      Object.assign(probe, { x: m.car.x, y: m.car.y, vx: m.car.vx, vy: m.car.vy, angle: m.car.angle });
+      probe.step(bits);
+      return (probe.angle - m.car.angle) & 0xffff;
+    };
+    assert.equal(turnFrom(JOY.UP | JOY.RIGHT), 500, 'held to the grip');
+    assert.equal(turnFrom(JOY.UP | JOY.RIGHT | JOY.FIRE), 630 + (630 >> 2), 'on the handbrake: a quarter more, and no limit');
+    const before = m.car.angle;
+    await pass(vice, m, JOY.UP | JOY.RIGHT, 'turning flat out');
+    assert.equal(m.car.angle - before, 500, 'the program turns the same');
+    for (let i = 2; i <= 3; i++) await pass(vice, m, JOY.UP | JOY.RIGHT, `turning flat out, ${i} frames`);
+    const speed = Math.hypot(m.car.vx, m.car.vy);
+    assert.ok(speed >= 0.97 * C.TOP, `and it keeps its speed round the bend (${Math.round(speed)})`);
+    // Slowly, nothing is held: below about 3.2 pixels a frame the turn is the full 630.
+    await putCar(vice, m, 40, 24, 0);
+    frame = 0;
+    while (m.car.vx < 400 && frame < 100) await pass(vice, m, JOY.UP, `slowly, ${++frame} frames`);
+    assert.equal(turnFrom(JOY.UP | JOY.RIGHT), 630, 'below the limit');
+  }));
+
+test('grass is hard going: on it the car gets up speed more slowly, and it loses speed faster coasting', () =>
+  run(async (vice) => {
+    const m = models();
+    await pass(vice, m, 0, 'first');
+    // The longest run of grass in the city: tiles 27-34 of row 3. From its west end, east.
+    const x = 27 * 16 + 8, y = 3 * 16 + 8;
+    await putCar(vice, m, x, y, 0);
+    for (let i = 1; i <= 40; i++) await pass(vice, m, JOY.UP, `on the grass, ${i} frames`);
+    assert.ok(m.car.px < 35 * 16, 'still on the grass');
+    // The same 40 frames on the road, in the model alone.
+    const road = new Car(40, 24);
+    for (let i = 0; i < 40; i++) road.step(JOY.UP);
+    assert.ok(m.car.vx < road.vx, `slower: ${m.car.vx} on grass against ${road.vx} on the road`);
+    // Coasting: the grass takes 1/64 of the speed a frame more than the road.
+    const coast = new Car(40, 24);
+    Object.assign(coast, { vx: m.car.vx });
+    const was = m.car.vx;
+    await pass(vice, m, 0, 'coasting on the grass');
+    coast.step(0);
+    assert.ok(was - m.car.vx > was - coast.vx, `it loses more: ${was - m.car.vx} against ${was - coast.vx}`);
   }));

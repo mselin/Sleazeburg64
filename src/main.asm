@@ -47,7 +47,7 @@ CAR_FRAMES      = $0840                 ; the car's sprite in 16 directions, 64 
 CAR_SPRITE      = CAR_FRAMES / 64       ; sprite pointer of the first
 SQUARES         = $c000                 ; quarter squares for multiplying (see car.init): 1K, made at start
 SQUARES2        = $bc00                 ; and the same moved along, for the other half of a multiplication: 1K
-HIGH_CODE       = $b300                 ; code that runs from above the colour routines,
+HIGH_CODE       = $b2a3                 ; code that runs from just above the colour routines,
 MORE_CODE       = $cd80                 ; from after the screen copies,
 TOP_CODE        = $f300                 ; and from the top of memory: all copied there at start
 PLAYER_FRAMES   = $2580                 ; the player on foot's sprite, made at start: 42 frames, up to the screens
@@ -464,6 +464,7 @@ high_image
 .endif
                 .include "foot.asm"
                 .dsection status_high
+                .dsection car_high
 high_end
                 .endlogical
 more_image
@@ -480,13 +481,15 @@ top_image
                 .include "music.asm"    ; (and the tune's code, in a music build)
 .endif
                 .dsection status_top
+                .dsection car_top
 top_end
                 .endlogical
 HIGH_PAGES      = (high_end - HIGH_CODE + 255) / 256
 MORE_PAGES      = (more_end - MORE_CODE + 255) / 256
 TOP_PAGES       = (top_end - TOP_CODE + 255) / 256
                 .cerror HIGH_CODE < video.COLOUR_01 + video.COLOUR_SIZE, "HIGH_CODE is in a colour routine"
-                .cerror HIGH_CODE + HIGH_PAGES * 256 > SQUARES2, "the code at HIGH_CODE runs into the tables"
+                .cerror high_end > SQUARES2, "the code at HIGH_CODE runs into the tables"   ; (the rest of its last
+                                        ; page is copied over them too, before car.init makes them)
                 .cerror top_end > $fffa, "the code at TOP_CODE runs into the interrupt vectors"
                 .cerror MORE_CODE < video.COPIES + 18 * video.COPY_SIZE, "MORE_CODE is in the screen copies"
                 .cerror more_end > $d000, "the code at MORE_CODE runs into the I/O area"
