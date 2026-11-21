@@ -93,3 +93,39 @@ test('the car looks the same turned a quarter turn: its 16 directions are one sh
   for (let k = 0; k < 16; k++) assert.ok(count(k) > 120 && count(k) < 200, `direction ${k} has a car-sized number of pixels (${count(k)})`);
   for (let k = 0; k < 16; k++) assert.equal(car[k * 64 + 63], 0, 'the 64th byte of each sprite is unused');
 });
+
+test('Big Honk: eight multicolour frames after the tile characters, outlined in black, in his colours', () => {
+  const FIRST = 184; // his first character: the program's HONK_SPRITE is 64 bytes in from $3800 ... $3dc0
+  const lastTileChar = Math.max(...tiles.subarray(0, 1024));
+  assert.ok(lastTileChar < FIRST, `the tile characters (to ${lastTileChar}) end before his frames`);
+  const pair = (f, m, j) => (chars[FIRST * 8 + f * 64 + j * 3 + (m >> 2)] >> (6 - 2 * (m & 3))) & 3;
+  for (let f = 0; f < 8; f++) {
+    const counts = [0, 0, 0, 0];
+    for (let j = 0; j < 21; j++)
+      for (let m = 0; m < 12; m++) {
+        const p = pair(f, m, j);
+        counts[p]++;
+        if (p < 2) continue;
+        // White (his own colour) and yellow (beak and chain) never touch the sprite's edge or a clear pixel.
+        for (const [dm, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const mm = m + dm, jj = j + dj;
+          assert.ok(mm >= 0 && mm < 12 && jj >= 0 && jj < 21 && pair(f, mm, jj) !== 0, `frame ${f}: pixel ${m},${j} is outlined`);
+        }
+      }
+    assert.ok(counts[1] > 20 && counts[2] > 15 && counts[3] >= 4, `frame ${f} has black, white and yellow (${counts})`);
+    assert.equal(chars[FIRST * 8 + f * 64 + 63], 0, 'the 64th byte of each sprite is unused');
+  }
+  // Facing west is facing east turned half round, and north is south; and with his wings out he is wider.
+  for (const flap of [0, 1])
+    for (let j = 0; j < 21; j++)
+      for (let m = 0; m < 12; m++) {
+        assert.equal(pair(4 + flap, m, j), pair(flap, 11 - m, 20 - j), `west and east, ${m},${j}`);
+        assert.equal(pair(6 + flap, m, j), pair(2 + flap, 11 - m, 20 - j), `north and south, ${m},${j}`);
+      }
+  const rows = (f) => new Set(Array.from({ length: 252 }, (_, i) => i).filter((i) => pair(f, i % 12, Math.floor(i / 12))).map((i) => Math.floor(i / 12))).size;
+  const columns = (f) => new Set(Array.from({ length: 252 }, (_, i) => i).filter((i) => pair(f, i % 12, Math.floor(i / 12))).map((i) => i % 12)).size;
+  assert.ok(rows(1) >= rows(0) + 6, 'facing east, his wings out go up and down');
+  assert.ok(columns(3) >= columns(2) + 3, 'facing south, out to the sides');
+  // After him, characters 248-255 are left empty, the last of them for the video chip's idle fetches.
+  assert.ok(chars.subarray(248 * 8).every((b) => b === 0));
+});

@@ -26,7 +26,9 @@ A briefing for whoever picks this project up next, person or assistant. Written 
   a car driven with a joystick in port 2, with the browser game's handling and collisions with buildings and
   trees. Up to six traffic cars follow the lanes and stop for what is in front of them, shown with a sprite
   multiplexer; the player's car bounces off them and wrecks one it hits hard. A raster split keeps the
-  panel still on black. There are no people or sound yet. None of it has been tried on real hardware.
+  panel still on black. Big Honk, the goose crime boss from the new logos, wanders The Moat as a multicolour
+  sprite, and a car that runs into him only makes him flap and run off. There are no other people and no
+  sound yet. None of it has been tried on real hardware.
 - The city comes from the same generator as the browser game (`tools/city.mjs`, checksum-checked).
 - `make` builds `build/sleazeburg64.prg`; `make test` runs asset tests and a headless VICE run that saves
   screenshots. `make music` and `make test-music` do the same for the music test builds.
@@ -44,17 +46,28 @@ A briefing for whoever picks this project up next, person or assistant. Written 
   raster interrupts a frame (lines 213, 221 and 250); `src/irq.asm` explains the split.
 - Build options: `VIEWER=1` has no car and no traffic and lets the stick move the view, as in 1b (the
   scrolling tests use it); `CARS` sets how many traffic cars (6); `SPAWN=0` stops traffic appearing by
-  itself, for tests that place their own.
-- Frame budget: with traffic, the tests' drives are done at worst 231 raster lines after the bottom
-  interrupt with the car flat out, 260 with a tune too, of 312, and a rough drive (turning, sliding,
+  itself, for tests that place their own; `HONK=0` leaves Big Honk out (the car tests use it).
+- Frame budget: with traffic, the tests' drives are done at worst 236 raster lines after the bottom
+  interrupt with the car flat out, 272 with a tune too, of 312, and a rough drive (turning, sliding,
   bouncing) about 280; the tests fail if any frame is late in their drives. A frame that moves the screen a
   character and the one after it, which works out colour memory, are the busy ones and now take about the
   same. Anything new that runs every frame has to fit in what is left, or move work out of those frames:
   traffic only moves its cars in a colour memory frame. Six cars is what fits; a tune on a rough drive is
-  tight.
-- Room is short: the code ends near `$2ebe` (the screens start at `$3000`) and zero page is used up to about
-  `$d6` (the music builds' tune has `$e0` on). Variables with no starting value go in the panel screen's
-  rows 0-20 (`$0400`-`$0747`), which the video chip never shows.
+  tight. Measured on the traffic tests' long random drive (2026-11-21): a frame that moves the screen is
+  done at worst 307 lines after the bottom interrupt (305 without Big Honk), a colour memory frame 294, and
+  any other frame under 180. So Big Honk stands still in a frame that moves the screen, and that is where
+  anything new should stay out of too; the late-frame checks catch it when something does not.
+- Room is short below the screens: the code there ends near `$2ef3` (the screens start at `$3000`) and zero
+  page is used up to about `$d6` (the music builds' tune has `$e0` on). New code can go at `HIGH_CODE`
+  (`$b300`, up to `$bbff`): it is assembled with `.logical` straight after the code, on into where the
+  screens go (up to `image_end`, before the character set), and start copies it up before `video.init`
+  clears the screens. Big Honk's code is there. The music title build carries the game up to `image_end`. Variables with no starting
+  value go in the panel screen's rows 0-20 (`$0400`-`$0747`), which the video chip never shows.
+- Sprite data must be where the video chip can see it, in the first 16K and not `$1000`-`$1fff`. Big Honk's
+  eight frames are in the character set's characters 184-247 (`$3dc0`), after the tile characters, which
+  `tools/assets.mjs` checks; there is no more room there for tiles without moving him.
+- Bit 7 of a colour listed with `sprites.add` makes that sprite multicolour. All multicolour sprites share
+  black and yellow (`honk.init` sets them).
 - Sprites cannot be cut off part way down: switching one off only stops it starting, so a sprite carries on
   over the black band and the panel, and its fetches take cycles the split's timed writes need. So traffic is
   only shown while all of its sprite is above the band.

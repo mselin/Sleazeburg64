@@ -141,6 +141,58 @@ for (let y = 0; y < MW; y++)
 if (tiles.length > 256) throw new Error(`${tiles.length} tiles, but a map byte can only name 256`);
 if (FIRST_TILE_CHAR + chars.length > 256) throw new Error(`${chars.length} tile characters do not fit beside the font`);
 
+// ---------- Big Honk: a multicolour sprite facing four ways, walking or flapping ----------
+// The browser game's design (specs/design.md there): a white goose seen from above, in black sunglasses and a
+// gold chain, with a black outline. A multicolour sprite has three colours: white is the sprite's own, black
+// and yellow the two all sprites share, so his beak is yellow like his chain (the browser game's is orange),
+// and his grey tail and folded wings are white. Each sprite pixel is two screen pixels wide: pixel (m, j) is
+// sampled at (2m - 11, j - 10) from his centre, which is where a car's centre is in its sprite. He is drawn a
+// pixel further back than the browser game draws him, so that his outline fits the sprite facing any way.
+// Frame 2 * dir + flap: dir 0 east, 1 south, 2 west, 3 north, as the traffic counts them; flap 1 has his wings
+// out and his beak open. Each pixel pair: 0 transparent, 1 black, 2 white, 3 yellow.
+export const HONK_FIRST_CHAR = 184; // his frames start at character 184 of the character set: $3dc0
+export const HONK_WALK = 0, HONK_FLAP = 1;
+function gooseAt(flap, x, y) {
+  const box = (x0, x1, y0, y1) => x >= x0 && x <= x1 && y >= y0 && y <= y1, ay = Math.abs(y);
+  let c = 0;
+  if (flap && ay >= 4 && ay <= 9 && x >= -4 && x <= 0) c = 2; // wings out
+  if (box(-8, -6, -2, 2)) c = 2; // tail
+  if (box(-6, 0, -4, 4) && Math.abs(x + 3) / 3 + ay / 4 <= 1.6) c = 2; // body
+  if (box(0, 2, -2, 2)) c = 3; // chain
+  if (box(2, 4, -2, 2)) c = 2; // neck
+  if (box(4, 6, -4, 4)) c = 1; // shades
+  if (box(6, 8, -2, 2)) c = 2; // head
+  if (box(8, 10, flap ? -3 : -1.5, flap ? 3 : 1.5)) c = 3; // beak, open wide when he flaps
+  return c;
+}
+/** Big Honk facing `dir`, flapping or not, as 12 x 21 pixel pairs (0-3), outline included. */
+export function honkPixels(dir, flap) {
+  const cs = [1, 0, -1, 0][dir], sn = [0, 1, 0, -1][dir], px = [];
+  for (let j = 0; j < 21; j++)
+    for (let m = 0; m < 12; m++) {
+      const dx = 2 * m - 11, dy = j - 10;
+      px.push(gooseAt(flap, cs * dx + sn * dy + 1, -sn * dx + cs * dy));
+    }
+  const on = (m, j) => m >= 0 && j >= 0 && m < 12 && j < 21 && px[j * 12 + m] !== 0;
+  const ring = [];
+  for (let j = 0; j < 21; j++)
+    for (let m = 0; m < 12; m++) if (!on(m, j) && (on(m - 1, j) || on(m + 1, j) || on(m, j - 1) || on(m, j + 1))) ring.push(j * 12 + m);
+  for (const i of ring) px[i] = 1;
+  return px;
+}
+/** His eight frames as sprite data, 64 bytes each. */
+export function honkFrames() {
+  const frames = [];
+  for (let dir = 0; dir < 4; dir++)
+    for (const flap of [HONK_WALK, HONK_FLAP]) {
+      const px = honkPixels(dir, flap), bytes = new Uint8Array(64);
+      px.forEach((c, i) => (bytes[Math.floor(i / 12) * 3 + ((i % 12) >> 2)] |= c << (6 - 2 * (i & 3))));
+      frames.push(bytes);
+    }
+  return frames;
+}
+
+
 // ---------- the character set: font first, then the tile characters ----------
 const charset = new Uint8Array(2048);
 for (let code = 0; code < FIRST_TILE_CHAR; code++) {
@@ -168,6 +220,9 @@ tiles.forEach((t, n) => (tileData[1536 + n] = t.col));
 // The idle graphics the video chip shows between the city and the panel come from the last byte of the
 // character set. It has to be empty, so those lines show the background colour.
 if (FIRST_TILE_CHAR + chars.length > 255) throw new Error('character 255 is needed empty');
+// The characters after the tile characters hold Big Honk's sprite (see below), where the video chip can see it.
+if (FIRST_TILE_CHAR + chars.length > HONK_FIRST_CHAR) throw new Error('the tile characters run into Big Honk');
+honkFrames().forEach((bytes, n) => charset.set(bytes, HONK_FIRST_CHAR * 8 + n * 64));
 
 const dir = process.argv[2] || 'build';
 mkdirSync(dir, { recursive: true });
@@ -196,6 +251,7 @@ export function carFrame(k) {
     }
   return bytes;
 }
+
 const car = new Uint8Array(16 * 64);
 for (let k = 0; k < 16; k++) car.set(carFrame(k), k * 64);
 writeFileSync(join(dir, 'car.bin'), car);

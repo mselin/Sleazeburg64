@@ -23,10 +23,14 @@ export const FOLLOW = 4;
 export const CENTRE_X = VIEW_W >> 1;
 export const CENTRE_Y = VIEW_H >> 1;
 export const CAR_SPRITE = 0x0840 / 64;
+export const CHARSET = 0x3800;
+export const HONK_SPRITE = (CHARSET + 184 * 8) / 64; // Big Honk's frames, in the character set's last characters
 export const OUT = 'build/e2e';
 
 // Colours
-const BLACK = 0, DARK_GREY = 11, LIGHT_GREY = 15;
+const BLACK = 0, DARK_GREY = 11, LIGHT_GREY = 15, YELLOW = 7;
+/** The colours every multicolour sprite shares for pixel pairs 01 and 11 (honk.init sets them). */
+export const SPRITE_MULTI = [BLACK, YELLOW];
 
 const ASMFLAGS = ['--cbm-prg', '--ascii', '--quiet', '-Wall', '-Wno-implied-reg'];
 
@@ -37,6 +41,18 @@ export const assets = {
   map: readFileSync(join(ROOT, 'build/map.bin')),
 };
 assets.car = readFileSync(join(ROOT, 'build/car.bin'));
+
+/** The 63 bytes of the sprite a pointer names: one of the car's frames or one of Big Honk's. */
+export function spriteData(pointer) {
+  const at = pointer >= HONK_SPRITE ? pointer * 64 - CHARSET : (pointer - CAR_SPRITE) * 64;
+  return (pointer >= HONK_SPRITE ? assets.chars : assets.car).subarray(at, at + 63);
+}
+
+/**
+ * A sprite as the multiplexer's plan puts it on the screen (traffic-model.mjs), for the picture model: bit 7 of
+ * its colour makes it a multicolour sprite (sprites.put).
+ */
+export const planned = (s) => ({ x: s.x, y: s.y, colour: s.colour & 15, multicolour: s.colour >= 0x80, bitmap: spriteData(s.pointer) });
 
 /**
  * Assemble a program for a test. `defs` become -D options and `include` directories are searched before
@@ -139,7 +155,8 @@ export function expectedReadout(x, y) {
  * The colour of every pixel inside the borders (x 24-343, lines 51-249) for a window position. The city is
  * drawn from the map and the character set, pixel by pixel: it does not care how the program got it there.
  * The panel is drawn from what is in its rows of screen and colour memory, so this checks where and how it
- * is shown; what it says is checked separately. `sprites` is one sprite or a list, the one in front first.
+ * is shown; what it says is checked separately. `sprites` is one sprite or a list, the one in front first:
+ * each { x, y, colour, bitmap }, with multicolour true for a multicolour one.
  */
 export function expectedPicture(x, y, panelCodes, panelColours, sprites = []) {
   const { chars } = assets;
@@ -151,7 +168,12 @@ export function expectedPicture(x, y, panelCodes, panelColours, sprites = []) {
       for (const sprite of list) {
         // In front of the city, and only over it: the borders hide it, and it is switched off below.
         const i = px - sprite.x, j = line - sprite.y - 1;
-        if (i >= 0 && i < 24 && j >= 0 && j < 21 && (sprite.bitmap[j * 3 + (i >> 3)] >> (7 - (i & 7))) & 1) return sprite.colour;
+        if (i < 0 || i >= 24 || j < 0 || j >= 21) continue;
+        const byte = sprite.bitmap[j * 3 + (i >> 3)];
+        if (sprite.multicolour) {
+          const pair = (byte >> (6 - 2 * ((i & 7) >> 1))) & 3; // pixel pairs from the sprite's left edge
+          if (pair) return [0, SPRITE_MULTI[0], sprite.colour, SPRITE_MULTI[1]][pair];
+        } else if ((byte >> (7 - (i & 7))) & 1) return sprite.colour;
       }
       const wx = x + px - 31, wy = y + line - 55;
       const ch = cityChar(wx >> 3, wy >> 3);
