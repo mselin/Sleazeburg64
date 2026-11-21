@@ -39,7 +39,8 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
 - Pedestrians, drawn as characters rather than sprites. The design now draws people about 12 pixels across in
   chunky 2 × 2 pixels with a black outline, more than one character, and police officers in light blue with a
   white cap; passers-by never look like the player or the police. Walkers have five walking poses, arms and feet
-  swinging opposite ways, and a pose with the arm held out for a shot or a punch. See the design's
+  swinging opposite ways, a pose with the arm held out for a shot, a punch or a stab, and one lying knocked
+  down. See the design's
   [People on foot](https://github.com/mselin/gta-c64/blob/main/specs/design.md#people-on-foot) and its C64 note
   on characters and sprites.
 - Water: cars flood and sink, people swim.
@@ -48,8 +49,14 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
 
 - Heat and police, by the design's rules: the heat levels and what each crime adds, the distances the police
   notice from, and the stolen police car (driving one where the police notice it raises the heat to 2).
+- Fighting on foot, by the design's
+  [Fighting on foot](https://github.com/mselin/gta-c64/blob/main/specs/design.md#fighting-on-foot): fire uses
+  the gun while there is ammo, then the knife if the player has one, otherwise fists. A punch knocks someone
+  down for 4 seconds, for half a kill's heat; a police officer who is down cannot arrest, shoot or notice the
+  player. A stab kills, and reaches farther. The panel shows `AMMO12`, then `KNIFE` or `FIST`.
 - Jobs, starting with deliveries and the cult of 6-7.
-- Pickups, money, getting arrested, the hospital.
+- Pickups, money, getting arrested, the hospital. Pickups include the knife (a **K**, also dropped now and then
+  by someone the player kills), and ammo stops at 99 so the panel always shows two digits.
 - Title screen, game-over and victory pictures.
 
 ## Milestone 4: sound and polish
