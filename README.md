@@ -17,8 +17,9 @@ of them, you included; your car bounces off them, and a car you hit hard is wrec
 swim across the canal, and get into any car, a passing one included. Drive into the canal or a fountain and
 the car wades, slower the deeper it goes, until it floods and sinks, leaving you swimming. Big Honk, the goose who runs Sleazeburg,
 wanders The Moat, the canal down the middle of the city; nothing hurts him, and a car that runs into him only
-makes him flap and run off. A raster split keeps the status panel still under the city, on black. There are no
-other people, no sound and no game yet. See [docs/ROADMAP.md](docs/ROADMAP.md) and the
+makes him flap and run off. A raster split keeps the status panel still under the city, on black: the money,
+heat, health, the car and the ammo, the job, and messages, laid out as the browser game's. There are no
+other people, no sound and no game yet, so nothing changes the money or the rest yet. See [docs/ROADMAP.md](docs/ROADMAP.md) and the
 [issues](https://github.com/mselin/Sleazeburg64/issues) for what comes next.
 
 The streets are the same ones as in the browser game: both versions generate the city from the same code and
@@ -125,10 +126,11 @@ game started directly, and that both tunes produce sound. It cannot judge how th
 | `src/foot.asm` | The player on foot: walking, swimming, and getting in and out of cars. |
 | `src/water.asm` | Water: what it does to the player's car, flooding, and a flooded car sinking. |
 | `src/frames.asm` | Makes the player on foot's 42 sprite frames from the twelve in the program file, at start. |
-| `src/digits.asm` | Tables for the panel's readout. |
+| `src/digits.asm` | Tables for the city viewer's readout. |
 | `src/irq.asm` | The raster interrupts: the split under the city, and putting each frame in place. |
 | `src/video.asm` | Drawing and scrolling the city: the two screens and colour memory. |
-| `src/panel.asm` | The three-row status panel. |
+| `src/status.asm` | The game's status panel: money, heat, health, the car, ammo, the job and messages. |
+| `src/panel.asm` | The city viewer's panel: where the view is. |
 | `src/input.asm` | The joystick. |
 | `src/music.asm` | Music test builds: the tune that plays in the game, and its credits in the panel. |
 | `src/title.asm` | Music test builds: the title screen, its tune, and starting the game from it. |
@@ -270,16 +272,16 @@ screen of its own, which the split switches to for its three rows.
 | `$2580` | Made at start: the player on foot's sprite, 42 frames |
 | `$3000` | Screen A: the city in rows 0–20 |
 | `$3400` | Screen B, the same |
-| `$3800` | Character set: font in 0–63, tile characters after, then Big Honk's sprite from `$3dc0` |
+| `$3800` | Character set: font in 0–63, tile characters after, then Big Honk's sprite from `$3dc0`, then the panel's bars |
 | `$4000` | Tile definitions, the colour of each character, what each tile is to a car, and its colour |
 | `$4700` | City map |
 | `$6d00` | Made at start: the fourth colour memory routine |
 | `$8000` | Made at start: the other three colour memory routines |
-| `$b300` | Copied at start: code there is no room for lower down (Big Honk, the player on foot) |
+| `$b300` | Copied at start: code there is no room for lower down (Big Honk, the player on foot, the election fund) |
 | `$bc00` | Made at start: quarter squares moved along, the second half of a multiplication |
 | `$c000` | Made at start: quarter squares for multiplying, then the 18 screen copies |
-| `$cd80` | Copied at start: more code (the water), and the panel's tables |
-| `$f300` | Copied at start: more code (the traffic), and the panel's tables, up to the interrupt vectors |
+| `$cd80` | Copied at start: more code (the water, the status panel's timing and its bottom row) |
+| `$f300` | Copied at start: more code (the traffic), and the status panel's text, up to the interrupt vectors |
 
 The video chip sees only the first 16K, and not `$1000`–`$1fff`, so sprites have to be there, and code that
 was there has moved up to make room. What runs from `$b300`, `$cd80` and `$f300`, the code that makes the player's

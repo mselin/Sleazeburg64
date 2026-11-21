@@ -193,6 +193,23 @@ export function honkFrames() {
 }
 
 
+// ---------- the map, packed for the music title build (src/title.asm), which has to fit below $d000 ----------
+// A byte is a tile, except MAP_RUN: then the next two bytes are how many (1-255) and which tile. Only runs of
+// four or more are worth it.
+export const MAP_RUN = 255;
+export function packMap(map) {
+  const packed = [];
+  for (let i = 0; i < map.length; ) {
+    if (map[i] === MAP_RUN) throw new Error('a tile numbered as the run marker');
+    let j = i;
+    while (j < map.length && map[j] === map[i] && j - i < 255) j++;
+    if (j - i >= 4) packed.push(MAP_RUN, j - i, map[i]);
+    else for (let k = i; k < j; k++) packed.push(map[k]);
+    i = j;
+  }
+  return Uint8Array.from(packed);
+}
+
 // ---------- the character set: font first, then the tile characters ----------
 const charset = new Uint8Array(2048);
 for (let code = 0; code < FIRST_TILE_CHAR; code++) {
@@ -224,11 +241,18 @@ if (FIRST_TILE_CHAR + chars.length > 255) throw new Error('character 255 is need
 if (FIRST_TILE_CHAR + chars.length > HONK_FIRST_CHAR) throw new Error('the tile characters run into Big Honk');
 honkFrames().forEach((bytes, n) => charset.set(bytes, HONK_FIRST_CHAR * 8 + n * 64));
 
+// The status panel's bars (src/status.asm), after him: character 247 + n has the bar's left n pixel columns
+// filled, n from 1 to 8, in its rows 2-5, where the browser game fills its bars. Row 7 of the last, the last
+// byte of the character set, stays empty for the video chip's idle fetches.
+export const BAR_FIRST_CHAR = 248;
+for (let n = 1; n <= 8; n++) for (let r = 2; r <= 5; r++) charset[(BAR_FIRST_CHAR - 1 + n) * 8 + r] = (0xff00 >> n) & 0xff;
+
 const dir = process.argv[2] || 'build';
 mkdirSync(dir, { recursive: true });
 writeFileSync(join(dir, 'chars.bin'), charset);
 writeFileSync(join(dir, 'tiles.bin'), tileData);
 writeFileSync(join(dir, 'map.bin'), out);
+writeFileSync(join(dir, 'map-packed.bin'), packMap(out));
 
 // ---------- the car: a two-colour sprite in 16 directions ----------
 // Sprite pixel (i, j) is the city pixel (x + i - 12, y + j - 10) for a car whose centre is at (x, y). The car

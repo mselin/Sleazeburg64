@@ -133,8 +133,12 @@ start           sei
 .if VIEWER == 0
                 jsr foot.init
 .endif
+.if VIEWER != 0
                 jsr panel.init
                 jsr panel.update
+.else
+                jsr status.init         ; after foot.init: the car's part of it depends on where the player is
+.endif
 .if MUSIC != 0
                 jsr tune.init
 .endif
@@ -143,7 +147,9 @@ start           sei
 ; One pass per frame. The interrupt at the bottom of the screen puts in place what the pass before left
 ; ready; this pass then works out the next frame.
 main_loop       jsr frame.wait          ; until the last frame made is on its way to the screen
+.if VIEWER != 0
                 jsr panel.update        ; the readout for that frame, written well away from the panel's lines
+.endif
                 jsr video.after_swap    ; colour memory, if that frame brought in the other screen
 ready           jsr input.read          ; A = which directions are held
 .if VIEWER == 0
@@ -153,8 +159,9 @@ ready           jsr input.read          ; A = which directions are held
                 jsr traffic.update      ; after the window has moved: it needs to know whether the screen will
                 jsr water.update        ; move a character this frame; the same for the water ...
 .if WITH_HONK
-                jsr honk.update         ; ... and Big Honk
+                jsr honk.update         ; ... Big Honk ...
 .endif
+                jsr status.update       ; ... and the status panel
                 jsr foot.show           ; the car, or the player on foot
                 jsr traffic.show
 .if WITH_HONK
@@ -398,13 +405,14 @@ char_of         lda cam_hi,x
                 .include "irq.asm"
                 .include "input.asm"
                 .include "video.asm"
-                .include "panel.asm"
 .if VIEWER != 0
+                .include "panel.asm"
                 .include "digits.asm"
 .endif
                 .include "sprites.asm"
 .if VIEWER == 0
                 .include "car.asm"
+                .dsection status_low
 .endif
 .if MUSIC != 0 && VIEWER != 0
                 .include "music.asm"
@@ -455,12 +463,14 @@ high_image
                 .include "honk.asm"
 .endif
                 .include "foot.asm"
+                .dsection status_high
 high_end
                 .endlogical
 more_image
                 .logical MORE_CODE
                 .include "water.asm"
-                .include "digits.asm"   ; (where there is room: the panel's tables)
+                .include "status.asm"
+                .dsection status_more
 more_end
                 .endlogical
 top_image
@@ -469,6 +479,7 @@ top_image
 .if MUSIC != 0
                 .include "music.asm"    ; (and the tune's code, in a music build)
 .endif
+                .dsection status_top
 top_end
                 .endlogical
 HIGH_PAGES      = (high_end - HIGH_CODE + 255) / 256

@@ -129,8 +129,13 @@ test('Big Honk: eight multicolour frames after the tile characters, outlined in 
   const columns = (f) => new Set(Array.from({ length: 252 }, (_, i) => i).filter((i) => pair(f, i % 12, Math.floor(i / 12))).map((i) => i % 12)).size;
   assert.ok(rows(1) >= rows(0) + 6, 'facing east, his wings out go up and down');
   assert.ok(columns(3) >= columns(2) + 3, 'facing south, out to the sides');
-  // After him, characters 248-255 are left empty, the last of them for the video chip's idle fetches.
-  assert.ok(chars.subarray(248 * 8).every((b) => b === 0));
+  // After him, characters 248-255 are the status panel's bars.
+});
+
+test('the status panel\'s bars: character 247 + n fills the left n pixel columns of rows 2-5', () => {
+  for (let n = 1; n <= 8; n++)
+    assert.deepEqual([...chars.subarray((247 + n) * 8, (248 + n) * 8)], [0, 0, ...Array(4).fill((0xff00 >> n) & 0xff), 0, 0], `${n} columns`);
+  assert.equal(chars[2047], 0, 'the last byte, row 7 of the full bar, is still empty');
 });
 
 test('the player on foot: 42 multicolour frames, each one of the twelve the program file holds or its mirror image', () => {

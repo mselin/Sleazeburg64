@@ -577,29 +577,18 @@ out_here        lda #0
                 sta traffic.wreck,x
                 sta on
                 stx traffic.mine
-; The bottom row of the panel says what fire does now. A music build shows it in its turn, between the
-; tune's credits (music.asm), so there it is not written here.
-hint
-.if MUSIC != 0
-                rts
-.endif
-show_hint       ldx #39
+; The panel's message says what fire does now, or that the car is gone; and it shows the car's bar or not.
+hint            ldx #status.MSG_CAR
                 lda on
-                bne +
--               lda panel.text3,x
-                sta PANEL_SCREEN + panel.LINE3,x
-                dex
-                bpl -
+                beq +
+                ldx #status.MSG_FOOT
+                lda sinking
+                beq +
+                ldx #status.MSG_SUNK
++               jsr status.say
+                lda #1
+                sta status.car_shown
                 rts
-+
--               lda text_foot,x
-                sta PANEL_SCREEN + panel.LINE3,x
-                dex
-                bpl -
-                rts
-                .enc "screen"
-text_foot       .text "stand by a car and press fire to get in "
-                .enc "none"
 
 ; Sprite 0 for the next frame: the car, or the player on foot, placed as the car is (car.show).
 show            lda on

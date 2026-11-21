@@ -45,7 +45,8 @@ copy            lda #<tune_data
                 bne -
                 rts
 
-; Start the tune, once it has been copied, and show the first credit.
+; Start the tune, once it has been copied, and show the first credit. (In a build with the car, the status
+; panel shows the credits, in its bottom row whenever there is no message: status.asm.)
 init            ldx #$18                ; a quiet SID to start from
                 lda #0
 -               sta SID,x
@@ -53,13 +54,20 @@ init            ldx #$18                ; a quiet SID to start from
                 bpl -
                 lda #ingame_song
                 jsr ingame_init
+.if VIEWER == 0
+                rts
+.else
                 lda #0
                 sta credit_line
                 jmp show_credit
+.endif
 
 ; Once a frame, from the bottom interrupt: play the tune, and change the line in the bottom row of the panel
 ; when its time is up.
 play            jsr ingame_play
+.if VIEWER == 0
+                rts
+.else
 .if AUTOPILOT != 0
                 rts                     ; the emulator test compares screenshots, so the panel keeps still
 .endif
@@ -74,12 +82,6 @@ play            jsr ingame_play
 show_credit     lda #CREDIT_FRAMES
                 sta credit_wait
                 ldx credit_line
-.if VIEWER == 0
-                cpx #size(line_lo) - 1  ; the last is the hint, which depends on whether the player is on foot
-                bne +
-                jmp foot.show_hint
-+
-.endif
                 lda line_lo,x
                 sta from
                 lda line_hi,x
@@ -94,6 +96,7 @@ done            rts
 lines           = (credit_title, credit_by, panel.text3)
 line_lo         .byte <lines
 line_hi         .byte >lines
+.endif
 
                 .enc "screen"
 credit_title    .text ingame_credit_title, " " x (40 - len(ingame_credit_title))
