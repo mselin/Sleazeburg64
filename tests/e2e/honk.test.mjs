@@ -38,9 +38,9 @@ function models() {
 function step(m, bits) {
   const busy = m.cam.busy; // this pass works out colour memory if the last one swapped the screens
   const cell = [...m.cam.cell]; // the character the window is in before it moves
-  m.car.step(bits, m.traffic);
-  m.cam.follow(m.car.px, m.car.py);
-  m.traffic.step(m.car.px, m.car.py, m.cam, busy);
+  m.player.step(bits, m.traffic);
+  m.cam.follow(m.player.px, m.player.py);
+  m.traffic.step(m.player.px, m.player.py, m.cam, busy);
   waterStep(m, cell);
   m.honk.step(m.car, m.traffic, m.cam, cell);
   m.list = [...m.traffic.show(m.cam), ...m.honk.show(m.cam)];
@@ -67,7 +67,7 @@ async function assertPicture(vice, m, what) {
 
 /** Put the player's car somewhere, standing still and facing a direction, with the window on it. */
 async function putCar(vice, m, x, y, angle = 0) {
-  m.car = new Car(x, y);
+  m.car = m.player.car = new Car(x, y);
   m.car.angle = angle;
   const cx = x - CENTRE_X, cy = y - CENTRE_Y;
   const cell = m.cam.cell;
@@ -89,7 +89,7 @@ async function putTrafficCar(vice, m, i, { x, y, dir, cruise, col = 5 }) {
   await write('on', i, [1]);
   for (const [name, at, value] of [['pf', i, 0], ['pf', n1 + i, 0], ['pl', i, x & 255], ['ph', i, x >> 8], ['pl', n1 + i, y & 255], ['ph', n1 + i, y >> 8]])
     await write(name, at, [value]);
-  for (const [name, value] of Object.entries({ dir, sp: cruise, cruise, face: car.face, col, turn: 0xff, held: 0, ghost: 0, blocked: 0, entered: 0, wreck: 0 }))
+  for (const [name, value] of Object.entries({ dir, sp: cruise, cruise, face: car.face, col, turn: 0xff, held: 0, ghost: 0, blocked: 0, entered: 0, wreck: 0, sink: 0 }))
     await write(name, i, [value]);
   await write('dlo', i, [(cruise * 2) & 255]);
   await write('dhi', i, [(cruise * 2) >> 8]);
@@ -197,13 +197,13 @@ test('run over by the player\'s car he only flaps, wings beating, and runs off; 
     assert.equal(m.honk.flap, H.FLAP - 1, 'he flaps');
     assert.equal(m.honk.way, 0, 'running east, away from the car that came from the west');
     assert.ok(m.car.vx >= H.RUN_OVER, 'and the car did not stop for him: nothing hurts it either');
-    // Flapping: the car keeps driving into him, and he does not start again until he has stopped. (In a frame
-    // that moves the screen he stands still, flapping included.)
+    // Flapping: the car brakes short of the canal behind him (or it would flood), and he does not start again
+    // until he has stopped. (In a frame that moves the screen he stands still, flapping included.)
     const pointers = new Set();
     let frames = 0, last = m.honk.flap;
     while (m.honk.flap) {
       frames++;
-      await pass(vice, m, frames < 30 ? JOY.UP : JOY.DOWN, `flapping, ${frames} frames on`);
+      await pass(vice, m, JOY.DOWN, `flapping, ${frames} frames on`);
       assert.ok(m.honk.flap === last || m.honk.flap === last - 1, 'counting down, never starting again');
       last = m.honk.flap;
       pointers.add(m.honk.pointer);

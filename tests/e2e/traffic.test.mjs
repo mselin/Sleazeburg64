@@ -148,7 +148,7 @@ async function putTraffic(vice, m, cars, L = P) {
     await write('ph', i, [c.x >> 8]);
     await write('pl', n1 + i, [c.y & 255]);
     await write('ph', n1 + i, [c.y >> 8]);
-    for (const [name, value] of Object.entries({ dir: car.dir, sp: car.sp, cruise: car.cruise, face: car.face, col: car.col, turn: 0xff, held: 0, ghost: 0, blocked: 0, entered: 0, wreck: 0 }))
+    for (const [name, value] of Object.entries({ dir: car.dir, sp: car.sp, cruise: car.cruise, face: car.face, col: car.col, turn: 0xff, held: 0, ghost: 0, blocked: 0, entered: 0, wreck: 0, sink: 0 }))
       await write(name, i, [value]);
     await write('dlo', i, [(car.sp * 2) & 255]);
     await write('dhi', i, [(car.sp * 2) >> 8]);

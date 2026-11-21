@@ -126,6 +126,7 @@ mine            .byte ?                 ; the car the player left last, which st
 init            ldx #SLOTS - 1
                 lda #0
 -               sta on,x
+                sta sink,x              ; (a car put in its place by the tests is not going down)
                 dex
                 bpl -
                 lda #1
