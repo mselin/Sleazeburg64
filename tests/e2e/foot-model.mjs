@@ -81,7 +81,7 @@ export class Player {
     let best = -1, bestQ = F.REACH;
     for (let i = traffic.n - 1; i >= 0; i--) {
       const c = traffic.cars[i];
-      if (!c.on) continue;
+      if (!c.on || c.sink) continue; // nobody can get into a car that flooded
       const dx = Math.abs(c.px - this.px), dy = Math.abs(c.py - this.py);
       if (dx >= 20 || dy >= 20) continue;
       const q = ((dx * dx) >> 2) + ((dy * dy) >> 2);
@@ -114,15 +114,25 @@ export class Player {
   leave(traffic) {
     const car = this.car;
     if (Math.abs(car.vx) > F.SLOW || Math.abs(car.vy) > F.SLOW) return;
-    let slot = -1;
-    for (let i = traffic.n - 1; i >= 0 && slot < 0; i--) if (!traffic.cars[i].on) slot = i;
+    const slot = Player.place(traffic);
     if (slot < 0) return;
     const at = this.spot();
     if (!at) return;
-    const k = direction16(car.angle);
+    this.out(traffic, slot, at, 0);
+  }
+  /** A free place in the traffic's tables for a car the player leaves: the last one free, or -1. */
+  static place(traffic) {
+    for (let i = traffic.n - 1; i >= 0; i--) if (!traffic.cars[i].on) return i;
+    return -1;
+  }
+  /**
+   * foot.out_here: the player out at pixel `at`, facing as the car does, and the car in place `slot` of the
+   * traffic's tables, where it is, with no driver, lying along whichever axis is nearer; `sink` 1 if it flooded.
+   */
+  out(traffic, slot, at, sink) {
+    const car = this.car, k = direction16(car.angle);
     Object.assign(this, { on: 1, x: at[0] << 8, y: at[1] << 8, phase: 0, face: ((k + 1) >> 1) & 7 });
-    // The car stays where it is, with no driver, lying along whichever axis is nearer.
-    traffic.cars[slot] = new TrafficCar({ x: car.x, y: car.y, dir: ((k + 2) >> 2) & 3, sp: 0, cruise: 0, face: k, col: car.colour, wreck: 1 });
+    traffic.cars[slot] = new TrafficCar({ x: car.x, y: car.y, dir: ((k + 2) >> 2) & 3, sp: 0, cruise: 0, face: k, col: car.colour, wreck: 1, sink });
     traffic.mine = slot;
     car.vx = car.vy = 0;
   }

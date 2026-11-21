@@ -10,6 +10,8 @@ import { CENTRE_X, CENTRE_Y, Camera, assemble, assets, camera, pictureMismatches
 import { LOWEST, T, Traffic, TrafficCar, plan } from './traffic-model.mjs';
 import { Honk, readHonk } from './honk-model.mjs';
 import { modelTraffic, readTraffic } from './play.mjs';
+import { Player } from './foot-model.mjs';
+import { waterStep } from './water-model.mjs';
 
 const START = [9 * 16, 8 * 16];
 const RED = 2;
@@ -25,7 +27,8 @@ function spritesFor(car, cam, list) {
 
 /** The models of everything that moves, starting as the program does. */
 function models(traffic) {
-  return { car: new Car(START[0] + CENTRE_X, START[1] + CENTRE_Y), cam: new Camera(...START), traffic, honk: new Honk(), list: [] };
+  const car = new Car(START[0] + CENTRE_X, START[1] + CENTRE_Y);
+  return { car, player: new Player(car), cam: new Camera(...START), traffic, honk: new Honk(), list: [] };
 }
 
 /** One pass of the main loop in the models, with the joystick held as given. */
@@ -35,6 +38,7 @@ function step(m, bits) {
   m.car.step(bits, m.traffic);
   m.cam.follow(m.car.px, m.car.py);
   m.traffic.step(m.car.px, m.car.py, m.cam, busy);
+  waterStep(m, cell);
   m.honk.step(m.car, m.traffic, m.cam, cell);
   m.list = [...m.traffic.show(m.cam), ...m.honk.show(m.cam)].slice(0, 16); // the multiplexer lists sixteen
 }
@@ -144,7 +148,7 @@ async function putTraffic(vice, m, cars, L = P) {
     await write('ph', i, [c.x >> 8]);
     await write('pl', n1 + i, [c.y & 255]);
     await write('ph', n1 + i, [c.y >> 8]);
-    for (const [name, value] of Object.entries({ dir: car.dir, sp: car.sp, cruise: car.cruise, face: car.face, col: car.col, turn: 0xff, held: 0, ghost: 0, blocked: 0, entered: 0, wreck: 0 }))
+    for (const [name, value] of Object.entries({ dir: car.dir, sp: car.sp, cruise: car.cruise, face: car.face, col: car.col, turn: 0xff, held: 0, ghost: 0, blocked: 0, entered: 0, wreck: 0, sink: 0 }))
       await write(name, i, [value]);
     await write('dlo', i, [(car.sp * 2) & 255]);
     await write('dhi', i, [(car.sp * 2) >> 8]);

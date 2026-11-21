@@ -95,21 +95,9 @@ rnd             lda seed
                 rts
 
 ; Once a pass of the main loop, after the cars and the window have moved.
-update          lda cam_lo              ; the screen moving a character this frame (video.follow)? Then the
-                lsr                     ; window is in another character from the one in cell, and no more
-                lsr                     ; than one away: the bottom five bits of the two differ
-                lsr
-                eor cell
-                and #$1f
-                bne +
-                lda cam_lo + 1
-                lsr
-                lsr
-                lsr
-                eor cell + 1
-                and #$1f
-                beq ++
-+               rts
+update          jsr screen_moves        ; the screen moving a character this frame: he stands still
+                bcc +
+                rts
 +               lda flap
                 bne flapping
                 jsr hits

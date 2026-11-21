@@ -426,9 +426,10 @@ engine          #mov16 fwd, nf
                 lda thr
                 beq coasting
                 bmi down
-                clc                     ; accelerate
+                ldy water.wet           ; accelerate: less in the water
+                clc
                 lda nf
-                adc #ACCEL
+                adc water.accel,y
                 sta nf
                 bcc drag
                 inc nf + 1
@@ -468,26 +469,28 @@ drag            lda hand
                 bne +
                 ldx #COAST
                 jsr shrink_nf
-+               lda nf + 1              ; no faster than TOP forwards or TOP_BACK backwards
-                bmi backwards
-                lda nf
-                cmp #<(TOP + 1)
++               jsr water.drag          ; and more drag in the water
+                ldy water.wet           ; no faster than TOP forwards or TOP_BACK backwards, less in the water
                 lda nf + 1
-                sbc #>(TOP + 1)
-                bcc limited
-                lda #<TOP
+                bmi backwards
+                lda water.top_lo,y
+                cmp nf
+                lda water.top_hi,y
+                sbc nf + 1
+                bcs limited             ; top >= nf
+                lda water.top_lo,y
                 sta nf
-                lda #>TOP
+                lda water.top_hi,y
                 sta nf + 1
                 rts
 backwards       lda nf
-                cmp #<($10000 - TOP_BACK)
+                cmp water.back_lo,y
                 lda nf + 1
-                sbc #>($10000 - TOP_BACK)
+                sbc water.back_hi,y
                 bcs limited             ; both negative: an unsigned compare will do
-                lda #<($10000 - TOP_BACK)
+                lda water.back_lo,y
                 sta nf
-                lda #>($10000 - TOP_BACK)
+                lda water.back_hi,y
                 sta nf + 1
 limited         rts
 
@@ -520,7 +523,8 @@ gripped         stx held_grip
                 beq on_grass
                 lda #GRIP_HAND * 9 / 16
 on_grass        sta held_grip
-grip_set        #mov16 lat, nl
+grip_set        jsr water.grip          ; and less in the water
+                #mov16 lat, nl
                 ldx held_grip
                 jsr shrink_nl
                 #mov16 nl, mr           ; nl -= nl >> 6

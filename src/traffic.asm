@@ -119,12 +119,14 @@ ghost           .fill SLOTS             ; frames left driving without looking
 blocked         .fill SLOTS             ; 1: something in front, as it last looked
 wreck           .fill SLOTS             ; 1: hit hard by the player's car; it rolls to a stop and stays put
 close_by        .fill SLOTS             ; nearby: the cars near the player's car
+sink            .fill SLOTS             ; 0, or for a car that flooded the frames since, from 1 (water.asm)
 mine            .byte ?                 ; the car the player left last, which stays however far they go; or $ff
                 .send
 
 init            ldx #SLOTS - 1
                 lda #0
 -               sta on,x
+                sta sink,x              ; (a car put in its place by the tests is not going down)
                 dex
                 bpl -
                 lda #1
@@ -175,10 +177,15 @@ each            lda on,x
                 bne +
                 jmp next_car
 +               lda wreck,x             ; a wreck rolls to a stop, and that is all: once it has, and for a
-                beq +                   ; car the player left, there is nothing to do
-                lda sp,x
+                beq +                   ; car the player left, there is nothing to do but for one that
+                lda sp,x                ; flooded to go down
                 bne +++
-                jmp next_car
+                lda sink,x
+                beq stood
+                cmp #SINK_DONE
+                bcs stood
+                inc sink,x
+stood           jmp next_car
 +               lda ghost,x
                 beq +
                 dec ghost,x
@@ -880,6 +887,7 @@ near_next       dey
                 lda colours,y
                 sta col,x
                 lda #0
+                sta sink,x
                 sta entered,x
                 jsr rnd
                 and #63
@@ -916,6 +924,8 @@ nearby          ldy #0
                 ldx #0
 -               lda on,x
                 beq ++
+                lda sink,x              ; a car that flooded is out of the way
+                bne ++
                 sec
                 lda pl,x
                 sbc car.pos_x + 1
@@ -1134,7 +1144,7 @@ each_shown      lda on,x
                 lda face,x
                 adc #CAR_SPRITE         ; (the carry is clear)
                 sta sprites.u_p,y
-                lda col,x
+                jsr water.shade         ; its colour, or how far down it is
                 sta sprites.u_c,y
                 inc sprites.n
 not_shown       inx

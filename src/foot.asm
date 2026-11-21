@@ -47,7 +47,6 @@ STRIDE          = 184                   ; the walk moves on 0.72 of a picture a 
 SLOW            = 230                   ; getting out: no faster than this along either axis, 0.9 pixels a frame
 REACH           = 90                    ; getting in: dx * dx / 4 + dy * dy / 4 below this, 19 pixels away
 SOUTH           = MAP_PIXELS - 11       ; as far south as the player's middle goes
-WATER           = 3                     ; a tile's kind (tools/assets.mjs)
 
                 .section bss
 on              .byte ?                 ; 1: the player is on foot; 0: in the car
@@ -69,14 +68,17 @@ best            .byte ?                 ; enter: the nearest car, and how near
 best_q          .byte ?
 q               .byte ?
 slot            .byte ?                 ; leave: the place for the car, its picture, and which spot is tried
+sinking         .byte ?                 ; leave: 1 when the car is left because it flooded (water.asm)
 k               .byte ?
 try             .byte ?
                 .send
 
-; After video.init, which clears where the variables are. Also the two colours every multicolour sprite
-; shares: black for outlines, hair and Big Honk's shades, yellow for the player's jacket and his beak and chain.
+; After video.init, which fills where the variables are with spaces. Also the two colours every multicolour
+; sprite shares: black for outlines, hair and Big Honk's shades, yellow for the player's jacket and his beak and
+; chain; and the water's idea of how wet the car is, which the car's first frame uses.
 init            lda #0
                 sta on
+                sta water.wet
                 sta swim
                 sta face
                 sta phase
@@ -149,7 +151,7 @@ walk            lda pos + 1             ; in the water?
                 sta car.py + 1
                 jsr car.kind_at
                 ldx #0
-                cmp #WATER
+                cmp #WATER_KIND
                 bne +
                 inx
 +               stx swim
@@ -327,6 +329,8 @@ enter           lda #REACH
                 ldx #SLOTS - 1
 -               lda traffic.on,x
                 beq not_this
+                lda traffic.sink,x      ; nobody can get into a car that flooded
+                bne not_this
                 sec
                 lda traffic.pl,x
                 sbc pos + 1
@@ -434,7 +438,9 @@ far             sec
                 rts
 
 ; Get out of the car, if it is slow enough and there is somewhere to stand.
-leave           ldy #2                  ; down, then across
+leave           lda #0                  ; (left, not flooded)
+                sta sinking
+                ldy #2                  ; down, then across
 -               lda car.vel_x + 1,y
                 beq +
                 cmp #$ff
@@ -562,6 +568,8 @@ out_here        lda #0
                 sta car.vel_x + 1
                 sta car.vel_y
                 sta car.vel_y + 1
+                lda sinking             ; and if it flooded, going down from now
+                sta traffic.sink,x
                 lda #$ff
                 sta traffic.turn,x
                 lda #1

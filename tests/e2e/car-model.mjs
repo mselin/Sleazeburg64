@@ -9,11 +9,14 @@ export const C = {
 };
 export const SIN = Array.from({ length: 256 }, (_, a) => Math.round(256 * Math.sin((a * Math.PI) / 128)));
 const COS = (a) => SIN[(a + 64) & 255];
-const AXIS = Array.from({ length: 16 }, (_, k) => [Math.round(6 * Math.cos((k * Math.PI) / 8)), Math.round(6 * Math.sin((k * Math.PI) / 8))]);
+export const AXIS = Array.from({ length: 16 }, (_, k) => [Math.round(6 * Math.cos((k * Math.PI) / 8)), Math.round(6 * Math.sin((k * Math.PI) / 8))]);
 const mul = (v, s) => Math.trunc((v * s) / 256) | 0; // | 0: no -0
 const sign = (v) => (v > 0 ? 1 : v < 0 ? -1 : 0);
 const shrink = (v, k) => v - sign(v) * Math.min(Math.abs(v), k);
 const kindAt = (x, y) => assets.tiles[1280 + assets.map[(y >> 4) * MAP_SIZE + (x >> 4)]];
+/** In the water (water.asm): by thirds of the car in it, acceleration, top speed and top speed backwards. */
+export const WADE = { ACCEL: [18, 14, 11, 7], TOP: [1024, 785, 546, 307] };
+WADE.BACK = WADE.TOP.map((t) => Math.floor((t * 2) / 5));
 export const direction16 = (angle) => (((angle >> 8) + 8) >> 4) & 15;
 
 /** Whether a car centred at pixel (x, y) facing direction a (0-255) touches a wall or the edge. */
@@ -33,7 +36,8 @@ export function hits(x, y, a) {
 export class Car {
   /** A car at pixel (x, y), facing east, standing still. */
   constructor(x, y) {
-    Object.assign(this, { x: x * 256, y: y * 256, vx: 0, vy: 0, angle: 0, colour: 2 }); // red
+    // wet: thirds of it in the water, as water-model.mjs last found (water.wet).
+    Object.assign(this, { x: x * 256, y: y * 256, vx: 0, vy: 0, angle: 0, colour: 2, wet: 0 }); // red
   }
   get px() {
     return this.x >> 8;
@@ -66,14 +70,17 @@ export class Car {
     const fwd = mul(this.vx, c) + mul(this.vy, s);
     const lat = mul(this.vy, c) - mul(this.vx, s);
     let nf = fwd;
-    if (thr > 0) nf += C.ACCEL;
+    const wet = this.wet;
+    if (thr > 0) nf += WADE.ACCEL[wet];
     else if (thr < 0) nf -= fwd > C.BRAKING ? C.BRAKE : C.REVERSE;
     if (hand) nf = shrink(nf, C.HANDBRAKE);
     nf -= nf >> 7;
     if (!thr) nf = shrink(nf, C.COAST);
-    nf = Math.max(-C.TOP_BACK, Math.min(C.TOP, nf));
+    nf -= wet * (nf >> 5);
+    nf = Math.max(-WADE.BACK[wet], Math.min(WADE.TOP[wet], nf));
     let grip = hand ? C.GRIP_HAND : thr < 0 && fwd > C.BRAKING ? C.GRIP_BRAKING : C.GRIP;
     if (kindAt(this.px, this.py) === C.GRASS) grip = (grip * 9) >> 4;
+    grip -= wet * Math.floor(grip / 6);
     let nl = shrink(lat, grip);
     nl -= nl >> 6;
     const dF = nf - fwd, dL = nl - lat;

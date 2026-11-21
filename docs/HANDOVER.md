@@ -69,10 +69,11 @@ A briefing for whoever picks this project up next, person or assistant. Written 
 - Room is short everywhere, and where things are is decided by what the video chip must see:
   - Below the screens (`$0c40`-`$257f`) there are about 170 bytes of code left. From `$2580` to the screens
     are the player on foot's 42 sprite frames, made at start.
-  - `HIGH_CODE` (`$b300`-`$bbff`: Big Honk, the player on foot) has about 130 bytes left, and `TOP_CODE`
-    (`$f300`-`$fff9`: the traffic, the panel's tables, and in a music build the tune's code) about 440, or
-    240 in a music build. Both are assembled with `.logical` and wait after the map in the program file;
-    start copies them up before `video.init` writes the colour routines over where they waited.
+  - `HIGH_CODE` (`$b300`-`$bbff`: Big Honk, the player on foot) has about 130 bytes left; `MORE_CODE`
+    (`$cd80`-`$cfff`, after the screen copies: the water and the panel's tables) about 125; and `TOP_CODE`
+    (`$f300`-`$fff9`: the traffic, and in a music build the tune's code) about 620, or 420 in a music build.
+    All three are assembled with `.logical` and wait after the map in the program file; start copies them up
+    before `video.init` writes the colour routines over where they waited.
     `src/frames.asm` and the twelve frames it reads wait there too and run once from there.
   - Zero page is full: it is used up to `$d7`, and up to `$df` in a music build, whose tune has `$e0` on.
     New variables go in the panel screen's rows 0-20 (`$0400`-`$0747`, `.section bss`), which the video chip
