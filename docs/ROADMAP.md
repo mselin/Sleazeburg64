@@ -36,9 +36,12 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
 - Traffic: a few cars following the lanes, drawn with a sprite multiplexer (done, not yet tried on real
   hardware: six cars, which is what the frame time allows; the multiplexer shares sprites 1-7 and the tests try
   it with sixteen). The player's car bounces off traffic, and wrecks a car it hits hard.
-- Pedestrians, drawn as characters rather than sprites. The design now draws people about 12 pixels across with
-  a black outline, more than one character, and police officers in light blue with a white cap; passers-by
-  never look like the player or the police. See the design's C64 note on characters and sprites.
+- Pedestrians, drawn as characters rather than sprites. The design now draws people about 12 pixels across in
+  chunky 2 × 2 pixels with a black outline, more than one character, and police officers in light blue with a
+  white cap; passers-by never look like the player or the police. Walkers have five walking poses, arms and feet
+  swinging opposite ways, and a pose with the arm held out for a shot or a punch. See the design's
+  [People on foot](https://github.com/mselin/gta-c64/blob/main/specs/design.md#people-on-foot) and its C64 note
+  on characters and sprites.
 - Water: cars flood and sink, people swim.
 - Big Honk, the crime boss (done, not yet tried on real hardware): a goose who wanders The Moat, crossing a
   bridge now and then, and whom nothing hurts. A car that runs into him only makes him flap and run off. One
