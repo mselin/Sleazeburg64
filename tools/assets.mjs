@@ -141,6 +141,58 @@ for (let y = 0; y < MW; y++)
 if (tiles.length > 256) throw new Error(`${tiles.length} tiles, but a map byte can only name 256`);
 if (FIRST_TILE_CHAR + chars.length > 256) throw new Error(`${chars.length} tile characters do not fit beside the font`);
 
+// ---------- Big Honk: a multicolour sprite facing four ways, walking or flapping ----------
+// The browser game's design (specs/design.md there): a white goose seen from above, in black sunglasses and a
+// gold chain, with a black outline. A multicolour sprite has three colours: white is the sprite's own, black
+// and yellow the two all sprites share, so his beak is yellow like his chain (the browser game's is orange),
+// and his grey tail and folded wings are white. Each sprite pixel is two screen pixels wide: pixel (m, j) is
+// sampled at (2m - 11, j - 10) from his centre, which is where a car's centre is in its sprite. He is drawn a
+// pixel further back than the browser game draws him, so that his outline fits the sprite facing any way.
+// Frame 2 * dir + flap: dir 0 east, 1 south, 2 west, 3 north, as the traffic counts them; flap 1 has his wings
+// out and his beak open. Each pixel pair: 0 transparent, 1 black, 2 white, 3 yellow.
+export const HONK_FIRST_CHAR = 184; // his frames start at character 184 of the character set: $3dc0
+export const HONK_WALK = 0, HONK_FLAP = 1;
+function gooseAt(flap, x, y) {
+  const box = (x0, x1, y0, y1) => x >= x0 && x <= x1 && y >= y0 && y <= y1, ay = Math.abs(y);
+  let c = 0;
+  if (flap && ay >= 4 && ay <= 9 && x >= -4 && x <= 0) c = 2; // wings out
+  if (box(-8, -6, -2, 2)) c = 2; // tail
+  if (box(-6, 0, -4, 4) && Math.abs(x + 3) / 3 + ay / 4 <= 1.6) c = 2; // body
+  if (box(0, 2, -2, 2)) c = 3; // chain
+  if (box(2, 4, -2, 2)) c = 2; // neck
+  if (box(4, 6, -4, 4)) c = 1; // shades
+  if (box(6, 8, -2, 2)) c = 2; // head
+  if (box(8, 10, flap ? -3 : -1.5, flap ? 3 : 1.5)) c = 3; // beak, open wide when he flaps
+  return c;
+}
+/** Big Honk facing `dir`, flapping or not, as 12 x 21 pixel pairs (0-3), outline included. */
+export function honkPixels(dir, flap) {
+  const cs = [1, 0, -1, 0][dir], sn = [0, 1, 0, -1][dir], px = [];
+  for (let j = 0; j < 21; j++)
+    for (let m = 0; m < 12; m++) {
+      const dx = 2 * m - 11, dy = j - 10;
+      px.push(gooseAt(flap, cs * dx + sn * dy + 1, -sn * dx + cs * dy));
+    }
+  const on = (m, j) => m >= 0 && j >= 0 && m < 12 && j < 21 && px[j * 12 + m] !== 0;
+  const ring = [];
+  for (let j = 0; j < 21; j++)
+    for (let m = 0; m < 12; m++) if (!on(m, j) && (on(m - 1, j) || on(m + 1, j) || on(m, j - 1) || on(m, j + 1))) ring.push(j * 12 + m);
+  for (const i of ring) px[i] = 1;
+  return px;
+}
+/** His eight frames as sprite data, 64 bytes each. */
+export function honkFrames() {
+  const frames = [];
+  for (let dir = 0; dir < 4; dir++)
+    for (const flap of [HONK_WALK, HONK_FLAP]) {
+      const px = honkPixels(dir, flap), bytes = new Uint8Array(64);
+      px.forEach((c, i) => (bytes[Math.floor(i / 12) * 3 + ((i % 12) >> 2)] |= c << (6 - 2 * (i & 3))));
+      frames.push(bytes);
+    }
+  return frames;
+}
+
+
 // ---------- the character set: font first, then the tile characters ----------
 const charset = new Uint8Array(2048);
 for (let code = 0; code < FIRST_TILE_CHAR; code++) {
@@ -168,6 +220,9 @@ tiles.forEach((t, n) => (tileData[1536 + n] = t.col));
 // The idle graphics the video chip shows between the city and the panel come from the last byte of the
 // character set. It has to be empty, so those lines show the background colour.
 if (FIRST_TILE_CHAR + chars.length > 255) throw new Error('character 255 is needed empty');
+// The characters after the tile characters hold Big Honk's sprite (see below), where the video chip can see it.
+if (FIRST_TILE_CHAR + chars.length > HONK_FIRST_CHAR) throw new Error('the tile characters run into Big Honk');
+honkFrames().forEach((bytes, n) => charset.set(bytes, HONK_FIRST_CHAR * 8 + n * 64));
 
 const dir = process.argv[2] || 'build';
 mkdirSync(dir, { recursive: true });
@@ -196,7 +251,137 @@ export function carFrame(k) {
     }
   return bytes;
 }
+
 const car = new Uint8Array(16 * 64);
 for (let k = 0; k < 16; k++) car.set(carFrame(k), k * 64);
 writeFileSync(join(dir, 'car.bin'), car);
+
+// ---------- the player on foot: a multicolour sprite facing eight ways in five walking poses, and swimming ----------
+// The browser game's person (specs/design.md there, "People on foot"): square shoulders with the corners cut,
+// a round head that pokes out in front, a hand each side and two feet, seen from above and facing east, then
+// turned and sampled once in the middle of each 2 x 2 block. A block here is one sprite pixel (two screen
+// pixels wide) by two lines. Round that goes a black outline and then a white one, a sprite pixel wide and a
+// line tall, which is as thin as a multicolour sprite draws them.
+//
+// Colours. A multicolour sprite has three: white is the sprite's own, and black and yellow are the two all
+// sprites share (as for Big Honk). So the jacket is yellow all over (the browser game shades its back), the
+// hair and the feet are black, and the face and the hands are white where the browser game has a skin colour.
+//
+// Direction d faces d * 45 degrees clockwise from east. Pose p is the browser game's stride p: 0 has the left
+// foot a full stride back, 2 stands, 4 has it a full stride forward. The figure's middle is the corner between
+// sprite pixels (5, 9) and (6, 10), which is screen pixel (12, 10) of the sprite: where a car's middle is.
+// Line 20 is always empty.
+//
+// Mirror images. Turning a figure over swaps its left and right, so a pose turns into the one with the other
+// foot forward: frame (d, p) flipped left to right is frame (4 - d, 4 - p), and flipped top to bottom (within
+// lines 0-19) it is frame (-d, 4 - p). So the program file holds only eleven frames, and the program makes
+// the other twenty-nine by flipping them when it starts (PLAYER_MADE says how): east and south in poses 0-2,
+// and south-east in all five.
+export const PLAYER_DIRS = 8, PLAYER_POSES = 5;
+const STRIDES = [-1, -0.5, 0, 0.5, 1];
+/** A person facing +x with +y on their right: 0 nothing, 1 black, 2 white, 3 yellow. */
+function personAt(pose, x, y) {
+  const s = STRIDES[pose];
+  const box = (x0, x1, y0, y1) => x >= x0 && x <= x1 && y >= y0 && y <= y1;
+  const disc = (cx, cy, r) => (x - cx) ** 2 + (y - cy) ** 2 <= r * r;
+  const nearLine = (ax, ay, bx, by, r) => {
+    const vx = bx - ax, vy = by - ay;
+    const t = Math.max(0, Math.min(1, ((x - ax) * vx + (y - ay) * vy) / (vx * vx + vy * vy)));
+    return (x - ax - t * vx) ** 2 + (y - ay - t * vy) ** 2 <= r * r;
+  };
+  let c = 0;
+  for (const side of [-1, 1]) {
+    const f = -side * s * 3.4, fy = side * 1.9; // feet, stepping out in front and behind
+    if (box(Math.min(0, f) - 1, Math.max(0, f) + 1, fy - 1.1, fy + 1.1)) c = 1;
+  }
+  if (Math.abs(x) <= 2.4 && Math.abs(y) <= 4.6 && Math.abs(x) / 2.4 + Math.abs(y) / 4.6 <= 1.6) c = 3; // shoulders
+  for (const side of [-1, 1]) {
+    const hx = side * s * 2.2, hy = side * 5; // arms: a sleeve and a hand, swinging opposite to the feet
+    if (nearLine(0, side * 4, hx * 0.6, hy, 1.1)) c = 3;
+    if (disc(hx, hy, 1.3)) c = 2;
+  }
+  if (disc(0.6, 0, 2.7)) c = x > 1.5 ? 2 : 1; // the head: hair, with the face to the front
+  return c;
+}
+/** A ring a sprite pixel wide round whatever is drawn in a 12 x 21 grid of pixel pairs, in colour c. */
+function ring(px, c) {
+  const on = (m, j) => m >= 0 && j >= 0 && m < 12 && j < 21 && px[j * 12 + m] !== 0;
+  const add = [];
+  for (let j = 0; j < 21; j++)
+    for (let m = 0; m < 12; m++) if (!on(m, j) && (on(m - 1, j) || on(m + 1, j) || on(m, j - 1) || on(m, j + 1))) add.push(j * 12 + m);
+  for (const i of add) px[i] = c;
+}
+/** The player facing direction `d` in pose `p`, as 12 x 21 pixel pairs (0-3), outlines included. */
+export function playerPixels(d, p) {
+  // Rounded, so that mirror images come out exactly alike.
+  const a = (d * Math.PI) / 4, cs = Math.round(Math.cos(a) * 1e9) / 1e9, sn = Math.round(Math.sin(a) * 1e9) / 1e9;
+  const px = new Array(12 * 21).fill(0);
+  for (let br = 0; br < 10; br++)
+    for (let m = 0; m < 12; m++) {
+      const dx = 2 * m + 1 - 12, dy = 2 * br + 1 - 10; // the middle of the block
+      const c = personAt(p, cs * dx + sn * dy, -sn * dx + cs * dy);
+      px[2 * br * 12 + m] = px[(2 * br + 1) * 12 + m] = c;
+    }
+  ring(px, 1);
+  ring(px, 2);
+  return px;
+}
+/**
+ * The player swimming: a head above the water, black hair behind a white face, in its two outlines; one arm
+ * reaching out, on one side and then the other; and ripples a little way off, which move between the two frames.
+ */
+export function swimmerPixels(f) {
+  const px = new Array(12 * 21).fill(0);
+  const set = (m, j, c) => (px[j * 12 + m] = c);
+  for (const m of [5, 6]) for (const j of [8, 9, 10, 11]) set(m, j, j < 10 ? 1 : 2);
+  ring(px, 1);
+  ring(px, 2);
+  for (const j of [9, 10]) set(f ? 4 : 7, j, 2); // the arm, across the black outline
+  for (const m of [0, 1]) set(m, f ? 11 : 12, 2); // ripples
+  for (const m of [10, 11]) set(m, f ? 12 : 11, 2);
+  for (const m of [4, 5, 6, 7]) set(m, 15, 2);
+  set(f ? 2 : 9, 14, 2);
+  return px;
+}
+const spriteBytes = (px) => {
+  const bytes = new Uint8Array(64);
+  px.forEach((c, i) => (bytes[Math.floor(i / 12) * 3 + ((i % 12) >> 2)] |= c << (6 - 2 * (i & 3))));
+  return bytes;
+};
+/** Sprite data flipped: left to right (h), or top to bottom within lines 0-19 (v). Line 20 stays. */
+export function flipSprite(bytes, h, v) {
+  const out = new Uint8Array(64);
+  const pairsBack = (b) => ((b & 3) << 6) | ((b & 12) << 2) | ((b & 48) >> 2) | (b >> 6);
+  for (let j = 0; j < 21; j++) {
+    const from = v && j < 20 ? 19 - j : j;
+    for (let k = 0; k < 3; k++) out[j * 3 + k] = h ? pairsBack(bytes[from * 3 + 2 - k]) : bytes[from * 3 + k];
+  }
+  return out;
+}
+/** Frame numbers: direction * 5 + pose for the forty walking frames, then the two swimming ones. */
+export const PLAYER_SWIM = PLAYER_DIRS * PLAYER_POSES, PLAYER_FRAME_COUNT = PLAYER_SWIM + 2;
+/**
+ * Everything about the player's frames: all 42 as the program has them once it has started, the 12 the
+ * program file holds, and for each of the 42 which of those it is made from and how: stored * 4, plus 1 if
+ * flipped left to right and 2 if top to bottom.
+ */
+export function playerFrames() {
+  const all = [];
+  for (let d = 0; d < PLAYER_DIRS; d++) for (let p = 0; p < PLAYER_POSES; p++) all.push(spriteBytes(playerPixels(d, p)));
+  for (const f of [0, 1]) all.push(spriteBytes(swimmerPixels(f)));
+  const kept = [0, 1, 2, 10, 11, 12, 5, 6, 7, 8, 9, PLAYER_SWIM]; // east, south, south-east, and swimming
+  const stored = kept.map((n) => all[n]);
+  const same = (a, b) => a.every((v, i) => v === b[i]);
+  const made = all.map((frame, n) => {
+    for (let k = 0; k < stored.length; k++)
+      for (const flip of [0, 1, 2, 3]) if (same(flipSprite(stored[k], flip & 1, flip & 2), frame)) return k * 4 + flip;
+    throw new Error(`the player's frame ${n} is no mirror image of a frame the program holds`);
+  });
+  for (const frame of all) if (frame.subarray(60).some((b) => b)) throw new Error("a player's frame uses line 20");
+  return { all, stored, made };
+}
+const player = playerFrames();
+writeFileSync(join(dir, 'player.bin'), Buffer.concat(player.stored)); // what the program file holds
+writeFileSync(join(dir, 'player-made.bin'), Uint8Array.from(player.made)); // and how it makes the rest
+writeFileSync(join(dir, 'player-all.bin'), Buffer.concat(player.all)); // what it should end up with: for the tests
 console.log(`assets: ${tiles.length} tiles, ${chars.length} tile characters, map ${MW}x${MW} (${out.length} bytes)`);

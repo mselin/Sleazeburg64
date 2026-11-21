@@ -31,8 +31,12 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
 ## Milestone 2: a city with things in it
 
 - A raster split so the status panel has its own colours (done with 1b: it had to be, to keep the panel still).
-- The player on foot, and getting in and out of the car. The design draws the player in a yellow jacket with a
-  black and then a white outline, about 12 pixels across, so that it stands out.
+- The player on foot, and getting in and out of cars (done, not yet tried on real hardware). The design draws
+  the player in a yellow jacket with a black and then a white outline, about 12 pixels across, so that it
+  stands out: here a multicolour sprite in eight directions and the design's five walking poses, and two
+  pictures swimming. Fire with the stick centred gets out of a slow car, and into the nearest car within
+  reach, a passing one included. Still to come, with the things they need: the driver of a car that is taken
+  (people), being hurt by cars (health), and something for fire to do away from a car (fists and weapons).
 - Traffic: a few cars following the lanes, drawn with a sprite multiplexer (done, not yet tried on real
   hardware: six cars, which is what the frame time allows; the multiplexer shares sprites 1-7 and the tests try
   it with sixteen). The player's car bounces off traffic, and wrecks a car it hits hard.
@@ -44,6 +48,10 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
   [People on foot](https://github.com/mselin/gta-c64/blob/main/specs/design.md#people-on-foot) and its C64 note
   on characters and sprites.
 - Water: cars flood and sink, people swim.
+- Big Honk, the crime boss (done, not yet tried on real hardware): a goose who wanders The Moat, crossing a
+  bridge now and then, and whom nothing hurts. A car that runs into him only makes him flap and run off. One
+  multicolour sprite, shared through the multiplexer. Still to come: a honk when there is sound, and traffic
+  stopping for him once it looks out for people.
 
 ## Milestone 3: the game
 

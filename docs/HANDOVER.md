@@ -22,11 +22,14 @@ A briefing for whoever picks this project up next, person or assistant. Written 
 **2. Commodore 64 port (just started, the active work)**
 
 - Repo: `mselin/Sleazeburg64` (this one). 6502 assembly in 64tass syntax.
-- State: milestone 2 started, with traffic. The city in multicolour characters, scrolled smoothly to follow
-  a car driven with a joystick in port 2, with the browser game's handling and collisions with buildings and
-  trees. Up to six traffic cars follow the lanes and stop for what is in front of them, shown with a sprite
-  multiplexer; the player's car bounces off them and wrecks one it hits hard. A raster split keeps the
-  panel still on black. There are no people or sound yet. None of it has been tried on real hardware.
+- State: milestone 2 under way: traffic, the player on foot, Big Honk. The city in multicolour characters,
+  scrolled smoothly to follow a car driven with a joystick in port 2, with the browser game's handling and
+  collisions with buildings and trees. Up to six traffic cars follow the lanes and stop for what is in front
+  of them, shown with a sprite multiplexer; the player's car bounces off them and wrecks one it hits hard.
+  The player can get out, walk and swim, and get into any car, a passing one included. A raster split keeps
+  the panel still on black. Big Honk, the goose crime boss from the new logos, wanders The Moat as a
+  multicolour sprite, and a car that runs into him only makes him flap and run off. There are no other
+  people and no sound yet. None of it has been tried on real hardware.
 - The city comes from the same generator as the browser game (`tools/city.mjs`, checksum-checked).
 - `make` builds `build/sleazeburg64.prg`; `make test` runs asset tests and a headless VICE run that saves
   screenshots. `make music` and `make test-music` do the same for the music test builds.
@@ -44,17 +47,49 @@ A briefing for whoever picks this project up next, person or assistant. Written 
   raster interrupts a frame (lines 213, 221 and 250); `src/irq.asm` explains the split.
 - Build options: `VIEWER=1` has no car and no traffic and lets the stick move the view, as in 1b (the
   scrolling tests use it); `CARS` sets how many traffic cars (6); `SPAWN=0` stops traffic appearing by
-  itself, for tests that place their own.
-- Frame budget: with traffic, the tests' drives are done at worst 231 raster lines after the bottom
-  interrupt with the car flat out, 260 with a tune too, of 312, and a rough drive (turning, sliding,
-  bouncing) about 280; the tests fail if any frame is late in their drives. A frame that moves the screen a
-  character and the one after it, which works out colour memory, are the busy ones and now take about the
-  same. Anything new that runs every frame has to fit in what is left, or move work out of those frames:
-  traffic only moves its cars in a colour memory frame. Six cars is what fits; a tune on a rough drive is
-  tight.
-- Room is short: the code ends near `$2ebe` (the screens start at `$3000`) and zero page is used up to about
-  `$d6` (the music builds' tune has `$e0` on). Variables with no starting value go in the panel screen's
-  rows 0-20 (`$0400`-`$0747`), which the video chip never shows.
+  itself, for tests that place their own; `HONK=0` leaves Big Honk out (the car tests use it).
+- Frame budget: with traffic, the tests' drives are done at worst 235 raster lines after the bottom
+  interrupt with the car flat out, 266 with a tune too, of 312; the tests fail if any frame is late in
+  their drives. A frame that moves the screen a character and the one after it, which works out colour
+  memory, are the busy ones. Anything new that runs every frame has to fit in what is left, or move work out
+  of those frames: traffic only moves its cars in a colour memory frame, and Big Honk stands still in a frame
+  that moves the screen. Six cars is what fits; a tune on a rough drive is tight.
+  - Measured on the traffic tests' long random drive (2026-11-21, with the player on foot's code in): a frame
+    that moves the screen is done at worst 306 lines after the bottom interrupt, a colour memory frame 290,
+    and any other frame under 180. The late-frame checks catch it when something new does not fit.
+  - Where the busiest frame's time goes: moving the screen about 145 lines, the car up to 100 on a rough
+    drive (35 flat out in a straight line), the traffic 15 and then up to 25 more for deciding, looking ahead
+    and new cars, the sprites 10. In the car's 100, steering takes up to 28 when the car's picture turns a
+    step, which is when it looks whether the turn would put it into a wall. Those are the places to look for
+    time.
+  - The panel's readout used to take 5 lines every frame and 10 when it changed; it is now worked out from
+    the window's character and tables (`src/digits.asm`), which paid for the player on foot.
+- Room is short everywhere, and where things are is decided by what the video chip must see:
+  - Below the screens (`$0c40`-`$257f`) there are about 170 bytes of code left. From `$2580` to the screens
+    are the player on foot's 42 sprite frames, made at start.
+  - `HIGH_CODE` (`$b300`-`$bbff`: Big Honk, the player on foot) has about 130 bytes left, and `TOP_CODE`
+    (`$f300`-`$fff9`: the traffic, the panel's tables, and in a music build the tune's code) about 440, or
+    240 in a music build. Both are assembled with `.logical` and wait after the map in the program file;
+    start copies them up before `video.init` writes the colour routines over where they waited.
+    `src/frames.asm` and the twelve frames it reads wait there too and run once from there.
+  - Zero page is full: it is used up to `$d7`, and up to `$df` in a music build, whose tune has `$e0` on.
+    New variables go in the panel screen's rows 0-20 (`$0400`-`$0747`, `.section bss`), which the video chip
+    never shows and `video.init` clears: about 280 bytes are left there, 48 in a build with sixteen cars.
+  - The music title build (`src/title.asm`) has to LOAD below `$d000` and carries the whole game: it has
+    about 650 bytes left. The next thing of any size will not fit in it as it is. Ways out: load the game as
+    a second file, pack it, or drop that build's title tune.
+- Sprite data must be where the video chip can see it, in the first 16K and not `$1000`-`$1fff`. Big Honk's
+  eight frames are in the character set's characters 184-247 (`$3dc0`), after the tile characters, which
+  `tools/assets.mjs` checks; there is no more room there for tiles without moving him. The player on foot's
+  frames took the place of code, which moved up (see above); more sprites (police, people, an arm held out)
+  will need more code moved the same way, or fewer frames.
+- Bit 7 of a colour listed with `sprites.add`, or of sprite 0's (`frame.next_sc`), makes that sprite
+  multicolour. All multicolour sprites share black and yellow (`foot.init` sets them), so a police officer's
+  light blue, or skin, has to be a sprite's own colour.
+- Getting in and out is one press of fire with the stick centred (`src/foot.asm` has the rule). That is my
+  decision to confirm or change: the browser game has a key for it, and a C64 joystick has one button. It
+  leaves fire with a direction, and fire held, free for the handbrake now and for fists and weapons later,
+  but standing still by a car it will always mean "get in".
 - Sprites cannot be cut off part way down: switching one off only stops it starting, so a sprite carries on
   over the black band and the panel, and its fetches take cycles the split's timed writes need. So traffic is
   only shown while all of its sprite is above the band.
@@ -153,7 +188,12 @@ apt-get update && apt-get install -y 64tass vice xvfb
   have not yet tried them on my C64 and C128D.
 - **The player's car at the south edge of the city:** within a few pixels of it, the car's sprite can reach
   below the city, over the black band (see the note on sprites above). Found while adding traffic; not fixed
-  yet. The test that meant to check it never puts the car low enough.
+  yet. The test that meant to check it never puts the car low enough. The player on foot does not have this:
+  they stop 11 pixels short of the south edge, which is what the car needs too.
+- **Getting in and out with one button (C64):** fire with the stick centred. Mine to try and to confirm or
+  change; see "Commodore 64 port" above.
+- **The walk (C64):** the player's legs follow the browser game's nine steps a second, a new pose almost every
+  frame. Whether that reads as walking or as a blur on a real screen is for me to see.
 
 ## Don't
 

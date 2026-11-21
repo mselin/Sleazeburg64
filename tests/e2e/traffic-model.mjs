@@ -56,10 +56,17 @@ export class TrafficCar {
 }
 
 export class Traffic {
+  /**
+   * `cars` is how much traffic there can be (CARS). The tables have one more place than that (n: SLOTS), so
+   * that a car the player leaves always has somewhere to go. `mine` is the place of the car the player left
+   * last, which stays however far they go, or 0xff.
+   */
   constructor({ cars = 6, spawn = true } = {}) {
-    this.n = cars;
+    this.limit = cars;
+    this.n = cars + 1;
     this.spawn = spawn;
-    this.cars = Array.from({ length: cars }, () => new TrafficCar({ on: 0 }));
+    this.cars = Array.from({ length: this.n }, () => new TrafficCar({ on: 0 }));
+    this.mine = 0xff;
     this.rnd = new Rnd();
     this.tick = 0;
     this.turns = 0;
@@ -68,8 +75,8 @@ export class Traffic {
   }
 
   /**
-   * One frame, after the player's car (at pixel px, py) and the window (cam) have moved. busy: this frame
-   * works out colour memory, so only the moving is done.
+   * One frame, after the player (at pixel px, py: their car, or on foot) and the window (cam) have moved.
+   * busy: this frame works out colour memory, so only the moving is done.
    */
   step(px, py, cam, busy) {
     this.tick = (this.tick + 1) & 255;
@@ -85,7 +92,7 @@ export class Traffic {
       }
       if (((i + this.turns) & 3) === 0) {
         if (!c.ghost && !c.wreck) this.look(c);
-        this.farAway(c);
+        if (i !== this.mine) this.farAway(c);
       }
     });
     if (!this.spawn) return;
@@ -98,7 +105,8 @@ export class Traffic {
 
   move(c) {
     if (c.wreck) {
-      if (c.sp) c.sp = Math.max(0, c.sp - T.BRAKE); // rolls to a stop, and that is all
+      if (!c.sp) return; // at rest, as a car the player left is from the start: nothing to do
+      c.sp = Math.max(0, c.sp - T.BRAKE); // rolls to a stop, and that is all
     } else this.speed(c);
     this.along(c);
   }
@@ -221,8 +229,10 @@ export class Traffic {
   }
 
   trySpawn(cam) {
+    // With `limit` cars about there are enough, and a new car never takes the last place.
+    if (this.cars.filter((c) => c.on).length >= this.limit) return;
     let slot = -1;
-    for (let i = this.n - 1; i >= 0; i--)
+    for (let i = this.limit - 1; i >= 0; i--)
       if (!this.cars[i].on) {
         slot = i;
         break;

@@ -105,6 +105,31 @@ test('driving the car flat out with the tune playing: the car follows the model 
   });
 });
 
+test('with the car, the hint between the credits says what fire does: in the car, and on foot once the player is out', () => {
+  const withCar = assemble('music/car', { defs: { MUSIC: 1 }, include: [TUNES] });
+  const C = withCar.labels;
+  const IN_CAR = 'FIRE: HANDBRAKE. STANDING STILL: GET OUT', ON_FOOT = 'STAND BY A CAR AND PRESS FIRE TO GET IN';
+  const CREDITS = ['MUSIC: TEST TUNE', 'NOBODY (C) 2026 THE TESTS'];
+  return withProgram(withCar.prg, async (vice) => {
+    await vice.runTo(C.ready);
+    /** Every line the bottom row shows over one round of the three and a little more. */
+    const round = async () => {
+      const seen = new Set();
+      for (let frame = 0; frame < 3 * CREDIT_FRAMES + 40; frame += 20) {
+        await vice.frames(C.ready, 20);
+        seen.add((await readPanel(vice))[2]);
+      }
+      return [...seen].sort();
+    };
+    assert.deepEqual(await round(), [IN_CAR, ...CREDITS].sort(), 'in the car');
+    await vice.joystick(JOY.FIRE); // with the stick centred and the car standing: out
+    await vice.frames(C.ready, 2);
+    await vice.joystick(0);
+    assert.equal((await vice.read(C['foot.on'], 1))[0], 1, 'the player is out of the car');
+    assert.deepEqual(await round(), [ON_FOOT, ...CREDITS].sort(), 'on foot: its hint takes the same turn, and the credits stay');
+  });
+});
+
 test('the panel credits the tune: title, then author and copyright, then the hint, and round again', () =>
   withProgram(game.prg, async (vice) => {
     await vice.runTo(G.ready);

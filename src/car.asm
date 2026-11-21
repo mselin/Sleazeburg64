@@ -46,6 +46,7 @@ vel_x           .word ?
 vel_y           .word ?
 angle           .word ?                 ; fraction, direction
 inside          .byte ?                 ; 1: look whether the car is inside a wall; 0: it is known not to be
+colour          .byte ?                 ; its sprite's colour
 thr             .byte ?                 ; 1 accelerate, $ff brake or reverse, 0 neither
 turn            .byte ?                 ; 1 clockwise, $ff anticlockwise
 hand            .byte ?                 ; 1 handbrake
@@ -227,6 +228,8 @@ place           sta pos_x + 1
                 sta angle + 1
                 lda #1
                 sta inside
+                lda #RED
+                sta colour
                 rts
 
 ; One frame of driving. In: A = joystick bits.
@@ -1116,6 +1119,8 @@ show            sec                     ; x: 31 is the window's left edge, the c
                 clc
                 adc #CAR_SPRITE
                 sta frame.next_sp
+                lda colour
+                sta frame.next_sc
                 lda #1
                 sta frame.next_d015
                 rts

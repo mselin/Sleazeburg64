@@ -18,6 +18,12 @@
 ; New cars appear on the streets off screen, a little way from the player, while there are fewer than CARS,
 ; and go when they are more than FAR_X or FAR_Y pixels from the player.
 ;
+; The player's own car is not one of these: it is the car in car.asm. But when the player gets out (foot.asm)
+; it goes into these tables as a car with no driver, as a wreck is, and a car the player gets into leaves
+; them. So the tables have one more place than there is traffic (SLOTS), and new cars stop appearing once
+; CARS places are taken: the car the player is in always has a place to go. The car the player left last
+; (mine) stays however far away they go. The player is looked out for in the same way on foot as in a car.
+;
 ; Time. Every car moves every frame. The rest (deciding at a crossing, looking ahead, going, appearing) is
 ; done in any frame but one that works out colour memory, which has least to spare: two cars a frame look
 ; ahead and check whether to go, in turn, so each car does every fourth such frame, and there is one try at
@@ -36,7 +42,8 @@ SPAWN           = 1                     ; 0: no new cars appear (for tests that 
                 .endweak
                 .cerror CARS > MAX_SPRITES, "more cars than the multiplexer can list"
 
-N1              = CARS + 1              ; the position tables hold the cars and then the player's car, x then y
+SLOTS           = CARS + 1              ; places for cars in the tables: one more, for a car the player has left
+N1              = SLOTS + 1             ; the position tables hold the cars and then the player, x then y
 T_ACCEL         = 4                     ; speeding up: 70 pixels a second a second, as in the browser game
 T_BRAKE         = 11                    ; slowing down: 220
 CRUISE_MIN      = 120                   ; cruising speed: 120-183, 47-71 pixels a second
@@ -92,35 +99,38 @@ cy              .word ?
                 .send
 
                 .section bss
-on              .fill N1                ; 1: a car is in this place (and the player's car always, after them)
-pf              .fill 2 * N1            ; position: fraction, pixel low and high; x for 0..CARS, then y
+on              .fill N1                ; 1: a car is in this place (and the player always, after them)
+pf              .fill 2 * N1            ; position: fraction, pixel low and high; x for 0..SLOTS, then y
 pl              .fill 2 * N1
 ph              .fill 2 * N1
-dir             .fill CARS
-sp              .fill CARS              ; speed
-dlo             .fill CARS              ; and how far that is in a frame: 1/256 pixel
-dhi             .fill CARS
-entered         .fill CARS              ; 1: it has gone into another tile, for enter to look at
-cruise          .fill CARS              ; the speed it likes
-face            .fill CARS              ; the way the picture faces, 0-15 clockwise from east
-col             .fill CARS
-turn            .fill CARS              ; the direction it is turning into at tal/tah, or $ff
-tal             .fill CARS
-tah             .fill CARS
-held            .fill CARS              ; frames held up
-ghost           .fill CARS              ; frames left driving without looking
-blocked         .fill CARS              ; 1: something in front, as it last looked
-wreck           .fill CARS              ; 1: hit hard by the player's car; it rolls to a stop and stays put
-close_by        .fill CARS              ; nearby: the cars near the player's car
+dir             .fill SLOTS
+sp              .fill SLOTS             ; speed
+dlo             .fill SLOTS             ; and how far that is in a frame: 1/256 pixel
+dhi             .fill SLOTS
+entered         .fill SLOTS             ; 1: it has gone into another tile, for enter to look at
+cruise          .fill SLOTS             ; the speed it likes
+face            .fill SLOTS             ; the way the picture faces, 0-15 clockwise from east
+col             .fill SLOTS
+turn            .fill SLOTS             ; the direction it is turning into at tal/tah, or $ff
+tal             .fill SLOTS
+tah             .fill SLOTS
+held            .fill SLOTS             ; frames held up
+ghost           .fill SLOTS             ; frames left driving without looking
+blocked         .fill SLOTS             ; 1: something in front, as it last looked
+wreck           .fill SLOTS             ; 1: hit hard by the player's car; it rolls to a stop and stays put
+close_by        .fill SLOTS             ; nearby: the cars near the player's car
+mine            .byte ?                 ; the car the player left last, which stays however far they go; or $ff
                 .send
 
-init            ldx #CARS - 1
+init            ldx #SLOTS - 1
                 lda #0
 -               sta on,x
                 dex
                 bpl -
                 lda #1
-                sta on + CARS
+                sta on + SLOTS
+                lda #$ff
+                sta mine
                 lda #$a5
                 sta seed
                 lda #$3c
@@ -152,23 +162,23 @@ rnd             lda seed + 1
 ; one try at a new car. A frame that works out colour memory always comes straight after one that moves the
 ; screen and before one that does not, so that never waits more than a frame.
 update          inc tick
-                lda car.pos_x + 1       ; the player's car, to be looked at like the others
-                sta pl + CARS
-                lda car.pos_x + 2
-                sta ph + CARS
-                lda car.pos_y + 1
-                sta pl + CARS + N1
-                lda car.pos_y + 2
-                sta ph + CARS + N1
+                lda player_at           ; the player, in a car or on foot, to be looked at like the cars
+                sta pl + SLOTS
+                lda player_at + 1
+                sta ph + SLOTS
+                lda player_at + 2
+                sta pl + SLOTS + N1
+                lda player_at + 3
+                sta ph + SLOTS + N1
                 ldx #0
 each            lda on,x
                 bne +
                 jmp next_car
-+               lda wreck,x             ; a wreck rolls to a stop, and that is all
-                beq +
++               lda wreck,x             ; a wreck rolls to a stop, and that is all: once it has, and for a
+                beq +                   ; car the player left, there is nothing to do
                 lda sp,x
                 bne +++
-                jmp moving
+                jmp next_car
 +               lda ghost,x
                 beq +
                 dec ghost,x
@@ -249,7 +259,7 @@ moved           lda tick                ; the picture turns towards the way it g
 +               and #15
                 sta face,x
 next_car        inx
-                cpx #CARS
+                cpx #SLOTS
                 beq +
                 jmp each
 +
@@ -280,7 +290,7 @@ upkeep          stx i
                 jsr look
 +               jsr far_away
 up_next         inx
-                cpx #CARS
+                cpx #SLOTS
                 bne upkeep
 .if SPAWN != 0
                 lda spawn_wait          ; a new car: not straight after one, and only every fourth of these
@@ -296,13 +306,16 @@ up_next         inx
 .endif
                 rts
 
-; Car X goes if it is more than FAR_X or FAR_Y from the player. Keeps X.
-far_away        sec
+; Car X goes if it is more than FAR_X or FAR_Y from the player, unless it is the car the player left last.
+; Keeps X.
+far_away        cpx mine
+                beq kept
+                sec
                 lda pl,x
-                sbc pl + CARS
+                sbc pl + SLOTS
                 sta dl
                 lda ph,x
-                sbc ph + CARS
+                sbc ph + SLOTS
                 sta dh
                 clc
                 lda dl
@@ -318,10 +331,10 @@ far_away        sec
                 bcs +
                 sec
                 lda pl + N1,x
-                sbc pl + CARS + N1
+                sbc pl + SLOTS + N1
                 sta dl
                 lda ph + N1,x
-                sbc ph + CARS + N1
+                sbc ph + SLOTS + N1
                 sta dh
                 clc
                 lda dl
@@ -334,10 +347,10 @@ far_away        sec
                 cmp #<(2 * FAR_Y + 1)
                 lda dh
                 sbc #>(2 * FAR_Y + 1)
-                bcc ++
+                bcc kept
 +               lda #0
                 sta on,x
-+               rts
+kept            rts
 
 ; Move car X along its lane by its speed: on the axis whose positions start at off in the tables, backwards
 ; if back. If it is turning, turn once it reaches the lane it turns into; otherwise note when it goes into
@@ -427,7 +440,7 @@ look_n          #ahead N1, 0, 1, ay, ax
 ; The loop for one direction: along the axis whose positions start at oa in the tables, backwards if back,
 ; from the car at (ma, mc) along and across.
 ahead           .macro oa, oc, back, ma, mc
-                ldy #CARS               ; the player's car, then the others
+                ldy #SLOTS              ; the player's car, then the others
 loop            cpy i
                 beq next
                 lda on,y
@@ -609,21 +622,30 @@ go_on           rts
 
 .if SPAWN != 0
 ; One try at a new car somewhere off screen, a little way from the player, if there is room for one.
-try_spawn       ldx #CARS - 1
+try_spawn       ldx #SLOTS - 1          ; with CARS cars about, the cars the player has left among them, there
+                ldy #0                  ; are enough: that leaves a place free for the car the player is in
+-               lda on,x
+                beq +
+                iny
++               dex
+                bpl -
+                cpy #CARS
+                bcs full
+                ldx #CARS - 1           ; a new car never takes the last place: the first car left goes there
 -               lda on,x
                 beq +
                 dex
                 bpl -
-                rts
+full            rts
 +               stx slot
                 jsr rnd
                 sta r1
                 and #3                  ; bit 0: along y, bit 1: backwards
                 sta sdir
                 lsr                     ; the road: the nearest to the player across, (where + 80) / 192, or
-                ldy #CARS + N1          ; the one before or after it
+                ldy #SLOTS + N1         ; the one before or after it
                 bcc +
-                ldy #CARS
+                ldy #SLOTS
 +               clc
                 lda pl,y
                 adc #80
@@ -685,9 +707,9 @@ try_spawn       ldx #CARS - 1
                 sta dh                  ; dh:dl = rnd * 3
                 lda sdir
                 lsr
-                ldy #CARS
+                ldy #SLOTS
                 bcc +
-                ldy #CARS + N1
+                ldy #SLOTS + N1
 +               clc
                 lda pl,y
                 adc dl
@@ -785,7 +807,7 @@ try_spawn       ldx #CARS - 1
                 sbc #>(2 * SHOWN_Y - 1)
                 bcs off_screen
                 rts
-off_screen      ldy #CARS               ; and no car near
+off_screen      ldy #SLOTS              ; and no car near
 -               lda on,y
                 beq near_next
                 sec
@@ -915,7 +937,7 @@ nearby          ldy #0
                 iny
 +
 +               inx
-                cpx #CARS
+                cpx #SLOTS
                 bne -
                 sty n_close
                 rts
@@ -1116,13 +1138,13 @@ each_shown      lda on,x
                 sta sprites.u_c,y
                 inc sprites.n
 not_shown       inx
-                cpx #CARS
+                cpx #SLOTS
                 bcc +
                 ldx #0
 +               cpx first
                 bne each_shown
                 inx                     ; next frame, from the next one
-                cpx #CARS
+                cpx #SLOTS
                 bcc +
                 ldx #0
 +               stx rot
