@@ -69,6 +69,12 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
 - Jobs, starting with deliveries and the cult of 6-7.
 - Pickups, money, getting arrested, the hospital. Pickups include the knife (a **K**, also dropped now and then
   by someone the player kills), and ammo stops at 99 so the panel always shows two digits.
+  - **Banners that fit the screen.** BUSTED, FLATLINED and the job banners put big text across the middle of the
+    screen with a line or more under it. By the design's
+    [Banners](https://github.com/mselin/gta-c64/blob/main/specs/design.md#banners): a title of at most 19
+    characters in double-size letters, and the text under it broken into even lines of at most 38 of the 40
+    columns. The browser game used to let lines over 40 characters run off both sides (mselin/gta-c64#14). On
+    the C64 the screen is 40 columns too, so the same limits hold.
 - Title screen, game-over and victory pictures.
 
 ## Milestone 4: sound and polish
