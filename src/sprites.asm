@@ -214,14 +214,17 @@ show_frame      bcc +                   ; a new frame: its plan is shown, and th
                 lda used,y
                 ora frame.cur_d015
                 sta SPRITE_ON
-                lda #0                  ; two-colour sprites, sprite 0 the player's car among them, but ...
+                lda frame.cur_sc        ; two-colour sprites, but those whose colour has bit 7 set: sprite 0 ...
+                asl
+                lda #0
+                rol
                 sta SPRITE_MC
                 ldx cur
 -               cpx cur_end
                 beq split_next
                 lda b_free,x            ; a reuse: that is for the multiplexer's interrupt
                 bne mux_next
-                lda b_c,x               ; ... those whose colour has bit 7 set
+                lda b_c,x               ; ... and each of the others
                 bpl +
                 ldy b_hw,x
                 lda SPRITE_MC

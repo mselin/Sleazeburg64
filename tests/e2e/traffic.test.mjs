@@ -9,45 +9,11 @@ import { C, Car, direction16 } from './car-model.mjs';
 import { CENTRE_X, CENTRE_Y, Camera, assemble, assets, camera, pictureMismatches, planned, withProgram } from './game.mjs';
 import { LOWEST, T, Traffic, TrafficCar, plan } from './traffic-model.mjs';
 import { Honk, readHonk } from './honk-model.mjs';
+import { modelTraffic, readTraffic } from './play.mjs';
 
 const START = [9 * 16, 8 * 16];
 const RED = 2;
 const LANE = { 0: 24, 1: 8, 2: 8, 3: 24 }; // each direction's lane, from the road's edge
-
-/** Read the program's traffic: every car, and the counters and random seed that decide what comes next. */
-async function readTraffic(vice, L, n) {
-  const n1 = n + 1;
-  const get = (name, length) => vice.read(L[`traffic.${name}`], length);
-  const [on, pf, pl, ph] = await Promise.all([get('on', n), get('pf', 2 * n1), get('pl', 2 * n1), get('ph', 2 * n1)]);
-  const fields = {};
-  for (const f of ['dir', 'sp', 'cruise', 'face', 'col', 'turn', 'tal', 'tah', 'held', 'ghost', 'blocked', 'entered', 'wreck']) fields[f] = await get(f, n);
-  const cars = [];
-  for (let i = 0; i < n; i++) {
-    if (!on[i]) {
-      cars.push({ on: 0 });
-      continue;
-    }
-    const car = { on: 1, x: (ph[i] << 16) | (pl[i] << 8) | pf[i], y: (ph[n1 + i] << 16) | (pl[n1 + i] << 8) | pf[n1 + i] };
-    for (const f of ['dir', 'sp', 'cruise', 'face', 'col', 'turn', 'held', 'ghost', 'blocked', 'entered', 'wreck']) car[f] = fields[f][i];
-    car.ta = car.turn === 0xff ? null : fields.tal[i] | (fields.tah[i] << 8);
-    cars.push(car);
-  }
-  const seed = await get('seed', 2);
-  const [tick, rot, wait, turns] = await Promise.all([get('tick', 1), get('rot', 1), get('spawn_wait', 1), get('turns', 1)]);
-  return { cars, seed: [seed[0], seed[1]], tick: tick[0], turns: turns[0], rot: rot[0], spawnWait: wait[0] };
-}
-
-/** The same, from the model. */
-function modelTraffic(t) {
-  const cars = t.cars.map((c) => {
-    if (!c.on) return { on: 0 };
-    const car = { on: 1, x: c.x, y: c.y };
-    for (const f of ['dir', 'sp', 'cruise', 'face', 'col', 'turn', 'held', 'ghost', 'blocked', 'entered', 'wreck']) car[f] = c[f];
-    car.ta = c.turn === 0xff ? null : c.ta;
-    return car;
-  });
-  return { cars, seed: [t.rnd.lo, t.rnd.hi], tick: t.tick, turns: t.turns, rot: t.rot, spawnWait: t.spawnWait };
-}
 
 /** Every sprite the model says is on screen, the one in front first: the player's car, then sprites 1-7. */
 function spritesFor(car, cam, list) {
@@ -147,7 +113,7 @@ test('flat out east with traffic: the window keeps up and every frame is in time
       await vice.runTo(G['frame.publish']);
       latest = Math.max(latest, ((await vice.registers()).LIN - 250 + 312) % 312);
       await vice.runTo(G.ready);
-      assert.deepEqual(await readTraffic(vice, G, 6), modelTraffic(m.traffic), `the traffic after ${frame} frames`);
+      assert.deepEqual(await readTraffic(vice, G, m.traffic.n), modelTraffic(m.traffic), `the traffic after ${frame} frames`);
     }
     t.diagnostic(`with traffic, the busiest pass was ready ${latest} raster lines after the bottom interrupt, of 312`);
     assert.equal(m.car.vx, C.TOP, 'at top speed');

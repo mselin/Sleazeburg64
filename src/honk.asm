@@ -18,9 +18,10 @@
 ; cars here do not look out for people yet.
 ;
 ; His picture: a multicolour sprite (tools/assets.mjs draws it) in the character set's last free characters,
-; one frame for each way he faces and another with his wings out. Walking or swimming he sways a pixel from
-; side to side, a step every four pixels; flapping, his wings beat every four frames. He is listed for the
-; multiplexer after the traffic, and like it only while all of his sprite is above the black band.
+; white with the black and yellow every multicolour sprite shares (foot.init sets them), one frame for each
+; way he faces and another with his wings out. Walking or swimming he sways a pixel from side to side, a step
+; every four pixels; flapping, his wings beat every four frames. He is listed for the multiplexer after the
+; traffic, and like it only while all of his sprite is above the black band.
 ;
 ; Time. A frame that moves the screen a character has no time to spare, so in one of those he stands still:
 ; he is only listed for the multiplexer, and his counts (wait, flap) wait too. The frame after it never moves
@@ -82,10 +83,6 @@ init            ldx #5
                 sta jay
                 lda #$5a
                 sta seed
-                lda #BLACK              ; his outline and shades ...
-                sta SPRITE_MULTI1
-                lda #YELLOW             ; ... and his beak and chain
-                sta SPRITE_MULTI2
                 rts
 start_pos       .byte 0, <HONK_START_X, >HONK_START_X, 0, <HONK_START_Y, >HONK_START_Y
 
@@ -280,7 +277,7 @@ traffic_cars    lda pos + 4             ; near a bridge: his tile row % 12 is 11
                 bcc +
                 cmp #11
                 bcc none
-+               ldx #CARS - 1
++               ldx #SLOTS - 1
 -               lda traffic.on,x
                 beq next
                 lda traffic.sp,x

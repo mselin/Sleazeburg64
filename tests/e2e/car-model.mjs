@@ -33,7 +33,7 @@ export function hits(x, y, a) {
 export class Car {
   /** A car at pixel (x, y), facing east, standing still. */
   constructor(x, y) {
-    Object.assign(this, { x: x * 256, y: y * 256, vx: 0, vy: 0, angle: 0 });
+    Object.assign(this, { x: x * 256, y: y * 256, vx: 0, vy: 0, angle: 0, colour: 2 }); // red
   }
   get px() {
     return this.x >> 8;

@@ -1,10 +1,10 @@
 ; SPDX-License-Identifier: GPL-2.0-or-later
 ; Sleazeburg 64 for the Commodore 64.
 ;
-; Milestone 2, started: a car to drive around a city with traffic in it. A joystick in port 2 drives it, the
-; view scrolls smoothly to follow it, and a raster split keeps the status panel still under the city. Traffic
-; follows the lanes, shown with a sprite multiplexer, and Big Honk wanders The Moat. Other people and the game
-; itself come later.
+; Milestone 2, under way: a car to drive around a city with traffic in it, and to get out of and walk. A
+; joystick in port 2 does both, the view scrolls smoothly to follow, and a raster split keeps the status panel
+; still under the city. Traffic follows the lanes, shown with a sprite multiplexer, and Big Honk wanders The
+; Moat. Other people and the game itself come later.
 ;
 ; Assemble with 64tass (see the Makefile). Build options, set with -D on the command line:
 ;   START_X, START_Y   the tile in the top left corner of the view at start; the car starts in its middle
@@ -47,7 +47,9 @@ CAR_FRAMES      = $0840                 ; the car's sprite in 16 directions, 64 
 CAR_SPRITE      = CAR_FRAMES / 64       ; sprite pointer of the first
 SQUARES         = $c000                 ; quarter squares for multiplying (see car.init): 1K, made at start
 SQUARES2        = $bc00                 ; and the same moved along, for the other half of a multiplication: 1K
-HIGH_CODE       = $b300                 ; code that runs from above the colour routines: copied there at start
+HIGH_CODE       = $b300                 ; code that runs from above the colour routines, and
+TOP_CODE        = $f300                 ; from the top of memory: both copied there at start
+PLAYER_FRAMES   = $2580                 ; the player on foot's sprite, made at start: 42 frames, up to the screens
 
 ; ---------- zero page ----------
                 * = $02
@@ -85,20 +87,14 @@ start           sei
                 lda CIA2_IRQ
                 lda #$35                ; BASIC and KERNAL out, I/O in: the program owns the machine
                 sta CPU_PORT
-                lda #<ignore            ; RESTORE does nothing
+.if VIEWER == 0
+                #raise high_image, HIGH_CODE, HIGH_PAGES   ; the code that runs from higher up, from where it
+                #raise top_image, TOP_CODE, TOP_PAGES      ; waits, before anything is written over it there
+.endif
+                lda #<ignore            ; RESTORE does nothing (after the copy, which can run over the vectors)
                 sta $fffa
                 lda #>ignore
                 sta $fffb
-.if WITH_HONK
-                ldx #0                  ; the code that runs from HIGH_CODE, from where it waits, before the
--                                       ; screens are cleared over it (video.init)
-                .for page = 0, page < HIGH_PAGES, page += 1
-                lda high_image + page * 256,x
-                sta HIGH_CODE + page * 256,x
-                .endfor
-                inx
-                bne -
-.endif
 
                 lda #<(START_X * 16)
                 sta cam_lo
@@ -119,6 +115,8 @@ start           sei
                 sty car.sum
                 ldy #<(START_Y * 16 + CENTRE_Y)
                 jsr car.place
+                jsr frames.make         ; the player's frames, before a colour routine is written over what
+                                        ; they are made from
 .endif
 .if MUSIC != 0
                 jsr tune.copy           ; out of the way of a colour routine (video.asm) before it is written
@@ -129,6 +127,9 @@ start           sei
 .endif
 .if WITH_HONK
                 jsr honk.init           ; the same
+.endif
+.if VIEWER == 0
+                jsr foot.init
 .endif
                 jsr panel.init
                 jsr panel.update
@@ -144,14 +145,14 @@ main_loop       jsr frame.wait          ; until the last frame made is on its wa
                 jsr video.after_swap    ; colour memory, if that frame brought in the other screen
 ready           jsr input.read          ; A = which directions are held
 .if VIEWER == 0
-                jsr car.update
+                jsr foot.update         ; the player: in the car or on foot
                 jsr follow_car
                 jsr move_both
                 jsr traffic.update      ; after the window has moved: it needs to know whether the screen will
 .if WITH_HONK                           ; move a character this frame
                 jsr honk.update
 .endif
-                jsr car.show
+                jsr foot.show           ; the car, or the player on foot
                 jsr traffic.show
 .if WITH_HONK
                 jsr honk.show           ; after the traffic, which leaves him where a sprite can start
@@ -165,6 +166,36 @@ ready           jsr input.read          ; A = which directions are held
                 jmp main_loop
 
 ignore          rti
+
+.if VIEWER == 0
+; Copy whole pages of code from where they wait in the program file to where they run.
+raise           .macro image, home, pages
+                lda #<(\image)
+                sta copy_up.from + 1
+                lda #>(\image)
+                sta copy_up.from + 2
+                lda #<(\home)
+                sta copy_up.to + 1
+                lda #>(\home)
+                sta copy_up.to + 2
+                ldx #\pages
+                beq +                   ; (nothing to copy in a build that leaves it all out)
+                jsr copy_up
++
+                .endm
+copy_up         .block
+                ldy #0
+from            lda $ffff,y             ; (both addresses are written by raise)
+to              sta $ffff,y
+                iny
+                bne from
+                inc from + 2
+                inc to + 2
+                dex
+                bne from
+                rts
+                .bend
+.endif
 
 ; Move the window by the joystick, keeping it inside the city. In a frame whose time went on colour memory
 ; there is none left to move the screen a character, so the window stays within its character that frame.
@@ -209,17 +240,16 @@ move_both       ldx #0
                 jmp move_axis
 
 .if VIEWER == 0
-; Aim the view at the car: step = how far to move the window this frame, at most FOLLOW each way, to put the
-; car at CENTRE_X, CENTRE_Y in it (or as near as the edge of the city lets it).
+; Aim the view at the player, in the car or on foot: step = how far to move the window this frame, at most
+; FOLLOW each way, to put them at CENTRE_X, CENTRE_Y in it (or as near as the edge of the city lets it).
 follow_car      .block
                 ldx #0
--               sec                     ; target = car - centre, or 0
-                .cerror car.pos_y - car.pos_x != 3, "follow_car expects pos_y three bytes after pos_x"
+-               sec                     ; target = where they are - centre, or 0
                 ldy offset,x
-                lda car.pos_x + 1,y
+                lda player_at,y
                 sbc centre_lo,x
                 sta target
-                lda car.pos_x + 2,y
+                lda player_at + 1,y
                 sbc centre_hi,x
                 sta target + 1
                 bpl +
@@ -259,13 +289,16 @@ far_left        lda #$100 - FOLLOW
                 cpx #2
                 bne -
                 rts
-offset          .byte 0, 3
+offset          .byte 0, 2
 centre_lo       .byte <CENTRE_X, <CENTRE_Y
 centre_hi       .byte >CENTRE_X, >CENTRE_Y
                 .section zp
 target          .word ?
                 .send
                 .bend
+                .section bss
+player_at       .word ?, ?              ; the player's middle in the city, in a car or on foot: x, then y
+                .send
 .endif
 
 ; In: X = 0 across or 1 down, step,x = how far.
@@ -339,30 +372,23 @@ char_of         lda cam_hi,x
                 .include "input.asm"
                 .include "video.asm"
                 .include "panel.asm"
+.if VIEWER != 0
+                .include "digits.asm"
+.endif
                 .include "sprites.asm"
 .if VIEWER == 0
                 .include "car.asm"
-                .include "traffic.asm"
 .endif
-.if MUSIC != 0
+.if MUSIC != 0 && VIEWER != 0
                 .include "music.asm"
 .endif
 code_end
+.if VIEWER == 0
+                .cerror * > PLAYER_FRAMES, "code has run into the player's frames"
+                .cerror PLAYER_FRAMES + PLAYER_FRAME_COUNT * 64 > SCREEN_A, "the player's frames reach the screens"
+.else
                 .cerror * > SCREEN_A, "code has run into the screens"
-.if WITH_HONK
-; Code that runs from HIGH_CODE, where there is room. It waits here, after the code and on into where the
-; screens go, and start copies it up before anything is drawn there.
-high_image
-                .logical HIGH_CODE
-                .include "honk.asm"
-high_end
-                .endlogical
-HIGH_PAGES      = (high_end - HIGH_CODE + 255) / 256
-                .cerror HIGH_CODE < video.COLOUR_01 + video.COLOUR_SIZE, "HIGH_CODE is in a colour routine"
-                .cerror HIGH_CODE + HIGH_PAGES * 256 > SQUARES2, "the code at HIGH_CODE runs into the tables"
 .endif
-image_end                               ; the end of the code here, and of the code waiting to be copied up
-                .cerror * > charset, "the code waiting to be copied up has run into the character set"
 
 ; ---------- variables with no starting value: in the panel's screen, whose rows 0-20 are never shown ----------
                 .virtual PANEL_SCREEN
@@ -391,5 +417,37 @@ map_end
 tune_data       .binary "tune-ingame.bin"
                 .fill tune.PAGES * 256 - ingame_size, 0
                 .cerror * > ingame_load, "the program has run into where the tune plays from"
+.endif
+.if VIEWER == 0
+; Code that runs from higher up, where there is room: above the colour routines (HIGH_CODE) and at the top of
+; memory (TOP_CODE). It waits here, and start copies it up before the colour routines are written over this.
+; Lower down, the video chip needs what room there is for sprites: it sees only the first 16K.
+high_image
+                .logical HIGH_CODE
+.if HONK != 0
+                .include "honk.asm"
+.endif
+                .include "foot.asm"
+high_end
+                .endlogical
+top_image
+                .logical TOP_CODE
+                .include "traffic.asm"
+                .include "digits.asm"   ; (where there is room: the panel's tables)
+.if MUSIC != 0
+                .include "music.asm"    ; (and the tune's code, in a music build)
+.endif
+top_end
+                .endlogical
+HIGH_PAGES      = (high_end - HIGH_CODE + 255) / 256
+TOP_PAGES       = (top_end - TOP_CODE + 255) / 256
+                .cerror HIGH_CODE < video.COLOUR_01 + video.COLOUR_SIZE, "HIGH_CODE is in a colour routine"
+                .cerror HIGH_CODE + HIGH_PAGES * 256 > SQUARES2, "the code at HIGH_CODE runs into the tables"
+                .cerror top_end > $fffa, "the code at TOP_CODE runs into the interrupt vectors"
+                .cerror * > HIGH_CODE, "what waits after the map reaches where it is copied to"
+.if MUSIC != 0
+                .cerror ingame_load + (tune.PAGES + 1) * 256 > TOP_CODE, "the tune runs into TOP_CODE"
+.endif
+                .include "frames.asm"   ; runs once, from here
 .endif
 program_end

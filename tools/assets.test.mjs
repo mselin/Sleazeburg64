@@ -13,6 +13,9 @@ const chars = readFileSync(join(dir, 'chars.bin'));
 const tiles = readFileSync(join(dir, 'tiles.bin'));
 const map = readFileSync(join(dir, 'map.bin'));
 const car = readFileSync(join(dir, 'car.bin'));
+const player = readFileSync(join(dir, 'player.bin'));
+const playerMade = readFileSync(join(dir, 'player-made.bin'));
+const playerAll = readFileSync(join(dir, 'player-all.bin'));
 
 test('the city is the same one as in the browser game', () => {
   const city = generate();
@@ -128,4 +131,44 @@ test('Big Honk: eight multicolour frames after the tile characters, outlined in 
   assert.ok(columns(3) >= columns(2) + 3, 'facing south, out to the sides');
   // After him, characters 248-255 are left empty, the last of them for the video chip's idle fetches.
   assert.ok(chars.subarray(248 * 8).every((b) => b === 0));
+});
+
+test('the player on foot: 42 multicolour frames, each one of the twelve the program file holds or its mirror image', () => {
+  assert.equal(player.length, 12 * 64, 'twelve frames in the program file');
+  assert.equal(playerMade.length, 42, 'and how each of the 42 is made');
+  assert.equal(playerAll.length, 42 * 64);
+  const pair = (data, f, m, j) => (data[f * 64 + j * 3 + (m >> 2)] >> (6 - 2 * (m & 3))) & 3;
+  // Made the way the program makes them: the frame named, flipped left to right (1) and top to bottom
+  // within lines 0-19 (2).
+  for (let n = 0; n < 42; n++) {
+    const from = playerMade[n] >> 2, h = playerMade[n] & 1, v = playerMade[n] & 2;
+    assert.ok(from < 12, `frame ${n} is made from one of the twelve`);
+    for (let j = 0; j < 21; j++)
+      for (let m = 0; m < 12; m++)
+        assert.equal(pair(playerAll, n, m, j), pair(player, from, h ? 11 - m : m, v && j < 20 ? 19 - j : j), `frame ${n}, pixel ${m},${j}`);
+    assert.ok(playerAll.subarray(n * 64 + 60, n * 64 + 64).every((b) => b === 0), `frame ${n}: line 20 and the 64th byte are empty`);
+  }
+  // The forty walking frames: yellow jacket, black hair and feet, white face and hands, and round all of it a
+  // black outline and then a white one, so no black or yellow touches the outside.
+  for (let n = 0; n < 40; n++) {
+    const counts = [0, 0, 0, 0];
+    for (let j = 0; j < 21; j++)
+      for (let m = 0; m < 12; m++) {
+        const p = pair(playerAll, n, m, j);
+        counts[p]++;
+        if (p !== 1 && p !== 3) continue;
+        for (const [dm, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const mm = m + dm, jj = j + dj;
+          assert.ok(mm >= 0 && mm < 12 && jj >= 0 && jj < 21 && pair(playerAll, n, mm, jj) !== 0, `frame ${n}: pixel ${m},${j} is inside the white outline`);
+        }
+      }
+    assert.ok(counts[3] >= 4 && counts[1] >= 20 && counts[2] >= 30, `frame ${n} has yellow, black and white (${counts})`);
+  }
+  // Standing looks the same from either side: facing east it is its own mirror image top to bottom.
+  for (let j = 0; j < 20; j++) for (let m = 0; m < 12; m++) assert.equal(pair(playerAll, 2, m, j), pair(playerAll, 2, m, 19 - j));
+  // The two feet take turns: a full stride with the left foot is the mirror image of one with the right.
+  for (let j = 0; j < 20; j++) for (let m = 0; m < 12; m++) assert.equal(pair(playerAll, 0, m, j), pair(playerAll, 4, m, 19 - j));
+  // Every way they face is drawn differently, and so is every pose.
+  const frames = new Set(Array.from({ length: 42 }, (_, n) => playerAll.subarray(n * 64, n * 64 + 64).toString('hex')));
+  assert.equal(frames.size, 42, 'no two frames are the same');
 });

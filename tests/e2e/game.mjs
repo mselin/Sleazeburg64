@@ -25,6 +25,9 @@ export const CENTRE_Y = VIEW_H >> 1;
 export const CAR_SPRITE = 0x0840 / 64;
 export const CHARSET = 0x3800;
 export const HONK_SPRITE = (CHARSET + 184 * 8) / 64; // Big Honk's frames, in the character set's last characters
+export const PLAYER_FRAMES = 0x2580; // the player on foot's frames, which the program makes when it starts
+export const PLAYER_SPRITE = PLAYER_FRAMES / 64;
+export const PLAYER_FRAME_COUNT = 42;
 export const OUT = 'build/e2e';
 
 // Colours
@@ -34,18 +37,20 @@ export const SPRITE_MULTI = [BLACK, YELLOW];
 
 const ASMFLAGS = ['--cbm-prg', '--ascii', '--quiet', '-Wall', '-Wno-implied-reg'];
 
-if (!existsSync(join(ROOT, 'build/car.bin'))) execFileSync(process.execPath, ['tools/assets.mjs', 'build'], { cwd: ROOT });
+if (!existsSync(join(ROOT, 'build/player-all.bin'))) execFileSync(process.execPath, ['tools/assets.mjs', 'build'], { cwd: ROOT });
 export const assets = {
   chars: readFileSync(join(ROOT, 'build/chars.bin')),
   tiles: readFileSync(join(ROOT, 'build/tiles.bin')),
   map: readFileSync(join(ROOT, 'build/map.bin')),
 };
 assets.car = readFileSync(join(ROOT, 'build/car.bin'));
+assets.player = readFileSync(join(ROOT, 'build/player-all.bin')); // all 42 frames, as the program should make them
 
-/** The 63 bytes of the sprite a pointer names: one of the car's frames or one of Big Honk's. */
+/** The 63 bytes of the sprite a pointer names: one of the car's frames, the player's or Big Honk's. */
 export function spriteData(pointer) {
-  const at = pointer >= HONK_SPRITE ? pointer * 64 - CHARSET : (pointer - CAR_SPRITE) * 64;
-  return (pointer >= HONK_SPRITE ? assets.chars : assets.car).subarray(at, at + 63);
+  if (pointer >= HONK_SPRITE) return assets.chars.subarray(pointer * 64 - CHARSET, pointer * 64 - CHARSET + 63);
+  if (pointer >= PLAYER_SPRITE) return assets.player.subarray((pointer - PLAYER_SPRITE) * 64, (pointer - PLAYER_SPRITE) * 64 + 63);
+  return assets.car.subarray((pointer - CAR_SPRITE) * 64, (pointer - CAR_SPRITE) * 64 + 63);
 }
 
 /**

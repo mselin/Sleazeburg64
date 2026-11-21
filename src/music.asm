@@ -74,6 +74,12 @@ play            jsr ingame_play
 show_credit     lda #CREDIT_FRAMES
                 sta credit_wait
                 ldx credit_line
+.if VIEWER == 0
+                cpx #size(line_lo) - 1  ; the last is the hint, which depends on whether the player is on foot
+                bne +
+                jmp foot.show_hint
++
+.endif
                 lda line_lo,x
                 sta from
                 lda line_hi,x
