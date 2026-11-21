@@ -3,7 +3,8 @@
 ;
 ; This is a separate program wrapped around the game. It holds the title tune at the address the tune was
 ; written for, $1000-$5150, which is right across the game's memory: the title screen's own code comes before
-; the tune, and a copy of the game built with MUSIC=1 waits after it. Fire stops the tune, moves the game
+; the tune, and a copy of the game waits after it (in the tests, the city viewer built with MUSIC=1 and a tune
+; of its own; the game itself has no room for one). Fire stops the tune, moves the game
 ; down to where it runs from and starts it. See music/README.md: the tunes are not ours and builds are not to
 ; be published.
 ;
@@ -18,11 +19,13 @@
         .cpu "6502"
         .include "c64.inc"
         .include "tune-title.inc"
-        .include "tune-ingame.inc"
 
 game            .block                  ; where things are in the game this program carries
                 .include "labels-ingame.txt"
                 .bend
+.if game.MUSIC != 0                     ; (only the city viewer has room for a tune of its own)
+        .include "tune-ingame.inc"
+.endif
 
                 .weak
 AUTOPILOT       = 0
@@ -169,9 +172,15 @@ centred         .macro text
                 #centred "music test build - not for distribution"
                 #centred title_credit_title
                 #centred title_credit_by
+.if game.MUSIC != 0
                 #centred "then, in the game"
                 #centred ingame_credit_title
                 #centred ingame_credit_by
+.else
+                #centred "then the game, which has no room"
+                #centred "for a tune of its own"
+                #centred ""
+.endif
                 #centred "press fire - joystick in port 2"
 text_end
 ntsc_note       .text "ntsc machine: written for pal"

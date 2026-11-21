@@ -1,5 +1,6 @@
 ; SPDX-License-Identifier: GPL-2.0-or-later
-; Music test builds only (MUSIC=1): a tune that plays during the game, and its credits in the status panel.
+; Music test builds only (MUSIC=1): a tune that plays in the city viewer, and its credits in the panel. (The
+; game has no room for one: its code runs from $e000, where the tune plays from.)
 ; The tune is played by the bottom raster interrupt, once a frame, whatever the main loop is doing.
 ;
 ; The tune is someone else's work, is not in this repository and is not covered by this program's licence.
@@ -45,8 +46,7 @@ copy            lda #<tune_data
                 bne -
                 rts
 
-; Start the tune, once it has been copied, and show the first credit. (In a build with the car, the status
-; panel shows the credits, in its bottom row whenever there is no message: status.asm.)
+; Start the tune, once it has been copied, and show the first credit.
 init            ldx #$18                ; a quiet SID to start from
                 lda #0
 -               sta SID,x
@@ -54,20 +54,13 @@ init            ldx #$18                ; a quiet SID to start from
                 bpl -
                 lda #ingame_song
                 jsr ingame_init
-.if VIEWER == 0
-                rts
-.else
                 lda #0
                 sta credit_line
                 jmp show_credit
-.endif
 
 ; Once a frame, from the bottom interrupt: play the tune, and change the line in the bottom row of the panel
 ; when its time is up.
 play            jsr ingame_play
-.if VIEWER == 0
-                rts
-.else
 .if AUTOPILOT != 0
                 rts                     ; the emulator test compares screenshots, so the panel keeps still
 .endif
@@ -96,7 +89,6 @@ done            rts
 lines           = (credit_title, credit_by, panel.text3)
 line_lo         .byte <lines
 line_hi         .byte >lines
-.endif
 
                 .enc "screen"
 credit_title    .text ingame_credit_title, " " x (40 - len(ingame_credit_title))

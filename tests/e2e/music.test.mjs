@@ -75,71 +75,6 @@ test('with the tune\'s load the game still makes every frame in time, and every 
     assert.equal(await missed() - before, 0, 'no frame was late');
   }));
 
-test('driving the car flat out with the tune playing: the car follows the model and no frame is late', async (t) => {
-  const withCar = assemble('music/car', { defs: { MUSIC: 1 }, include: [TUNES] });
-  const { Car } = await import('./car-model.mjs');
-  const { Camera, CENTRE_X, CENTRE_Y } = await import('./game.mjs');
-  const C = withCar.labels;
-  return withProgram(withCar.prg, async (vice) => {
-    await vice.runTo(C.ready);
-    const car = new Car(144 + CENTRE_X, 128 + CENTRE_Y), cam = new Camera(144, 128);
-    const missed = async () => (await vice.read(C['frame.missed'], 2)).readUInt16LE(0);
-    // The first frame after start can be missed: setting up can end too near the bottom of the screen for
-    // the first pass to make it. Count from the second.
-    car.step(0);
-    cam.follow(car.px, car.py);
-    await vice.runTo(C.ready);
-    const before = await missed();
-    let latest = 0;
-    await vice.joystick(JOY.UP);
-    for (let frame = 1; frame <= 240; frame++) {
-      car.step(JOY.UP);
-      cam.follow(car.px, car.py);
-      await vice.runTo(C['frame.publish']);
-      latest = Math.max(latest, ((await vice.registers()).LIN - 250 + 312) % 312);
-      await vice.runTo(C.ready);
-      assert.deepEqual(await camera(vice, C), [cam.x, cam.y], `the window after ${frame} frames`);
-    }
-    t.diagnostic(`with the tune, the busiest pass was ready ${latest} raster lines after the bottom interrupt, of 312`);
-    assert.equal(await missed() - before, 0, 'no frame was late');
-  });
-});
-
-test('with the car, the panel\'s messages come first, and the credits take turns, in light blue, when there is none', () => {
-  const withCar = assemble('music/car', { defs: { MUSIC: 1 }, include: [TUNES] });
-  const C = withCar.labels;
-  const IN_CAR = 'FIRE: HANDBRAKE. STANDING STILL: GET OUT', ON_FOOT = 'STAND BY A CAR AND PRESS FIRE TO GET IN';
-  const CREDITS = ['MUSIC: TEST TUNE', 'NOBODY (C) 2026 THE TESTS'];
-  const LIGHT_BLUE = 14;
-  const message = (text) => Math.max(200, text.length * 7 + 75); // frames it is up (status.asm)
-  return withProgram(withCar.prg, async (vice) => {
-    await vice.runTo(C.ready);
-    /** Every line the bottom row shows, every 20 frames for `frames`. */
-    const lines = async (frames) => {
-      const seen = [];
-      for (let frame = 0; frame < frames; frame += 20) {
-        await vice.frames(C.ready, 20);
-        const row = (await readPanel(vice))[2];
-        if (seen[seen.length - 1] !== row) seen.push(row);
-      }
-      return seen;
-    };
-    const first = await lines(message(IN_CAR) + 2 * CREDIT_FRAMES + 40);
-    assert.equal(first[0], IN_CAR, 'the message first');
-    assert.deepEqual(new Set(first.slice(1)), new Set(CREDITS), 'then the credits, both, in turn');
-    assert.ok(first.length >= 4, `taking turns: ${first}`);
-    const colours = await vice.read(0xd800 + 23 * 40, 40);
-    assert.deepEqual([...colours].map((c) => c & 15), Array(40).fill(LIGHT_BLUE));
-    await vice.joystick(JOY.FIRE); // with the stick centred and the car standing: out
-    await vice.frames(C.ready, 2);
-    await vice.joystick(0);
-    assert.equal((await vice.read(C['foot.on'], 1))[0], 1, 'the player is out of the car');
-    const after = await lines(message(ON_FOOT) + 2 * CREDIT_FRAMES + 40);
-    assert.equal(after[0], ON_FOOT, 'on foot: its message, and then ...');
-    assert.deepEqual(new Set(after.slice(1)), new Set(CREDITS), '... the credits again');
-  });
-});
-
 test('the panel credits the tune: title, then author and copyright, then the hint, and round again', () =>
   withProgram(game.prg, async (vice) => {
     await vice.runTo(G.ready);
@@ -184,6 +119,34 @@ test('the title screen credits both tunes, says the build is not for distributio
     assert.equal(end, 0x0801 + title.bytes.length - 2, 'BASIC knows where the program ends');
     assert.ok(end > 0xa000 && end <= 0xd000, `the program ends at ${end.toString(16)}, past a000 and before d000`);
   }));
+
+test('with the game itself, which has no tune: the title says so, and fire starts the game, moved into place whole', () => {
+  // The game as `make music` carries it: with its code at $e000, where a tune would play from.
+  const dir = `${OUT}/music-plain`;
+  const plain = assemble('music-plain/sleazeburg64-ingame', { defs: { SPAWN: 0 } });
+  execFileSync('cp', [plain.labelFile, `${dir}/labels-ingame.txt`], { cwd: ROOT });
+  const wrapped = assemble('music-plain/title', { source: 'src/title.asm', include: [dir, TUNES] });
+  const P = plain.labels, W = wrapped.labels;
+  return withProgram(wrapped.prg, async (vice) => {
+    await vice.runTo(W.wait_fire);
+    const rows = screenText(await vice.read(TITLE_SCREEN, 1000)).match(/.{40}/g).map((row) => row.trim());
+    assert.deepEqual(rows.filter((row) => row !== '').slice(4, 6), ['THEN THE GAME, WHICH HAS NO ROOM', 'FOR A TUNE OF ITS OWN']);
+    await vice.joystick(JOY.FIRE);
+    await vice.runTo(P.start);
+    await vice.joystick(0);
+    const codeSize = P.code_end - 0x080d;
+    assert.ok((await vice.read(0x080d, codeSize)).equals(plain.bytes.subarray(2 + 12, 2 + 12 + codeSize)), 'code');
+    const dataAt = 2 + P.charset - 0x0801;
+    assert.ok((await vice.read(P.charset, P.program_end - P.charset)).equals(plain.bytes.subarray(dataAt)), 'data');
+    await vice.runTo(P.ready);
+    // (Not the whole of it: the panel's values live there too.) A routine of it, byte for byte.
+    const at = (label) => 2 + P.extra_image - 0x0801 + (P[label] - P.EXTRA_CODE);
+    assert.ok(P['status.say'] >= 0xe000 && P['status.update'] > P['status.say'], 'the panel runs from $e000');
+    const say = plain.bytes.subarray(at('status.say'), at('status.update'));
+    assert.ok((await vice.read(P['status.say'], say.length)).equals(say), 'its code at $e000, copied up');
+    assert.equal((await readPanel(vice))[0], '$000000 HEAT ***** HP????? CAR??? AMMO12', 'and the game runs it');
+  });
+});
 
 test('the title screen waits for fire while its tune runs from interrupts: directions do not start the game', () =>
   withProgram(title.prg, async (vice) => {

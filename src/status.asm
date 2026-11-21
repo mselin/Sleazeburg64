@@ -21,14 +21,12 @@
 ;
 ; Row 3: the latest message, in white, for max(4, 0.14 s a character + 1.5) seconds; one longer than 40
 ; characters scrolls left after a second and stops at its end. The design scrolls 70 pixels a second; here it
-; is a character every 6 frames, 67. Otherwise ELECTION FUND: $ and the money / $25000, in dark grey; or in a
-; music build the tune's credits in turn, in light blue, as the radio is shown in the browser game.
+; is a character every 6 frames, 67. Otherwise ELECTION FUND: $ and the money / $25000, in dark grey.
 ;
 ; Nothing in the game changes the money, heat, health or ammo yet. What does will set `changed`, and row 1 is
 ; drawn again in the next frame that has the time.
 ;
-; Room. It is spread over what was left: what runs most and row 3 after the water (MORE_CODE), the rest of
-; row 1 below the screens, the election fund with Big Honk (HIGH_CODE), and the text at the top (TOP_CODE).
+; It runs from EXTRA_CODE ($e000), with its variables that have values (the rest are full with sixteen cars).
 ;
 ; The time. Only what changed is written, and only in a frame that does not move the screen a character,
 ; which has none to spare (as for the water and Big Honk): the frame after one never moves it. In a frame of
@@ -52,11 +50,8 @@ BAR_FULL        = BAR_FIRST + 7
 FLASH_FRAMES    = 12                    ; the stars: four times a second, to within a frame in eight
 SCROLL_START    = 50                    ; a long message waits a second ...
 SCROLL_FRAMES   = 6                     ; ... then moves a character every 6 frames
-.if MUSIC != 0
-CREDIT_FRAMES   = tune.CREDIT_FRAMES    ; each credit four seconds
-.endif
 
-                .section status_top     ; (the variables are full in a build with sixteen cars)
+                .section status         ; (the variables are full in a build with sixteen cars)
 money           .fill 3                 ; binary-coded decimal, the lowest two digits first
 heat            .byte ?                 ; 0-5
 hp              .byte ?                 ; the player's health, 0-100
@@ -85,7 +80,7 @@ cells           = sum
 ink             = sum + 1
 lead            = sum                   ; printing the money (whose byte is in value): 0 while its digits are leading zeros
 
-                .section status_more
+                .section status
 ; The start of a game: nothing, full health, 12 bullets; and the first message.
 init            lda #0
                 ldx #2
@@ -107,12 +102,6 @@ init            lda #0
                 sta flash_wait
                 lda #$ff                ; row 3's colour memory: not yet any colour
                 sta row3_ink
-.if MUSIC != 0
-                lda #CREDIT_FRAMES
-                sta tune.credit_wait
-                lda #0
-                sta tune.credit_line
-.endif
                 ldx #39
 -               lda row2_text,x
                 sta PANEL + ROW2,x
@@ -125,8 +114,6 @@ init            lda #0
                 jsr say
                 jmp draw_row3
 
-                .send
-                .section status_top
 ; Show message X in row 3, from the next frame that has the time.
 say             lda msg_lo,x
                 sta text
@@ -146,9 +133,7 @@ say             lda msg_lo,x
                 sta redraw3
                 rts
 
-                .send
-                .section status_more
-; Once a frame, after the window has moved: count the message's time and scrolling, the credits and the
+; Once a frame, after the window has moved: count the message's time and scrolling, and the
 ; flashing, then write what has changed if this frame has the time.
 update          lda left
                 ora left + 1
@@ -174,18 +159,6 @@ update          lda left
                 lda #1
                 sta redraw3
 timed
-.if MUSIC != 0 && AUTOPILOT == 0        ; (the emulator test compares screenshots, so the panel keeps still)
-                dec tune.credit_wait
-                bne +
-                lda #CREDIT_FRAMES
-                sta tune.credit_wait
-                lda tune.credit_line
-                eor #1
-                sta tune.credit_line
-                lda #1
-                sta redraw3                ; (shown only once no message is)
-+
-.endif
                 lda heat
                 beq +
                 dec flash_wait
@@ -219,8 +192,6 @@ timed
                 jmp draw_row3
 written         rts
 
-                .send
-                .section status_low
 ; ---------- row 1 ----------
 
 draw_row1       ldx #39
@@ -395,11 +366,9 @@ put             sta PANEL,x
                 bne -
                 rts
 
-                .send
-                .section status_more
 ; ---------- row 3 ----------
 
-; The message, scrolled as far as it has; or with none, the election fund, or a credit.
+; The message, scrolled as far as it has; or with none, the election fund.
 draw_row3       lda #0
                 sta redraw3
                 lda left
@@ -421,26 +390,6 @@ from            lda $ffff,x             ; (the address is written above)
                 dex
                 bpl from
                 rts
-                .send
-                .section status_high
-.if MUSIC != 0
-idle            lda #LIGHT_BLUE
-                jsr row3_colour
-                ldx #39
-                lda tune.credit_line
-                bne +
--               lda tune.credit_title,x
-                sta PANEL + ROW3,x
-                dex
-                bpl -
-                rts
-+
--               lda tune.credit_by,x
-                sta PANEL + ROW3,x
-                dex
-                bpl -
-                rts
-.else
 idle            lda #DARK_GREY
                 jsr row3_colour
                 ldx #0
@@ -493,10 +442,7 @@ digit           tay
                 inx
                 sta lead                ; not 0
 +               rts
-.endif
 
-                .send
-                .section status_more
 ; Row 3's colour memory to A, if it is not that already.
 row3_colour     cmp row3_ink
                 beq +
@@ -507,8 +453,6 @@ row3_colour     cmp row3_ink
                 bpl -
 +               rts
 
-                .send
-                .section status_top
 ; ---------- what it says ----------
 
                 .enc "screen"
@@ -518,10 +462,8 @@ row1_colours    .byte ROW1_INKS
 weapon_text     .text "  fist", " knife"
 weapon_ink      .byte [LIGHT_RED] x 6, [LIGHT_GREY] x 6
 row2_text       .text format("%-40s", 'no job. follow the arrow to a "j".')
-.if MUSIC == 0
 fund_text       .text "election fund: $"
 goal_text       .text " / $25000"
-.endif
 
 ; The messages: each padded to at least 40 characters, how far it can scroll, and how long it stays.
 MSG_CAR         = 0

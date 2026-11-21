@@ -9,7 +9,8 @@
 ; Assemble with 64tass (see the Makefile). Build options, set with -D on the command line:
 ;   START_X, START_Y   the tile in the top left corner of the view at start; the car starts in its middle
 ;   AUTOPILOT          1 makes the car drive itself for a while, for the emulator test
-;   MUSIC              1 plays a tune during the game: a test build, see music/README.md
+;   MUSIC              1 plays a tune in the city viewer: a test build, see music/README.md. The game has
+;                      no room for one: its code runs from $e000, where the tune plays from
 ;   VIEWER             1 has no car and no traffic: the stick moves the view itself, as in milestone 1b, for
 ;                      testing scrolling
 ;   CARS               how many traffic cars at most (traffic.asm)
@@ -28,6 +29,7 @@ VIEWER          = 0
 HONK            = 1
                 .endweak
 WITH_HONK       = VIEWER == 0 && HONK != 0
+                .cerror MUSIC != 0 && VIEWER == 0, "only the city viewer can have a tune: the game's code is at $e000"
 .if MUSIC != 0
                 .include "tune-ingame.inc"
 .endif
@@ -50,6 +52,7 @@ SQUARES2        = $bc00                 ; and the same moved along, for the othe
 HIGH_CODE       = $b2a3                 ; code that runs from just above the colour routines,
 MORE_CODE       = $cd80                 ; from after the screen copies,
 TOP_CODE        = $f300                 ; and from the top of memory: all copied there at start
+EXTRA_CODE      = $e000                 ; and from under the KERNAL ROM, which is switched out, up to TOP_CODE
 PLAYER_FRAMES   = $2580                 ; the player on foot's sprite, made at start: 42 frames, up to the screens
 
 ; ---------- zero page ----------
@@ -92,6 +95,7 @@ start           sei
                 #raise high_image, HIGH_CODE, HIGH_PAGES   ; the code that runs from higher up, from where it
                 #raise more_image, MORE_CODE, MORE_PAGES   ; waits, before anything is written over it there
                 #raise top_image, TOP_CODE, TOP_PAGES
+                #raise extra_image, EXTRA_CODE, EXTRA_PAGES
 .endif
                 lda #<ignore            ; RESTORE does nothing (after the copy, which can run over the vectors)
                 sta $fffa
@@ -412,7 +416,6 @@ char_of         lda cam_hi,x
                 .include "sprites.asm"
 .if VIEWER == 0
                 .include "car.asm"
-                .dsection status_low
 .endif
 .if MUSIC != 0 && VIEWER != 0
                 .include "music.asm"
@@ -463,40 +466,37 @@ high_image
                 .include "honk.asm"
 .endif
                 .include "foot.asm"
-                .dsection status_high
-                .dsection car_high
 high_end
                 .endlogical
 more_image
                 .logical MORE_CODE
                 .include "water.asm"
-                .include "status.asm"
-                .dsection status_more
 more_end
                 .endlogical
 top_image
                 .logical TOP_CODE
                 .include "traffic.asm"
-.if MUSIC != 0
-                .include "music.asm"    ; (and the tune's code, in a music build)
-.endif
-                .dsection status_top
-                .dsection car_top
 top_end
+                .endlogical
+extra_image
+                .logical EXTRA_CODE
+                .include "status.asm"
+                .dsection status
+                .dsection car_extra
+extra_end
                 .endlogical
 HIGH_PAGES      = (high_end - HIGH_CODE + 255) / 256
 MORE_PAGES      = (more_end - MORE_CODE + 255) / 256
 TOP_PAGES       = (top_end - TOP_CODE + 255) / 256
+EXTRA_PAGES     = (extra_end - EXTRA_CODE + 255) / 256
                 .cerror HIGH_CODE < video.COLOUR_01 + video.COLOUR_SIZE, "HIGH_CODE is in a colour routine"
                 .cerror high_end > SQUARES2, "the code at HIGH_CODE runs into the tables"   ; (the rest of its last
                                         ; page is copied over them too, before car.init makes them)
                 .cerror top_end > $fffa, "the code at TOP_CODE runs into the interrupt vectors"
                 .cerror MORE_CODE < video.COPIES + 18 * video.COPY_SIZE, "MORE_CODE is in the screen copies"
                 .cerror more_end > $d000, "the code at MORE_CODE runs into the I/O area"
+                .cerror EXTRA_CODE + EXTRA_PAGES * 256 > TOP_CODE, "the code at EXTRA_CODE runs into TOP_CODE"
                 .cerror * > HIGH_CODE, "what waits after the map reaches where it is copied to"
-.if MUSIC != 0
-                .cerror ingame_load + (tune.PAGES + 1) * 256 > TOP_CODE, "the tune runs into TOP_CODE"
-.endif
                 .include "frames.asm"   ; runs once, from here
                 .dsection once          ; and so does car.init, before video.init writes over this
 .endif

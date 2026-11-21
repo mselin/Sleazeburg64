@@ -101,11 +101,11 @@ make test-music
 
 `make music` writes two more programs, for trying music on your own machine:
 
-- `build/sleazeburg64-music.prg`: a title screen playing *Skate or Die (intro)*, then, on fire, the city
-  viewer playing *Nemesis the Warlock*.
-- `build/sleazeburg64-ingame.prg`: the city viewer with its tune and no title screen.
+- `build/sleazeburg64-music.prg`: a title screen playing *Skate or Die (intro)*, then, on fire, the game.
+- `build/sleazeburg64-ingame.prg`: the game it starts, on its own. It used to play *Nemesis the Warlock*; it
+  has no room for a tune any more, as its code now runs from `$e000`, where the tune played from.
 
-Both tunes are by Rob Hubbard and belong to their copyright holders. They are **not in this repository**: the
+The tunes are by Rob Hubbard and belong to their copyright holders. They are **not in this repository**: the
 build fetches them from the [High Voltage SID Collection](https://www.hvsc.c64.org) into `.cache/`, and the
 programs that contain them are not to be published. Each tune's title, author and copyright is recorded in
 [music/tunes.json](music/tunes.json) and shown on screen while it plays. [music/README.md](music/README.md)
@@ -277,14 +277,15 @@ screen of its own, which the split switches to for its three rows.
 | `$4700` | City map |
 | `$6d00` | Made at start: the fourth colour memory routine |
 | `$8000` | Made at start: the other three colour memory routines |
-| `$b2a3` | Copied at start: code there is no room for lower down (Big Honk, the player on foot, the election fund, the tyres) |
+| `$b2a3` | Copied at start: code there is no room for lower down (Big Honk, the player on foot) |
 | `$bc00` | Made at start: quarter squares moved along, the second half of a multiplication |
 | `$c000` | Made at start: quarter squares for multiplying, then the 18 screen copies |
-| `$cd80` | Copied at start: more code (the water, the status panel's timing and its bottom row) |
-| `$f300` | Copied at start: more code (the traffic), and the status panel's text, up to the interrupt vectors |
+| `$cd80` | Copied at start: more code (the water) |
+| `$e000` | Copied at start: more code (the status panel, the steering limit), under the KERNAL ROM, which is out |
+| `$f300` | Copied at start: more code (the traffic), up to the interrupt vectors |
 
 The video chip sees only the first 16K, and not `$1000`–`$1fff`, so sprites have to be there, and code that
-was there has moved up to make room. What runs from `$b2a3`, `$cd80` and `$f300`, the code that makes the player's
+was there has moved up to make room. What runs from `$b2a3`, `$cd80`, `$e000` and `$f300`, the code that makes the player's
 frames and the twelve frames it makes them from all wait after the map in the program file. At start the
 code is copied up and the frames are made, before the colour memory routines are written over where they
 waited.
