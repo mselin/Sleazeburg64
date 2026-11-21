@@ -145,6 +145,7 @@ mul             .macro v, s, to         ; to = v * s / 256, rounded towards 0, f
                 #mov16 mr, \to
                 .endm
 
+                .section once           ; runs once, from where it waits in the program file (main.asm)
 ; Build the quarter square tables: SQUARES[n] = n * n / 4, rounded down, for n = 0..511, low bytes then high
 ; bytes, and SQUARES2[n] = SQUARES[|n - 255|], so that a * b = SQUARES[a + b] - SQUARES2[b - a + 255].
 init            lda #0
@@ -213,6 +214,7 @@ init            lda #0
                 inx
                 bne -
                 rts
+                .send
 
 ; Put the car at pixel (A low, X high) across and (Y low, sum high) down, facing east, standing still.
 ; The tests do the same through memory, then set `inside` to 1.
@@ -637,8 +639,8 @@ hold_turn       tax                     ; nf = grip * most_turn, by quarter squa
                 .section car_top
 ; 4 * 10430 / the middle of each sixteenth, no more than 255 (which never limits: the turn is slower there).
 most_turn
-.for s = 0, s < 65, s += 1
-                .byte 4 * 10430.378 / (16 * s + 8) + 0.5 > 255 ? 255 : int(4 * 10430.378 / (16 * s + 8) + 0.5)
+.for n = 0, n < 65, n += 1
+                .byte 4 * 10430.378 / (16 * n + 8) + 0.5 > 255 ? 255 : int(4 * 10430.378 / (16 * n + 8) + 0.5)
 .next
                 .send
 

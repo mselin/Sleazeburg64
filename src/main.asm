@@ -498,5 +498,6 @@ TOP_PAGES       = (top_end - TOP_CODE + 255) / 256
                 .cerror ingame_load + (tune.PAGES + 1) * 256 > TOP_CODE, "the tune runs into TOP_CODE"
 .endif
                 .include "frames.asm"   ; runs once, from here
+                .dsection once          ; and so does car.init, before video.init writes over this
 .endif
 program_end

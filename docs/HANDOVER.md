@@ -75,7 +75,8 @@ A briefing for whoever picks this project up next, person or assistant. Written 
   - Below the screens (`$0c40`-`$257f`) there are about 170 bytes of code left. From `$2580` to the screens
     are the player on foot's 42 sprite frames, made at start.
   - The status panel took what was left, spread over four places (64tass sections, `status_low` and so on).
-    Below the screens about 10 bytes are left, or 3 in a music build; `HIGH_CODE` (`$b2a3`-`$bbff`, starting
+    Below the screens about 140 bytes are left, or 135 in a music build (`car.init`, which makes the
+    multiplication tables, now runs once from where it waits in the program file, as `src/frames.asm` does); `HIGH_CODE` (`$b2a3`-`$bbff`, starting
     right after the third colour routine: Big Honk, the player on foot, the election fund, the tyres' grip and
     the steering limit) about 15, or 90; `MORE_CODE` (`$cd80`-`$cfff`, after the screen copies: the water and
     most of the panel) about 45, or 20; and `TOP_CODE` (`$f300`-`$fff9`: the traffic, the panel's text, the
