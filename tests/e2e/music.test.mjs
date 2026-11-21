@@ -137,7 +137,7 @@ test('with the game itself, which has no tune: the title says so, and fire start
     const codeSize = P.code_end - 0x080d;
     assert.ok((await vice.read(0x080d, codeSize)).equals(plain.bytes.subarray(2 + 12, 2 + 12 + codeSize)), 'code');
     const dataAt = 2 + P.charset - 0x0801;
-    assert.ok((await vice.read(P.charset, P.program_end - P.charset)).equals(plain.bytes.subarray(dataAt)), 'data');
+    assert.ok((await vice.read(P.charset, P.file_end - P.charset)).equals(plain.bytes.subarray(dataAt)), 'data, the waiting part packed');
     await vice.runTo(P.ready);
     // (Not the whole of it: the panel's values live there too.) A routine of it, byte for byte.
     const at = (label) => 2 + P.extra_image - 0x0801 + (P[label] - P.EXTRA_CODE);
@@ -180,7 +180,7 @@ test('fire on the title screen starts the game, moved into place whole and playi
     assert.ok((await vice.read(0x080d, codeSize)).equals(game.bytes.subarray(2 + 12, 2 + 12 + codeSize)), 'code');
     const dataAt = 2 + G.charset - 0x0801;
     // The tune's waiting copy is part of the data and nothing writes to it, so it compares too.
-    assert.ok((await vice.read(G.charset, G.program_end - G.charset)).equals(game.bytes.subarray(dataAt)), 'data');
+    assert.ok((await vice.read(G.charset, G.file_end - G.charset)).equals(game.bytes.subarray(dataAt)), 'data');
     assert.ok((await vice.read(G.charset, 2048)).equals(assets.chars));
     assert.equal((await vice.read(0xd01a, 1))[0] & 15, 0, 'the title tune\'s raster interrupt is off');
     assert.equal((await vice.read(0xdd0e, 1))[0] & 1, 1, 'the title tune did have its timer going');

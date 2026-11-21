@@ -35,10 +35,7 @@ LOAD            = $0801
 GAME_CODE       = $080d                                 ; after the game's BASIC line, which is not needed
 GAME_FILE       = "sleazeburg64-ingame.prg"
 CODE_SIZE       = game.code_end - GAME_CODE             ; the game is code, a gap, then data:
-DATA_SIZE       = game.program_end - game.charset       ; the gap is not carried, and the map is carried packed
-BEFORE_MAP      = game.city_map - game.charset
-AFTER_MAP       = game.program_end - game.map_end
-MAP_RUN         = 255                                   ; in the packed map: a run (tools/assets.mjs)
+DATA_SIZE       = game.file_end - game.charset          ; the gap is not carried (the game unpacks the rest)
 LOAD_LIMIT      = $d000                                 ; LOAD stops at the I/O area
 PAL_FLAG        = $02a6         ; set by the KERNAL at power-on: 1 on a PAL machine. The tune reads it too.
 CIA1_DDR_A      = $dc02
@@ -193,17 +190,12 @@ ntsc_note       .text "ntsc machine: written for pal"
 
 ; ---------- the game, waiting to be moved down ----------
 image_code      .binary GAME_FILE, 2 + GAME_CODE - LOAD, CODE_SIZE
-image_data      .binary GAME_FILE, 2 + game.charset - LOAD, BEFORE_MAP
-image_map       .binary "map-packed.bin"
-image_rest      .binary GAME_FILE, 2 + game.map_end - LOAD, AFTER_MAP
-                ; The copies run upwards, which is safe only when each part moves down in memory. The map
-                ; is unpacked into place upwards, and ends before its packed copy starts.
+image_data      .binary GAME_FILE, 2 + game.charset - LOAD, DATA_SIZE
+                ; The copies run upwards, which is safe only when each part moves down in memory.
                 .cerror image_data < game.charset, "the game's data would be overwritten while it is moved"
-                .cerror image_map < game.map_end, "the packed map would be overwritten while it is unpacked"
-                .cerror image_rest < game.map_end, "the game's data would be overwritten while it is moved"
 
 ; Runs with the ROMs out (the title screen switches them before it jumps here), so it can be under BASIC's.
-move_game       .cerror * < game.program_end, "this routine would overwrite itself"
+move_game       .cerror * < game.file_end, "this routine would overwrite itself"
                 ldx #<image_code
                 ldy #>image_code
                 stx from
@@ -223,62 +215,10 @@ move_game       .cerror * < game.program_end, "this routine would overwrite itse
                 ldy #>game.charset
                 stx to
                 sty to + 1
-                ldx #<BEFORE_MAP
-                ldy #>BEFORE_MAP
-                jsr copy
-                ldx #<image_map
-                ldy #>image_map
-                stx from
-                sty from + 1
-                ldx #<game.city_map
-                ldy #>game.city_map
-                stx to
-                sty to + 1
-                jsr unpack
-                ldx #<image_rest
-                ldy #>image_rest
-                stx from
-                sty from + 1
-                ldx #<game.map_end
-                ldy #>game.map_end
-                stx to
-                sty to + 1
-                ldx #<AFTER_MAP
-                ldy #>AFTER_MAP
+                ldx #<DATA_SIZE
+                ldy #>DATA_SIZE
                 jsr copy
                 jmp game.start
-
-; Unpack the map from (from) to (to), up to the end of the map.
-unpack          ldy #0
--               lda to + 1
-                cmp #>game.map_end
-                bne +
-                lda to
-                cmp #<game.map_end
-                beq unpacked
-+               jsr get
-                cmp #MAP_RUN
-                bne one
-                jsr get                 ; how many
-                tax
-                jsr get                 ; of which tile
--               jsr put
-                dex
-                bne -
-                beq --
-one             jsr put
-                jmp --
-unpacked        rts
-get             lda (from),y
-                inc from
-                bne +
-                inc from + 1
-+               rts
-put             sta (to),y
-                inc to
-                bne +
-                inc to + 1
-+               rts
 
 ; Copy Y * 256 + X bytes from (from) to (to), lowest address first.
 copy            stx last

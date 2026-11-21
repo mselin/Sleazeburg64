@@ -33,7 +33,9 @@ You need [64tass](https://tass64.sourceforge.net/), Node.js 20 or later, and `ma
 make
 ```
 
-That writes `build/sleazeburg64.prg`.
+That writes `build/sleazeburg64.prg`. The map and the code that start copies up are carried packed in it
+(`tools/build-game.sh` assembles the game, packs that part with `tools/pack.mjs`, and assembles it again around
+the packed bytes), which makes the file about 25K rather than 33K; the game unpacks it as it starts.
 
 ## Run
 
@@ -126,6 +128,7 @@ game started directly, and that both tunes produce sound. It cannot judge how th
 | `src/foot.asm` | The player on foot: walking, swimming, and getting in and out of cars. |
 | `src/water.asm` | Water: what it does to the player's car, flooding, and a flooded car sinking. |
 | `src/frames.asm` | Makes the player on foot's 42 sprite frames from the twelve in the program file, at start. |
+| `src/waiting.asm` | What waits after the tiles, packed: the map, the code copied up at start, the player's frames. |
 | `src/digits.asm` | Tables for the city viewer's readout. |
 | `src/irq.asm` | The raster interrupts: the split under the city, and putting each frame in place. |
 | `src/video.asm` | Drawing and scrolling the city: the two screens and colour memory. |
@@ -137,6 +140,7 @@ game started directly, and that both tunes produce sound. It cannot judge how th
 | `src/c64.inc` | Hardware addresses and colour names. |
 | `tools/city.mjs` | The city generator, identical to the browser game's. |
 | `tools/assets.mjs` | Builds the character set, tile definitions, map and the sprites: the car, the player and Big Honk. |
+| `tools/pack.mjs`, `tools/build-game.sh` | Packs what waits after the tiles, and builds the game around it. |
 | `tools/sid.mjs` | Fetches and checks a tune for a music test build, and writes its addresses and credits. |
 | `tools/emulator-test.sh` | Runs the program in VICE and takes screenshots. |
 | `tools/music-test.sh` | The same for the music test builds, with sound recordings. |
@@ -286,14 +290,15 @@ screen of its own, which the split switches to for its three rows.
 
 The video chip sees only the first 16K, and not `$1000`–`$1fff`, so sprites have to be there, and code that
 was there has moved up to make room. What runs from `$b2a3`, `$cd80`, `$e000` and `$f300`, the code that makes the player's
-frames and the twelve frames it makes them from all wait after the map in the program file. At start the
-code is copied up and the frames are made, before the colour memory routines are written over where they
-waited.
+frames and the twelve frames it makes them from all wait after the map in the program file, packed with the
+map (`src/waiting.asm`). At start the game moves the packed bytes up to `$a000` and unpacks them in place,
+then the code is copied up and the frames are made, before the colour memory routines are written over where
+they waited.
 
 The program switches BASIC and the KERNAL out and does not call them.
 
-In a music test build the game's tune follows the map, ahead of the code that waits there, and is copied to
-`$e000`–`$f2ff` at start, before the fourth colour memory routine is written over where it waited; its player
+In the city viewer's music test build its tune follows the map and is copied to
+`$e000`–`$f2ff` at start (the game uses that for code, so it has no tune), before the fourth colour memory routine is written over where it waited; its player
 also uses zero page `$e0`–`$e3`. The title tune sits at `$1000`–`$5150`, which is why the title screen is a
 separate program: its own code comes before the tune, the game waits after it, and the title screen moves
 the game into place when it hands over. The file runs past `$a000`, the end of BASIC's memory, which LOAD

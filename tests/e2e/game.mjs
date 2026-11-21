@@ -2,9 +2,10 @@
 // What the end-to-end tests share: assembling a build to test, and a model of what the screen ought to show,
 // worked out from the asset files independently of the 6502 code that draws it.
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { ROOT, Vice, readLabels } from './vice.mjs';
+import { pack, region } from '../../tools/pack.mjs';
 
 export const SCREEN_A = 0x3000;
 export const SCREEN_B = 0x3400;
@@ -71,10 +72,24 @@ export function assemble(name, { source = 'src/main.asm', defs = {}, include = [
   const args = [...ASMFLAGS];
   for (const dir of [...include, 'src', 'build']) args.push('-I', dir);
   for (const [key, value] of Object.entries(defs)) args.push('-D', `${key}=${value}`);
-  execFileSync('64tass', [...args, '-l', labelFile, '--vice-labels', '-l', viceLabelFile, '-o', prg, source],
+  const run = (extra) => execFileSync('64tass', [...args, ...extra, '-l', labelFile, '--vice-labels', '-l', viceLabelFile, '-o', prg, source],
     { cwd: ROOT, stdio: ['ignore', 'inherit', 'inherit'] });
-  const labels = { ...readLabels(join(ROOT, labelFile)), ...readLabels(join(ROOT, viceLabelFile)) };
-  return { prg, labelFile, labels, bytes: readFileSync(join(ROOT, prg)) };
+  run([]);
+  let labels = { ...readLabels(join(ROOT, labelFile)), ...readLabels(join(ROOT, viceLabelFile)) };
+  // The game is built packed, as the Makefile builds it (tools/build-game.sh): once as it runs, then again
+  // carrying what waits after the tiles packed. `unpacked` is the first, for tests of the unpacking.
+  let unpacked = null;
+  if (source === 'src/main.asm' && labels.high_image !== undefined && !('PACKED' in defs)) {
+    unpacked = readFileSync(join(ROOT, prg));
+    const packFile = `${name.split('/').pop()}.packed.bin`;
+    writeFileSync(join(ROOT, OUT, dirname(name), packFile), pack(region(unpacked, labels.city_map, labels.program_end)));
+    run(['-I', join(OUT, dirname(name)), '-D', 'PACKED=1', '-D', `PACK_FILE="${packFile}"`]);
+    const before = labels;
+    labels = { ...readLabels(join(ROOT, labelFile)), ...readLabels(join(ROOT, viceLabelFile)) };
+    for (const [key, value] of Object.entries(before))
+      if (!/^(packed_|PACK|file_end)/.test(key) && labels[key] !== value) throw new Error(`${name}: ${key} moved when packed`);
+  }
+  return { prg, labelFile, labels, bytes: readFileSync(join(ROOT, prg)), unpacked };
 }
 
 /** Run `body(vice)` against a freshly started program, and always shut VICE down afterwards. */

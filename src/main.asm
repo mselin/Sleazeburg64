@@ -16,6 +16,7 @@
 ;   CARS               how many traffic cars at most (traffic.asm)
 ;   SPAWN              0: no traffic appears by itself, for tests that place their own
 ;   HONK               0 leaves Big Honk out
+;   PACKED             1 carries the map and the code that is copied up packed, from PACK_FILE (the Makefile)
 
         .cpu "6502"
         .include "c64.inc"
@@ -27,6 +28,8 @@ AUTOPILOT       = 0
 MUSIC           = 0
 VIEWER          = 0
 HONK            = 1
+PACKED          = 0
+PACK_FILE       = "packed.bin"
                 .endweak
 WITH_HONK       = VIEWER == 0 && HONK != 0
                 .cerror MUSIC != 0 && VIEWER == 0, "only the city viewer can have a tune: the game's code is at $e000"
@@ -91,6 +94,13 @@ start           sei
                 lda CIA2_IRQ
                 lda #$35                ; BASIC and KERNAL out, I/O in: the program owns the machine
                 sta CPU_PORT
+.if VIEWER == 0
+.if PACKED != 0
+                jsr unpack              ; first: everything after the tiles is still packed
+.else
+                bit unpack              ; (the same size: both builds put everything in the same place)
+.endif
+.endif
 .if VIEWER == 0
                 #raise high_image, HIGH_CODE, HIGH_PAGES   ; the code that runs from higher up, from where it
                 #raise more_image, MORE_CODE, MORE_PAGES   ; waits, before anything is written over it there
@@ -197,6 +207,85 @@ raise           .macro image, home, pages
                 jsr copy_up
 +
                 .endm
+; Move the packed part of the program file up out of the way, to PACK_HOME, and unpack it to where it belongs,
+; from city_map up (tools/pack.mjs says how). It runs once, before anything else is set up, so it can use any
+; of zero page; it takes about half a second.
+unpack          .block
+src             = $f8                   ; zero page, as nothing else uses it yet
+dst             = $fa
+ref             = $fc
+                lda #<packed_start      ; the move: whole pages, then the rest (they do not overlap)
+                sta src
+                lda #>packed_start
+                sta src + 1
+                lda #<PACK_HOME
+                sta dst
+                lda #>PACK_HOME
+                sta dst + 1
+                ldy #0
+                ldx #>(packed_end - packed_start + 255)
+-               lda (src),y
+                sta (dst),y
+                iny
+                bne -
+                inc src + 1
+                inc dst + 1
+                dex
+                bne -
+                lda #<PACK_HOME         ; the unpacking
+                sta src
+                lda #>PACK_HOME
+                sta src + 1
+                lda #<city_map
+                sta dst
+                lda #>city_map
+                sta dst + 1
+next            jsr get
+                cmp #$ff
+                beq done
+                cmp #$80
+                bcs match
+                tax                     ; n + 1 bytes as they are
+                inx
+-               jsr get
+                jsr put
+                dex
+                bne -
+                beq next
+match           sbc #$80 - 3            ; (C is set) n - $80 + 3 bytes from earlier
+                tax
+                jsr get
+                sta ref
+                jsr get
+                sta ref + 1
+                sec
+                lda dst
+                sbc ref
+                sta ref
+                lda dst + 1
+                sbc ref + 1
+                sta ref + 1
+-               lda (ref),y
+                jsr put
+                inc ref
+                bne +
+                inc ref + 1
++               dex
+                bne -
+                beq next
+done            rts
+get             lda (src),y
+                inc src
+                bne +
+                inc src + 1
++               rts
+put             sta (dst),y
+                inc dst
+                bne +
+                inc dst + 1
++               rts
+                .bend
+
 copy_up         .block
                 ldy #0
 from            lda $ffff,y             ; (both addresses are written by raise)
@@ -447,57 +536,27 @@ tile_br         .binary "tiles.bin", 768, 256
 char_colour     .binary "tiles.bin", 1024, 256  ; ... the colour of each character
 tile_kind       .binary "tiles.bin", 1280, 256  ; ... what each tile is to a car ...
 tile_colour     .binary "tiles.bin", 1536, 256  ; ... and its colour, for colour memory
-city_map        .binary "map.bin"               ; one tile number per tile, row by row
-map_end
-.if MUSIC != 0
-; The tune waits here and is copied to the address it was written for when the program starts. Padded with
-; zeroes to a whole page, because the copy works in pages.
-tune_data       .binary "tune-ingame.bin"
-                .fill tune.PAGES * 256 - ingame_size, 0
-                .cerror * > ingame_load, "the program has run into where the tune plays from"
+; What waits after the tiles: the map, and the code start copies up and the frames it makes, which video.init
+; later writes the colour routines over. A packed build (PACKED, tools/pack.mjs) carries it packed in the
+; program file, here, and start unpacks it in place before anything else.
+.if PACKED == 0
+                .include "waiting.asm"
+.else
+packed_start    = *
+                .virtual
+                .include "waiting.asm"  ; (where everything will be, but nothing in the file)
+                .endv
+packed_bytes    .binary PACK_FILE
+packed_end
+PACK_HOME       = $a000                 ; where start moves it to unpack it: clear of where it unpacks to
+                .cerror program_end > PACK_HOME, "what is unpacked runs into the packed copy"
+                .cerror PACK_HOME + (packed_end - packed_start) > MORE_CODE, "the packed copy runs into MORE_CODE"
+                .cerror packed_end > PACK_HOME, "the packed data would be overwritten as it is moved"
+                .cerror * - packed_start != size(packed_bytes), "the packed data is not all there"
 .endif
-.if VIEWER == 0
-; Code that runs from higher up, where there is room: above the colour routines (HIGH_CODE) and at the top of
-; memory (TOP_CODE). It waits here, and start copies it up before the colour routines are written over this.
-; Lower down, the video chip needs what room there is for sprites: it sees only the first 16K.
-high_image
-                .logical HIGH_CODE
-.if HONK != 0
-                .include "honk.asm"
+.if PACKED == 0 && VIEWER == 0
+packed_start    = city_map              ; (not packed: unpack is assembled, the same size, but not called)
+packed_end      = city_map
+PACK_HOME       = $a000
 .endif
-                .include "foot.asm"
-high_end
-                .endlogical
-more_image
-                .logical MORE_CODE
-                .include "water.asm"
-more_end
-                .endlogical
-top_image
-                .logical TOP_CODE
-                .include "traffic.asm"
-top_end
-                .endlogical
-extra_image
-                .logical EXTRA_CODE
-                .include "status.asm"
-                .dsection status
-                .dsection car_extra
-extra_end
-                .endlogical
-HIGH_PAGES      = (high_end - HIGH_CODE + 255) / 256
-MORE_PAGES      = (more_end - MORE_CODE + 255) / 256
-TOP_PAGES       = (top_end - TOP_CODE + 255) / 256
-EXTRA_PAGES     = (extra_end - EXTRA_CODE + 255) / 256
-                .cerror HIGH_CODE < video.COLOUR_01 + video.COLOUR_SIZE, "HIGH_CODE is in a colour routine"
-                .cerror high_end > SQUARES2, "the code at HIGH_CODE runs into the tables"   ; (the rest of its last
-                                        ; page is copied over them too, before car.init makes them)
-                .cerror top_end > $fffa, "the code at TOP_CODE runs into the interrupt vectors"
-                .cerror MORE_CODE < video.COPIES + 18 * video.COPY_SIZE, "MORE_CODE is in the screen copies"
-                .cerror more_end > $d000, "the code at MORE_CODE runs into the I/O area"
-                .cerror EXTRA_CODE + EXTRA_PAGES * 256 > TOP_CODE, "the code at EXTRA_CODE runs into TOP_CODE"
-                .cerror * > HIGH_CODE, "what waits after the map reaches where it is copied to"
-                .include "frames.asm"   ; runs once, from here
-                .dsection once          ; and so does car.init, before video.init writes over this
-.endif
-program_end
+file_end                                ; (what the program file holds ends here)

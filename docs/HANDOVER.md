@@ -89,10 +89,17 @@ A briefing for whoever picks this project up next, person or assistant. Written 
     has `$e0` on.
     New variables go in the panel screen's rows 0-20 (`$0400`-`$0747`, `.section bss`), which the video chip
     never shows and `video.init` clears: about 250 bytes are left there, 8 in a build with sixteen cars
-    (which is why the status panel's money, heat, health and ammo are kept with its text, at `TOP_CODE`).
-  - The music title build (`src/title.asm`) has to LOAD below `$d000` and carries the whole game. It now
-    carries the map packed (`build/map-packed.bin`, runs of a tile, from `tools/assets.mjs`) and unpacks it
-    as it moves the game into place, which leaves it about 1.9K. Packing more of the game is the way on.
+    (which is why the status panel's money, heat, health and ammo are kept with its code, at `EXTRA_CODE`).
+  - The program file is packed (the owner's choice, with `$e000`): `tools/build-game.sh` assembles the game,
+    packs what waits after the tiles (`src/waiting.asm`: the map, the code start copies up, the player's
+    frames) with `tools/pack.mjs`, an LZ of literal runs and copies, and assembles it again with
+    `PACKED=1`, where that part is assembled only for its labels and the packed bytes take its place. Both
+    builds must put everything in the same place, which the script and the tests' `assemble` check: so the
+    unpacker is assembled in both, and called only in the packed one. At start it moves the packed bytes to
+    `$a000` and unpacks them from `city_map` up, in about half a second. The game file went from 33K to 25K,
+    and the music title build, which carries it, from 45K to 39K, well below the `$d000` it must LOAD under.
+    The tests build the game packed too (`tests/e2e/game.mjs`), and `tests/e2e/pack.test.mjs` checks the
+    unpacking byte for byte.
 - Sprite data must be where the video chip can see it, in the first 16K and not `$1000`-`$1fff`. Big Honk's
   eight frames are in the character set's characters 184-247 (`$3dc0`), after the tile characters, which
   `tools/assets.mjs` checks; there is no more room there for tiles without moving him. The player on foot's
