@@ -64,6 +64,10 @@ A briefing for whoever picks this project up next, person or assistant. Written 
     and new cars, the sprites 10. In the car's 100, steering takes up to 28 when the car's picture turns a
     step, which is when it looks whether the turn would put it into a wall. Those are the places to look for
     time.
+  - Steering held to the grip (`car.hold_turn`) costs about 85-130 cycles a turning frame, and nothing at full
+    grip below 52 sixteenths of a pixel a frame, where it cannot hold. With it the long drive with traffic
+    (`tests/e2e/traffic.test.mjs`) has a frame ready 311 lines after the bottom interrupt, of 312 (309
+    before): the busiest frames, turning in a frame of colour memory with six cars, have no time left.
   - The status panel (`src/status.asm`) writes only what changed, and only in a frame that does not move the
     screen: row 3 about 8 lines, 16 when its colour changes, and row 1 whole about 25, which also waits for a
     frame with no colour memory. The city viewer keeps the old readout (`src/panel.asm`, `src/digits.asm`).
@@ -71,7 +75,7 @@ A briefing for whoever picks this project up next, person or assistant. Written 
   - Below the screens (`$0c40`-`$257f`) there are about 170 bytes of code left. From `$2580` to the screens
     are the player on foot's 42 sprite frames, made at start.
   - The status panel took what was left, spread over four places (64tass sections, `status_low` and so on).
-    Below the screens about 35 bytes are left, or 30 in a music build; `HIGH_CODE` (`$b2a3`-`$bbff`, starting
+    Below the screens about 10 bytes are left, or 3 in a music build; `HIGH_CODE` (`$b2a3`-`$bbff`, starting
     right after the third colour routine: Big Honk, the player on foot, the election fund, the tyres' grip and
     the steering limit) about 15, or 90; `MORE_CODE` (`$cd80`-`$cfff`, after the screen copies: the water and
     most of the panel) about 45, or 20; and `TOP_CODE` (`$f300`-`$fff9`: the traffic, the panel's text, the

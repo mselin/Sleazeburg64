@@ -83,6 +83,7 @@ sign_of         .byte ?, ?, ?           ; and their signs
 nx              .byte ?, ?, ?
 d16             .byte ?
 held_grip       .byte ?
+ground          .byte ?                 ; the kind of tile under the car's middle this frame
 pos_off         .byte ?                 ; axis_move: 0 or 3 into pos_x, and 0 or 2 into vel_x
 vel_off         .byte ?
 along           .byte ?, ?, ?           ; lead: the three points' offsets along the moving axis ...
@@ -270,7 +271,11 @@ update          tay
                 lda #0
                 rol
                 sta inside
-+
++               jsr here                ; what it is on, for the grip and the drag
+                jsr kind_at
+                sta ground
+                lda #0                  ; the grip: not worked out yet this frame
+                sta held_grip
                 jsr steer
                 jsr trig
                 #mul vel_x, cs, fwd     ; forward = vx cos + vy sin
@@ -365,15 +370,28 @@ steer           lda turn
                 ora fwd + 1
                 bne +
                 rts                     ; standing still: no turning
-+               lda hand                ; what the tyres hold, for the limit below (not on the handbrake)
-                bne +
-                jsr grip_of
-+               lda fwd + 1             ; m = min(|fwd|, TURN_SPEED)
++               jsr grip_of             ; what the tyres hold, from the speed before turning, as the design
+                lda fwd + 1             ; m = min(|fwd|, TURN_SPEED)
                 php                     ; N: going backwards
                 bpl +
                 #neg16 fwd
-+               jsr speed_16ths         ; (for the limit)
-                pha
++               lda fwd + 1             ; the speed in sixteenths of a pixel a frame, at most 64, for the limit
+                cmp #4
+                bcc +
+                lda #64
+                bne ++
++               asl
+                asl
+                asl
+                asl
+                sta tb
+                lda fwd
+                lsr
+                lsr
+                lsr
+                lsr
+                ora tb
++               pha
                 lda fwd
                 cmp #<TURN_SPEED
                 lda fwd + 1
@@ -394,7 +412,12 @@ steer           lda turn
                 pla
                 ldx hand                ; handbrake: a quarter more, and no limit
                 bne +
-                jsr hold_turn           ; else never sharper than the tyres hold
+                ldx held_grip           ; else never sharper than the tyres hold: at full grip that can only
+                cpx #GRIP               ; be from 52 sixteenths up (and this is the busiest part of the
+                bne hold                ; busiest frames)
+                cmp #52
+                bcc ++
+hold            jsr hold_turn
                 jmp ++
 +               #mov16 fwd, mr
                 lsr mr + 1
@@ -477,7 +500,12 @@ drag            lda hand
                 ldx #COAST
                 jsr shrink_nf
 +               jsr water.drag          ; and more drag in the water
-                jsr grass_drag          ; and on grass
+                lda ground              ; and on grass, hard going: nf -= nf >> 6, the design's 0.8 of the
+                cmp #GRASS              ; speed a second
+                bne +
+                ldx #6
+                jsr nf_less
++
                 ldy water.wet           ; no faster than TOP forwards or TOP_BACK backwards, less in the water
                 lda nf + 1
                 bmi backwards
@@ -503,7 +531,10 @@ backwards       lda nf
 limited         rts
 
 ; nl = the sideways speed after the tyres' grip: towards 0 by the grip, then 1/64 less.
-tyres           jsr grip_of
+tyres           lda held_grip           ; (worked out already if the car turned)
+                bne +
+                jsr grip_of
++
                 #mov16 lat, nl
                 ldx held_grip
                 jsr shrink_nl
@@ -533,8 +564,7 @@ not_hand        lda thr                 ; braking: down, going forward faster th
                 bcc gripped
 is_braking      ldx #GRIP_BRAKING
 gripped         stx held_grip
-                jsr here                ; on grass: 9/16 of it
-                jsr kind_at
+                lda ground              ; on grass: 9/16 of it
                 cmp #GRASS
                 bne grip_set
                 ldx held_grip
@@ -548,34 +578,7 @@ gripped         stx held_grip
 on_grass        sta held_grip
 grip_set        jmp water.grip          ; and less in the water
 
-; On grass the car is hard going as well: nf -= nf >> 6, the design's 0.8 of the speed a second.
-grass_drag      jsr here
-                jsr kind_at
-                cmp #GRASS
-                bne +
-                ldx #6
-                jmp nf_less
-+               rts
                 .send
-
-; A = min(fwd / 16, 64), for fwd from 0 up: the speed in sixteenths of a pixel a frame.
-speed_16ths     lda fwd + 1
-                cmp #4
-                bcc +
-                lda #64
-                rts
-+               asl
-                asl
-                asl
-                asl
-                sta tb
-                lda fwd
-                lsr
-                lsr
-                lsr
-                lsr
-                ora tb
-                rts
 
 ; nf -= nf >> X, the shift keeping the sign.
 nf_less         #mov16 nf, mr
@@ -589,23 +592,36 @@ nf_less         #mov16 nf, mr
 ; Turning at rate (in fwd) asks the tyres for the speed times it sideways; never more than they hold, so
 ; rate <= grip * 10430 / speed (10430 = 65536 / 2 pi: a radian in the angle's units). With the speed in
 ; sixteenths from A, by the table: rate <= grip * most_turn[A] / 4.
-hold_turn       tax
-                lda most_turn,x
+hold_turn       tax                     ; nf = grip * most_turn, by quarter squares (see init):
+                lda most_turn,x         ; (t + g)^2 / 4 - (t - g)^2 / 4
                 sta mr
-                lda #0
-                sta mr + 1
+                clc
+                adc held_grip
+                tax
+                bcs +
+                lda SQUARES,x
                 sta nf
+                lda SQUARES + 512,x
                 sta nf + 1
-                lda held_grip
--               lsr                     ; nf = grip * most_turn, a bit of the grip at a time
-                bcc +
-                tay
-                #add16 nf, mr, nf
-                tya
-+               asl mr
-                rol mr + 1
-                ora #0
-                bne -
+                jmp ++
++               lda SQUARES + 256,x
+                sta nf
+                lda SQUARES + 768,x
+                sta nf + 1
++               lda mr
+                sec
+                sbc held_grip
+                bcs +
+                eor #$ff
+                adc #1
++               tax
+                sec
+                lda nf
+                sbc SQUARES,x
+                sta nf
+                lda nf + 1
+                sbc SQUARES + 512,x
+                sta nf + 1
                 lsr nf + 1              ; / 4
                 ror nf
                 lsr nf + 1
