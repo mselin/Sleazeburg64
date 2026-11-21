@@ -9,6 +9,8 @@ import {
   CENTRE_X, CENTRE_Y, Camera, MAP_SIZE, assemble, assets, camera, pictureMismatches, planned, withProgram,
 } from './game.mjs';
 import { Traffic, TrafficCar, plan } from './traffic-model.mjs';
+import { Player } from './foot-model.mjs';
+import { waterStep } from './water-model.mjs';
 import { H, Honk, putHonk, readHonk, rowMod12 } from './honk-model.mjs';
 
 // No traffic of its own: the tests put a car where they want one.
@@ -28,7 +30,8 @@ const carState = (c) => ({ x: c.x, y: c.y, vx: c.vx, vy: c.vy, angle: c.angle })
 
 /** The models of everything that moves, starting as the program does. */
 function models() {
-  return { car: new Car(START[0] + CENTRE_X, START[1] + CENTRE_Y), cam: new Camera(...START), traffic: new Traffic({ spawn: false }), honk: new Honk(), list: [] };
+  const car = new Car(START[0] + CENTRE_X, START[1] + CENTRE_Y);
+  return { car, player: new Player(car), cam: new Camera(...START), traffic: new Traffic({ spawn: false }), honk: new Honk(), list: [] };
 }
 
 /** One pass of the main loop in the models. */
@@ -38,6 +41,7 @@ function step(m, bits) {
   m.car.step(bits, m.traffic);
   m.cam.follow(m.car.px, m.car.py);
   m.traffic.step(m.car.px, m.car.py, m.cam, busy);
+  waterStep(m, cell);
   m.honk.step(m.car, m.traffic, m.cam, cell);
   m.list = [...m.traffic.show(m.cam), ...m.honk.show(m.cam)];
 }

@@ -54,7 +54,11 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
   - **Memory is the limit.** A figure has nine poses in each direction it keeps: five walking, the arm out with
     a gun, a fist or a knife, and knocked down. Mirror images save some, as they do for the player. The handover
     notes say more sprite frames mean moving code out of the way, or keeping fewer frames.
-- Water: cars flood and sink, people swim.
+- Water: cars flood and sink, people swim (done, not yet tried on real hardware). The player's car wades,
+  slower the deeper it is, floods once it is wholly in, and sinks in three colours, leaving the player swimming.
+  It stops where it floods rather than drifting on, and it is out of the way from the moment it floods rather
+  than once it is on the bottom. See the design's
+  [Water](https://github.com/mselin/gta-c64/blob/main/specs/design.md#water).
 - Big Honk, the crime boss (done, not yet tried on real hardware): a goose who wanders The Moat, crossing a
   bridge now and then, and whom nothing hurts. A car that runs into him only makes him flap and run off. One
   multicolour sprite, shared through the multiplexer. Still to come: a honk when there is sound, and traffic
