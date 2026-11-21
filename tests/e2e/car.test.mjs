@@ -10,8 +10,9 @@ import {
   screenMismatches, withProgram,
 } from './game.mjs';
 
-// No traffic: these tests are about the car (traffic.test.mjs has the traffic, the car with it included).
-const game = assemble('car', { defs: { SPAWN: 0 } });
+// No traffic and no Big Honk: these tests are about the car (traffic.test.mjs has the traffic and him, the car
+// with them included).
+const game = assemble('car', { defs: { SPAWN: 0, HONK: 0 } });
 const L = game.labels;
 const START = [9 * 16, 8 * 16]; // the window's top left corner; the car is in its middle
 const RED = 2;

@@ -40,6 +40,10 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
   a black outline, more than one character, and police officers in light blue with a white cap; passers-by
   never look like the player or the police. See the design's C64 note on characters and sprites.
 - Water: cars flood and sink, people swim.
+- Big Honk, the crime boss (done, not yet tried on real hardware): a goose who wanders The Moat, crossing a
+  bridge now and then, and whom nothing hurts. A car that runs into him only makes him flap and run off. One
+  multicolour sprite, shared through the multiplexer. Still to come: a honk when there is sound, and traffic
+  stopping for him once it looks out for people.
 
 ## Milestone 3: the game
 

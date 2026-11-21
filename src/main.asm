@@ -3,7 +3,8 @@
 ;
 ; Milestone 2, started: a car to drive around a city with traffic in it. A joystick in port 2 drives it, the
 ; view scrolls smoothly to follow it, and a raster split keeps the status panel still under the city. Traffic
-; follows the lanes, shown with a sprite multiplexer. People and the game itself come later.
+; follows the lanes, shown with a sprite multiplexer, and Big Honk wanders The Moat. Other people and the game
+; itself come later.
 ;
 ; Assemble with 64tass (see the Makefile). Build options, set with -D on the command line:
 ;   START_X, START_Y   the tile in the top left corner of the view at start; the car starts in its middle
@@ -13,6 +14,7 @@
 ;                      testing scrolling
 ;   CARS               how many traffic cars at most (traffic.asm)
 ;   SPAWN              0: no traffic appears by itself, for tests that place their own
+;   HONK               0 leaves Big Honk out
 
         .cpu "6502"
         .include "c64.inc"
@@ -23,7 +25,9 @@ START_Y         = 8
 AUTOPILOT       = 0
 MUSIC           = 0
 VIEWER          = 0
+HONK            = 1
                 .endweak
+WITH_HONK       = VIEWER == 0 && HONK != 0
 .if MUSIC != 0
                 .include "tune-ingame.inc"
 .endif
@@ -43,6 +47,7 @@ CAR_FRAMES      = $0840                 ; the car's sprite in 16 directions, 64 
 CAR_SPRITE      = CAR_FRAMES / 64       ; sprite pointer of the first
 SQUARES         = $c000                 ; quarter squares for multiplying (see car.init): 1K, made at start
 SQUARES2        = $bc00                 ; and the same moved along, for the other half of a multiplication: 1K
+HIGH_CODE       = $b300                 ; code that runs from above the colour routines: copied there at start
 
 ; ---------- zero page ----------
                 * = $02
@@ -84,6 +89,16 @@ start           sei
                 sta $fffa
                 lda #>ignore
                 sta $fffb
+.if WITH_HONK
+                ldx #0                  ; the code that runs from HIGH_CODE, from where it waits, before the
+-                                       ; screens are cleared over it (video.init)
+                .for page = 0, page < HIGH_PAGES, page += 1
+                lda high_image + page * 256,x
+                sta HIGH_CODE + page * 256,x
+                .endfor
+                inx
+                bne -
+.endif
 
                 lda #<(START_X * 16)
                 sta cam_lo
@@ -112,6 +127,9 @@ start           sei
 .if VIEWER == 0
                 jsr traffic.init        ; after video.init clears the panel's screen, where its tables are
 .endif
+.if WITH_HONK
+                jsr honk.init           ; the same
+.endif
                 jsr panel.init
                 jsr panel.update
 .if MUSIC != 0
@@ -130,8 +148,14 @@ ready           jsr input.read          ; A = which directions are held
                 jsr follow_car
                 jsr move_both
                 jsr traffic.update      ; after the window has moved: it needs to know whether the screen will
-                jsr car.show            ; move a character this frame
+.if WITH_HONK                           ; move a character this frame
+                jsr honk.update
+.endif
+                jsr car.show
                 jsr traffic.show
+.if WITH_HONK
+                jsr honk.show           ; after the traffic, which leaves him where a sprite can start
+.endif
                 jsr sprites.plan
 .else
                 jsr move_camera
@@ -325,6 +349,20 @@ char_of         lda cam_hi,x
 .endif
 code_end
                 .cerror * > SCREEN_A, "code has run into the screens"
+.if WITH_HONK
+; Code that runs from HIGH_CODE, where there is room. It waits here, after the code and on into where the
+; screens go, and start copies it up before anything is drawn there.
+high_image
+                .logical HIGH_CODE
+                .include "honk.asm"
+high_end
+                .endlogical
+HIGH_PAGES      = (high_end - HIGH_CODE + 255) / 256
+                .cerror HIGH_CODE < video.COLOUR_01 + video.COLOUR_SIZE, "HIGH_CODE is in a colour routine"
+                .cerror HIGH_CODE + HIGH_PAGES * 256 > SQUARES2, "the code at HIGH_CODE runs into the tables"
+.endif
+image_end                               ; the end of the code here, and of the code waiting to be copied up
+                .cerror * > charset, "the code waiting to be copied up has run into the character set"
 
 ; ---------- variables with no starting value: in the panel's screen, whose rows 0-20 are never shown ----------
                 .virtual PANEL_SCREEN
