@@ -47,8 +47,9 @@ CAR_FRAMES      = $0840                 ; the car's sprite in 16 directions, 64 
 CAR_SPRITE      = CAR_FRAMES / 64       ; sprite pointer of the first
 SQUARES         = $c000                 ; quarter squares for multiplying (see car.init): 1K, made at start
 SQUARES2        = $bc00                 ; and the same moved along, for the other half of a multiplication: 1K
-HIGH_CODE       = $b300                 ; code that runs from above the colour routines, and
-TOP_CODE        = $f300                 ; from the top of memory: both copied there at start
+HIGH_CODE       = $b300                 ; code that runs from above the colour routines,
+MORE_CODE       = $cd80                 ; from after the screen copies,
+TOP_CODE        = $f300                 ; and from the top of memory: all copied there at start
 PLAYER_FRAMES   = $2580                 ; the player on foot's sprite, made at start: 42 frames, up to the screens
 
 ; ---------- zero page ----------
@@ -89,7 +90,8 @@ start           sei
                 sta CPU_PORT
 .if VIEWER == 0
                 #raise high_image, HIGH_CODE, HIGH_PAGES   ; the code that runs from higher up, from where it
-                #raise top_image, TOP_CODE, TOP_PAGES      ; waits, before anything is written over it there
+                #raise more_image, MORE_CODE, MORE_PAGES   ; waits, before anything is written over it there
+                #raise top_image, TOP_CODE, TOP_PAGES
 .endif
                 lda #<ignore            ; RESTORE does nothing (after the copy, which can run over the vectors)
                 sta $fffa
@@ -149,8 +151,9 @@ ready           jsr input.read          ; A = which directions are held
                 jsr follow_car
                 jsr move_both
                 jsr traffic.update      ; after the window has moved: it needs to know whether the screen will
-.if WITH_HONK                           ; move a character this frame
-                jsr honk.update
+                jsr water.update        ; move a character this frame; the same for the water ...
+.if WITH_HONK
+                jsr honk.update         ; ... and Big Honk
 .endif
                 jsr foot.show           ; the car, or the player on foot
                 jsr traffic.show
@@ -238,6 +241,30 @@ move_both       ldx #0
                 jsr move_axis
                 ldx #1
                 jmp move_axis
+
+.if VIEWER == 0
+; After the window has moved: C set if the screen moves a character this frame (video.follow), a frame with no
+; time to spare. Then the window is in another character from the one in cell, and no more than one away, so
+; the bottom five bits of the two differ.
+screen_moves    lda cam_lo
+                lsr
+                lsr
+                lsr
+                eor cell
+                and #$1f
+                bne +
+                lda cam_lo + 1
+                lsr
+                lsr
+                lsr
+                eor cell + 1
+                and #$1f
+                beq ++
++               sec
+                rts
++               clc
+                rts
+.endif
 
 .if VIEWER == 0
 ; Aim the view at the player, in the car or on foot: step = how far to move the window this frame, at most
@@ -430,20 +457,28 @@ high_image
                 .include "foot.asm"
 high_end
                 .endlogical
+more_image
+                .logical MORE_CODE
+                .include "water.asm"
+                .include "digits.asm"   ; (where there is room: the panel's tables)
+more_end
+                .endlogical
 top_image
                 .logical TOP_CODE
                 .include "traffic.asm"
-                .include "digits.asm"   ; (where there is room: the panel's tables)
 .if MUSIC != 0
                 .include "music.asm"    ; (and the tune's code, in a music build)
 .endif
 top_end
                 .endlogical
 HIGH_PAGES      = (high_end - HIGH_CODE + 255) / 256
+MORE_PAGES      = (more_end - MORE_CODE + 255) / 256
 TOP_PAGES       = (top_end - TOP_CODE + 255) / 256
                 .cerror HIGH_CODE < video.COLOUR_01 + video.COLOUR_SIZE, "HIGH_CODE is in a colour routine"
                 .cerror HIGH_CODE + HIGH_PAGES * 256 > SQUARES2, "the code at HIGH_CODE runs into the tables"
                 .cerror top_end > $fffa, "the code at TOP_CODE runs into the interrupt vectors"
+                .cerror MORE_CODE < video.COPIES + 18 * video.COPY_SIZE, "MORE_CODE is in the screen copies"
+                .cerror more_end > $d000, "the code at MORE_CODE runs into the I/O area"
                 .cerror * > HIGH_CODE, "what waits after the map reaches where it is copied to"
 .if MUSIC != 0
                 .cerror ingame_load + (tune.PAGES + 1) * 256 > TOP_CODE, "the tune runs into TOP_CODE"

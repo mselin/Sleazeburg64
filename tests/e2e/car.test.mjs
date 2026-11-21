@@ -5,6 +5,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JOY } from './vice.mjs';
 import { C, Car, SIN, direction16, hits } from './car-model.mjs';
+import { Traffic } from './traffic-model.mjs';
+import { Player } from './foot-model.mjs';
+import { waterStep } from './water-model.mjs';
 import {
   CAR_SPRITE, CENTRE_X, CENTRE_Y, Camera, MAX_X, MAX_Y, assemble, assets, camera, pictureMismatches,
   screenMismatches, withProgram,
@@ -39,15 +42,21 @@ const spriteFor = (car, cam) => ({
   bitmap: assets.car.subarray(direction16(car.angle) * 64, direction16(car.angle) * 64 + 63),
 });
 
-/** A model of the car and the window, starting as the program does. */
+/**
+ * A model of the car and the window, starting as the program does, with the water (water-model.mjs), which
+ * finds out how wet the car is; the player and the traffic's tables are only there for a car that floods.
+ */
 function models() {
-  return { car: new Car(START[0] + CENTRE_X, START[1] + CENTRE_Y), cam: new Camera(...START) };
+  const car = new Car(START[0] + CENTRE_X, START[1] + CENTRE_Y);
+  return { car, player: new Player(car), cam: new Camera(...START), traffic: new Traffic({ spawn: false }) };
 }
 
 /** One pass of the main loop in the models, then in the program, and check they agree. */
 async function pass(vice, m, bits, what) {
+  const cell = [...m.cam.cell];
   m.car.step(bits);
   m.cam.follow(m.car.px, m.car.py);
+  waterStep(m, cell);
   await vice.joystick(bits);
   await vice.runTo(L.ready);
   assert.deepEqual(await readCar(vice), state(m.car), `the car ${what}`);

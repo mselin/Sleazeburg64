@@ -8,9 +8,10 @@ import { CENTRE_X, CENTRE_Y, Camera, MAX_X, MAX_Y, assets, camera, pictureMismat
 import { Traffic, TrafficCar, plan } from './traffic-model.mjs';
 import { Honk, readHonk } from './honk-model.mjs';
 import { F, Player, readPlayer } from './foot-model.mjs';
+import { waterStep } from './water-model.mjs';
 
 export const START = [9 * 16, 8 * 16]; // the window's top left corner at start; the car is in its middle
-const TRAFFIC_FIELDS = ['dir', 'sp', 'cruise', 'face', 'col', 'turn', 'held', 'ghost', 'blocked', 'entered', 'wreck'];
+const TRAFFIC_FIELDS = ['dir', 'sp', 'cruise', 'face', 'col', 'turn', 'held', 'ghost', 'blocked', 'entered', 'wreck', 'sink'];
 
 /** Read the program's traffic: every car, and the counters and random seed that decide what comes next. */
 export async function readTraffic(vice, L, n) {
@@ -55,9 +56,10 @@ export async function readCar(vice, L) {
   return {
     x: b[0] | (b[1] << 8) | (b[2] << 16), y: b[3] | (b[4] << 8) | (b[5] << 16),
     vx: signed(b[6], b[7]), vy: signed(b[8], b[9]), angle: b[10] | (b[11] << 8), colour: b[13],
+    wet: (await vice.read(L['water.wet'], 1))[0],
   };
 }
-export const carState = (c) => ({ x: c.x, y: c.y, vx: c.vx, vy: c.vy, angle: c.angle, colour: c.colour });
+export const carState = (c) => ({ x: c.x, y: c.y, vx: c.vx, vy: c.vy, angle: c.angle, colour: c.colour, wet: c.wet });
 
 /**
  * The models of everything that moves, starting as the program does. `honk` false leaves Big Honk out (a
@@ -79,6 +81,7 @@ export class World {
     this.player.step(bits, this.traffic);
     this.cam.follow(this.player.px, this.player.py);
     this.traffic.step(this.player.px, this.player.py, this.cam, busy);
+    waterStep(this, cell);
     if (this.honk) this.honk.step(this.car, this.traffic, this.cam, cell);
     this.list = [...this.traffic.show(this.cam), ...(this.honk ? this.honk.show(this.cam) : [])].slice(0, 16); // the multiplexer lists sixteen
   }
@@ -149,15 +152,15 @@ export async function putOnFoot(vice, L, w, x, y, face = 0) {
  * pixels, driving at its cruising speed, with the rest as new. `wreck: 1` and cruise 0 make it a car with no
  * driver, as the player leaves one.
  */
-export async function putTrafficCar(vice, L, w, i, { x, y, dir, cruise, col = 5, face = dir * 4, wreck = 0 }) {
+export async function putTrafficCar(vice, L, w, i, { x, y, dir, cruise, col = 5, face = dir * 4, wreck = 0, sink = 0 }) {
   const n1 = w.traffic.n + 1;
-  const car = new TrafficCar({ x: x << 8, y: y << 8, dir, sp: cruise, cruise, face, col, wreck });
+  const car = new TrafficCar({ x: x << 8, y: y << 8, dir, sp: cruise, cruise, face, col, wreck, sink });
   w.traffic.cars[i] = car;
   const write = (name, at, bytes) => vice.write(L[`traffic.${name}`] + at, bytes);
   await write('on', i, [1]);
   for (const [name, at, value] of [['pf', i, 0], ['pf', n1 + i, 0], ['pl', i, x & 255], ['ph', i, x >> 8], ['pl', n1 + i, y & 255], ['ph', n1 + i, y >> 8]])
     await write(name, at, [value]);
-  for (const [name, value] of Object.entries({ dir, sp: cruise, cruise, face, col, turn: 0xff, held: 0, ghost: 0, blocked: 0, entered: 0, wreck }))
+  for (const [name, value] of Object.entries({ dir, sp: cruise, cruise, face, col, turn: 0xff, held: 0, ghost: 0, blocked: 0, entered: 0, wreck, sink }))
     await write(name, i, [value]);
   await write('dlo', i, [(cruise * 2) & 255]);
   await write('dhi', i, [(cruise * 2) >> 8]);

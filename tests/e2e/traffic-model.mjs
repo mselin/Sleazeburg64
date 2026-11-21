@@ -15,6 +15,10 @@ const COLOURS = [4, 5, 8, 10, 13, 14, 3, 7]; // purple, green, orange, light red
 const div12 = (t) => Math.floor(t / 12);
 const road = (k) => k * 192;
 const w16 = (v) => v & 0xffff;
+/** A car that flooded (water.asm): the last frame it is awash, under the water, and going down at all. */
+export const SINK = { AWASH: 60, UNDER: 150, DONE: 200 };
+/** The colour a car is shown in: its own, or light blue (14) and then black (0) as it goes down. */
+export const shade = (c) => (!c.sink || c.sink <= SINK.AWASH ? c.col : c.sink <= SINK.UNDER ? 14 : 0);
 /** The lowest a car's sprite can be listed (traffic.LOWEST): all of it above the black band under the city. */
 export const LOWEST = 160;
 
@@ -45,7 +49,8 @@ export class Rnd {
 /** One traffic car. Positions are in 1/256 pixel along both axes; only the axis it moves on has a fraction. */
 export class TrafficCar {
   constructor(fields) {
-    Object.assign(this, { on: 1, x: 0, y: 0, dir: 0, sp: 0, cruise: 0, face: 0, col: 0, turn: 0xff, ta: 0, held: 0, ghost: 0, blocked: 0, entered: 0, wreck: 0 }, fields);
+    // sink: 0, or for a car that flooded the frames since, from 1 (water.asm).
+    Object.assign(this, { on: 1, x: 0, y: 0, dir: 0, sp: 0, cruise: 0, face: 0, col: 0, turn: 0xff, ta: 0, held: 0, ghost: 0, blocked: 0, entered: 0, wreck: 0, sink: 0 }, fields);
   }
   get px() {
     return this.x >> 8;
@@ -105,7 +110,11 @@ export class Traffic {
 
   move(c) {
     if (c.wreck) {
-      if (!c.sp) return; // at rest, as a car the player left is from the start: nothing to do
+      if (!c.sp) {
+        // At rest, as a car the player left is from the start: nothing to do, but for one that flooded to go down.
+        if (c.sink && c.sink < SINK.DONE) c.sink++;
+        return;
+      }
       c.sp = Math.max(0, c.sp - T.BRAKE); // rolls to a stop, and that is all
     } else this.speed(c);
     this.along(c);
@@ -157,7 +166,7 @@ export class Traffic {
   nearby(px, py) {
     this.near = [];
     this.cars.forEach((c, i) => {
-      if (c.on && Math.abs(c.px - px) <= T.NEAR_BOX && Math.abs(c.py - py) <= T.NEAR_BOX) this.near.push(i);
+      if (c.on && !c.sink && Math.abs(c.px - px) <= T.NEAR_BOX && Math.abs(c.py - py) <= T.NEAR_BOX) this.near.push(i);
     });
   }
 
@@ -267,7 +276,7 @@ export class Traffic {
       if (!c.on) continue;
       const t = w16(c.py - (cam.y - 10)), u = w16(c.px - (cam.x - 11));
       if (t > LOWEST || u > 326) continue;
-      list.push({ y: t + 34, x: u + 8, pointer: CAR_SPRITE + c.face, colour: c.col });
+      list.push({ y: t + 34, x: u + 8, pointer: CAR_SPRITE + c.face, colour: shade(c) });
     }
     this.rot = (this.rot + 1) % this.n;
     return list;
