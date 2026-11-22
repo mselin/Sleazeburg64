@@ -141,6 +141,20 @@ asr16           .macro v                ; arithmetic shift right: rounds down, a
                 ror \v + 1
                 ror \v
                 .endm
+asr_to          .macro v, n             ; mr = v >> n, the shift keeping the sign (as asr16 n times), n = 1-7:
+                ldy #0                  ; v as 24 bits, shifted left 8 - n times, the top two bytes kept
+                lda \v + 1
+                bpl +
+                dey
++               sty mr + 1
+                sta mr
+                lda \v
+.for i = 0, i < 8 - \n, i += 1
+                asl
+                rol mr
+                rol mr + 1
+.next
+                .endm
 mul             .macro v, s, to         ; to = v * s / 256, rounded towards 0, for s = cs or sn
                 #mov16 \v, mv
 .if \s == cs
@@ -155,6 +169,8 @@ mul             .macro v, s, to         ; to = v * s / 256, rounded towards 0, f
 ; Build the quarter square tables: SQUARES[n] = n * n / 4, rounded down, for n = 0..511, low bytes then high
 ; bytes, and SQUARES2[n] = SQUARES[|n - 255|], so that a * b = SQUARES[a + b] - SQUARES2[b - a + 255].
 init            lda #0
+                sta trig_set
+                sta fwd_set
                 sta sum
                 sta sum + 1
                 sta prod                ; n * n, 24 bits: prod, prod + 1, ta
@@ -284,26 +300,41 @@ update          tay
                 sta ground
                 lda #0                  ; the grip: not worked out yet this frame
                 sta held_grip
+                sta fwd_set
                 jsr steer
                 jsr trig
-                #mul vel_x, cs, fwd     ; forward = vx cos + vy sin
+                lda fwd_set             ; forward = vx cos + vy sin: as steer worked it out, if the direction
+                beq +                   ; is still the one it was for
+                lda fwd_dir
+                cmp angle + 1
+                bne +
+                #mov16 fwd0, fwd
+                jmp ++
++               #mul vel_x, cs, fwd
                 #mul vel_y, sn, mr
                 #add16 fwd, mr, fwd
-                #mul vel_y, cs, lat     ; sideways = vy cos - vx sin
++               #mul vel_y, cs, lat     ; sideways = vy cos - vx sin
                 #mul vel_x, sn, mr
                 #sub16 lat, mr, lat
                 jsr engine
                 jsr tyres
                 #sub16 nf, fwd, nf      ; the changes ...
                 #sub16 nl, lat, nl
-                #mul nf, cs, fwd        ; ... back into the velocity: vx += dF cos - dL sin
-                #mul nl, sn, lat
-                #sub16 fwd, lat, fwd
+                lda nf                  ; ... back into the velocity (what is multiplied by 0 adds nothing):
+                ora nf + 1              ; vx += dF cos - dL sin, vy += dF sin + dL cos
+                beq +
+                #mul nf, cs, fwd
                 #add16 vel_x, fwd, vel_x
-                #mul nf, sn, fwd        ; vy += dF sin + dL cos
-                #mul nl, cs, lat
-                #add16 fwd, lat, fwd
+                #mul nf, sn, fwd
                 #add16 vel_y, fwd, vel_y
++               lda nl
+                ora nl + 1
+                beq +
+                #mul nl, sn, lat
+                #sub16 vel_x, lat, vel_x
+                #mul nl, cs, lat
+                #add16 vel_y, lat, vel_y
++
                 jsr traffic.nearby      ; the traffic it could run into
                 jsr move_x
                 jmp move_y
@@ -313,8 +344,22 @@ here            #mov16 pos_x + 1, px
                 #mov16 pos_y + 1, py
                 rts
 
+trig_dir        .byte 0                 ; trig: the direction cs, sn and the tables are set for ...
+trig_set        .byte 0                 ; ... if this is 1
+fwd_dir         .byte 0                 ; steer: the direction it worked out the forward speed for ...
+fwd_set         .byte 0                 ; ... if this is 1 (this frame only) ...
+fwd0            .word 0                 ; ... and that speed
+
 ; cs, sn for the car's direction, and for multiplying by them: their sizes (0-256) and signs.
 trig            ldx angle + 1
+                lda trig_set            ; set for this direction already
+                beq +
+                cpx trig_dir
+                bne +
+                rts
++               stx trig_dir
+                lda #1
+                sta trig_set
                 lda sin_lo + 64,x
                 sta cs
                 lda sin_hi + 64,x
@@ -375,6 +420,11 @@ steer           lda turn
                 #mul vel_x, cs, fwd     ; the forward speed before turning
                 #mul vel_y, sn, mr
                 #add16 fwd, mr, fwd
+                #mov16 fwd, fwd0        ; (for update, if the direction stays the same)
+                lda angle + 1
+                sta fwd_dir
+                lda #1
+                sta fwd_set
                 lda fwd
                 ora fwd + 1
                 bne +
@@ -504,8 +554,7 @@ drag            lda hand
                 beq +
                 ldx #HANDBRAKE
                 jsr shrink_nf
-+               ldx #7                  ; nf -= nf >> 7
-                jsr nf_less
++               jsr nf_less_7           ; nf -= nf >> 7
                 lda thr
                 bne +
                 ldx #COAST
@@ -514,8 +563,7 @@ drag            lda hand
                 lda ground              ; and on grass, hard going: nf -= nf >> 6, the design's 0.8 of the
                 cmp #GRASS              ; speed a second
                 bne +
-                ldx #6
-                jsr nf_less
+                jsr nf_less_6
 +
                 ldy water.wet           ; no faster than TOP forwards or TOP_BACK backwards, less in the water
                 lda nf + 1
@@ -549,11 +597,7 @@ tyres           lda held_grip           ; (worked out already if the car turned)
                 #mov16 lat, nl
                 ldx held_grip
                 jsr shrink_nl
-                #mov16 nl, mr           ; nl -= nl >> 6
-                ldx #6
--               #asr16 mr
-                dex
-                bne -
+                #asr_to nl, 6              ; nl -= nl >> 6
                 #sub16 nl, mr, nl
                 rts
 
@@ -591,11 +635,11 @@ grip_set        jmp water.grip          ; and less in the water
 
                 .send
 
-; nf -= nf >> X, the shift keeping the sign.
-nf_less         #mov16 nf, mr
--               #asr16 mr
-                dex
-                bne -
+; nf -= nf >> 7, or >> 6, the shift keeping the sign.
+nf_less_7       #asr_to nf, 7
+                #sub16 nf, mr, nf
+                rts
+nf_less_6       #asr_to nf, 6
                 #sub16 nf, mr, nf
                 rts
 

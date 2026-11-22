@@ -47,6 +47,7 @@ MAX_Y           = MAP_PIXELS - VIEW_H
 SPEED           = 2                     ; VIEWER: pixels per frame while the stick is held
 FAST            = 4                     ; and while fire is held too. The most the scrolling allows: see video
 FOLLOW          = 4                     ; the car: the most the view moves towards it in a frame, each way
+WINDOW_STEP     = FOLLOW                ; (the same, for video.asm, where follow is a routine)
 CENTRE_X        = VIEW_W / 2            ; where in the window the view keeps the car
 CENTRE_Y        = VIEW_H / 2
 CAR_FRAMES      = $0840                 ; the car's sprite in 16 directions, 64 bytes each
@@ -54,7 +55,7 @@ CAR_SPRITE      = CAR_FRAMES / 64       ; sprite pointer of the first
 SQUARES         = $c000                 ; quarter squares for multiplying (see car.init): 1K, made at start
 SQUARES2        = $bc00                 ; and the same moved along, for the other half of a multiplication: 1K
 HIGH_CODE       = $b2a3                 ; code that runs from just above the colour routines,
-MORE_CODE       = $cd80                 ; from after the screen copies,
+MORE_CODE       = $cdb0                 ; from after the screen copies,
 TOP_CODE        = $f300                 ; and from the top of memory: all copied there at start
 EXTRA_CODE      = $e000                 ; and from under the KERNAL ROM, which is switched out, up to TOP_CODE
 PEOPLE_FRAMES   = $2000                 ; the passers-by's sprite, copied there at start: 20 frames
@@ -199,6 +200,9 @@ ready           jsr input.read          ; A = which directions are held
 .endif
                 jsr video.follow        ; fine scroll, and the other screen if the view crossed a character
                 jsr frame.publish
+.if VIEWER == 0
+                jsr video.ahead         ; and with the time left, some of what the next pass may need
+.endif
                 jmp main_loop
 
 ignore          rti
@@ -226,6 +230,8 @@ unpack          .block
 src             = $f8                   ; zero page, as nothing else uses it yet
 dst             = $fa
 ref             = $fc
+                lda #$34                ; all RAM, the I/O area's too, which the packed copy can reach into
+                sta CPU_PORT            ; (interrupts are off)
                 lda #<packed_start      ; the move: whole pages, then the rest (they do not overlap)
                 sta src
                 lda #>packed_start
@@ -285,7 +291,9 @@ match           sbc #$80 - 3            ; (C is set) n - $80 + 3 bytes from earl
 +               dex
                 bne -
                 beq next
-done            rts
+done            lda #$35
+                sta CPU_PORT
+                rts
 get             lda (src),y
                 inc src
                 bne +
@@ -511,6 +519,7 @@ char_of         lda cam_hi,x
                 .include "input.asm"
 .if VIEWER != 0
                 .include "video.asm"    ; (in the game, it runs from EXTRA_CODE)
+                .dsection video_more
 .endif
 .if VIEWER != 0
                 .include "panel.asm"
@@ -565,7 +574,7 @@ packed_end
 PACK_HOME       = (program_end + 255) & $ff00 ; where start moves it to unpack it: clear of where it unpacks to, in
                                         ; RAM that is free until the code is copied up after it
                 .cerror program_end > PACK_HOME, "what is unpacked runs into the packed copy"
-                .cerror PACK_HOME + (packed_end - packed_start) > $d000, "the packed copy runs into the I/O area"
+                .cerror PACK_HOME + (packed_end - packed_start) > EXTRA_CODE, "the packed copy runs past the RAM under the I/O area"
                 .cerror packed_end > PACK_HOME, "the packed data would be overwritten as it is moved"
                 .cerror * - packed_start != size(packed_bytes), "the packed data is not all there"
 .endif
