@@ -8,7 +8,7 @@ the [browser game of the same name](https://mselin.github.io/gta-c64/), which on
 ## Status
 
 Early. Milestone 1 is done (in the emulator) and **milestone 2, a city with things in it, is under way**:
-traffic, getting out of the car and walking, and Big Honk. The program draws the city of Sleazeburg in
+traffic, passers-by, getting out of the car and walking, and Big Honk. The program draws the city of Sleazeburg in
 multicolour character mode, and you drive a car around it with a joystick in port 2 while the view scrolls
 smoothly to follow. The car handles like the browser game's: it speeds up, brakes, reverses, slides when you
 turn fast, takes a wider line flat out, turns tighter on the handbrake, slides and slows on grass, and bounces off buildings and trees. A
@@ -17,9 +17,10 @@ of them, you included; your car bounces off them, and a car you hit hard is wrec
 swim across the canal, and get into any car, a passing one included. Drive into the canal or a fountain and
 the car wades, slower the deeper it goes, until it floods and sinks, leaving you swimming. Big Honk, the goose who runs Sleazeburg,
 wanders The Moat, the canal down the middle of the city; nothing hurts him, and a car that runs into him only
-makes him flap and run off. A raster split keeps the status panel still under the city, on black: the money,
-heat, health, the car and the ammo, the job, and messages, laid out as the browser game's. There are no
-other people, no sound and no game yet, so nothing changes the money or the rest yet. See [docs/ROADMAP.md](docs/ROADMAP.md) and the
+makes him flap and run off. A few passers-by walk the pavements, the plazas and the grass, in the design's
+shirt colours; drive into one fast and they lie flat for four seconds, then are gone. A raster split keeps the status panel still under the city, on black: the money,
+heat, health, the car and the ammo, the job, and messages, laid out as the browser game's. There is no
+sound and no game yet, so nothing changes the money or the rest yet. See [docs/ROADMAP.md](docs/ROADMAP.md) and the
 [issues](https://github.com/mselin/Sleazeburg64/issues) for what comes next.
 
 The streets are the same ones as in the browser game: both versions generate the city from the same code and
@@ -273,6 +274,7 @@ screen of its own, which the split switches to for its three rows.
 | `$0801` | BASIC line that starts the program |
 | `$0840` | The car's sprite in 16 directions |
 | `$0c40` | Code |
+| `$2000` | Copied at start: the passers-by's sprite, 20 frames |
 | `$2580` | Made at start: the player on foot's sprite, 42 frames |
 | `$3000` | Screen A: the city in rows 0–20 |
 | `$3400` | Screen B, the same |
@@ -285,13 +287,13 @@ screen of its own, which the split switches to for its three rows.
 | `$bc00` | Made at start: quarter squares moved along, the second half of a multiplication |
 | `$c000` | Made at start: quarter squares for multiplying, then the 18 screen copies |
 | `$cd80` | Copied at start: more code (the water) |
-| `$e000` | Copied at start: more code (the status panel, the steering limit), under the KERNAL ROM, which is out |
+| `$e000` | Copied at start: more code (drawing the city, the status panel, the passers-by, the steering limit), under the KERNAL ROM, which is out |
 | `$f300` | Copied at start: more code (the traffic), up to the interrupt vectors |
 
 The video chip sees only the first 16K, and not `$1000`–`$1fff`, so sprites have to be there, and code that
 was there has moved up to make room. What runs from `$b2a3`, `$cd80`, `$e000` and `$f300`, the code that makes the player's
 frames and the twelve frames it makes them from all wait after the map in the program file, packed with the
-map (`src/waiting.asm`). At start the game moves the packed bytes up to `$a000` and unpacks them in place,
+map (`src/waiting.asm`). At start the game moves the packed bytes up, just past where they unpack to, and unpacks them in place,
 then the code is copied up and the frames are made, before the colour memory routines are written over where
 they waited.
 

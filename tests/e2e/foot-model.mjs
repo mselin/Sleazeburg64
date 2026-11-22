@@ -44,7 +44,7 @@ export class Player {
     return this.on ? this.y >> 8 : this.car.py;
   }
   /** One pass of the main loop with the joystick held as given (JOY bits). */
-  step(bits, traffic) {
+  step(bits, traffic, busy = false) {
     const fire = bits & 16 ? 1 : 0;
     const use = fire && !this.fireWas && !(bits & 15); // just pressed, with the stick centred
     this.fireWas = fire;
@@ -52,7 +52,7 @@ export class Player {
       this.walk(bits);
       if (use) this.enter(traffic);
     } else {
-      this.car.step(bits, traffic);
+      this.car.step(bits, traffic, busy);
       if (use) this.leave(traffic);
     }
   }

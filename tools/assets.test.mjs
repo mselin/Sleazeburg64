@@ -5,7 +5,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { BLD, CITY_CHECKSUM, FOUNT, GRASS, MW, ROAD, TREE, WALK, WATER, checksum, generate } from './city.mjs';
+import { BLD, CITY_CHECKSUM, FOUNT, GRASS, MW, PLAZA, ROAD, TREE, WALK, WATER, checksum, generate } from './city.mjs';
 
 const dir = mkdtempSync(join(tmpdir(), 'sleazeburg-assets-'));
 execFileSync(process.execPath, [new URL('./assets.mjs', import.meta.url).pathname, dir]);
@@ -80,7 +80,7 @@ test('the font is in place: A is character 1 and is not blank', () => {
 
 test('every tile has the kind its ground has in the city: buildings and trees are walls, grass is grass', () => {
   const city = generate();
-  const kindOf = { [BLD]: 1, [TREE]: 1, [GRASS]: 2, [WATER]: 3, [FOUNT]: 3 };
+  const kindOf = { [BLD]: 1, [TREE]: 1, [GRASS]: 2, [WATER]: 3, [FOUNT]: 3, [WALK]: 4, [PLAZA]: 4 };
   for (let i = 0; i < map.length; i++) assert.equal(tiles[1280 + map[i]], kindOf[city.map[i]] ?? 0, `tile ${i % MW},${Math.floor(i / MW)}`);
 });
 

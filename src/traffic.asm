@@ -37,7 +37,7 @@
 ; tests/e2e/traffic-model.mjs does the same in JavaScript, and the tests hold the two to each other exactly.
 
                 .weak
-CARS            = 6                     ; traffic cars at most
+CARS            = 5                     ; traffic cars at most (six before the passers-by: see people.asm)
 SPAWN           = 1                     ; 0: no new cars appear (for tests that place their own)
                 .endweak
                 .cerror CARS > MAX_SPRITES, "more cars than the multiplexer can list"

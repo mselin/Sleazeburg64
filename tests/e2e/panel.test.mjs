@@ -88,6 +88,7 @@ test('a message stays for its time, then the election fund shows; getting out hi
     }
     assert.equal(shown, frames(MESSAGE.FOOT), 'it stayed its time');
     assert.equal((await readPanel(vice))[2], fund(0));
+    await pass(vice, L, w, 0, 'the fund up'); // (a new colour comes a frame after the text)
     assert.deepEqual((await readRows(vice))[2].colours, Array(40).fill(DARK_GREY), 'in dark grey');
     await hold(vice, w, 0, 20, 'with the fund up');
     assert.equal((await readPanel(vice))[2], fund(0), 'and it stays');
@@ -96,7 +97,9 @@ test('a message stays for its time, then the election fund shows; getting out hi
     [one, , three] = await readPanel(vice);
     assert.equal(one, '$000000 HEAT ***** HP????? CAR??? AMMO12', 'the car\'s part again');
     assert.equal(three, MESSAGE.CAR);
-    assert.deepEqual((await readRows(vice))[2].colours, Array(40).fill(WHITE));
+    // White again from the next frame with the time (the window moves to the car first, which can take one).
+    for (let i = 1; i <= 4 && (await readRows(vice))[2].colours[0] !== WHITE; i++) await pass(vice, L, w, 0, `in the car, ${i}`);
+    assert.deepEqual((await readRows(vice))[2].colours, Array(40).fill(WHITE), 'white again');
     assert.equal(await missed(vice, L) - before, 0, 'no frame was late');
   }));
 

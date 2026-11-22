@@ -28,6 +28,7 @@ AUTOPILOT       = 0
 MUSIC           = 0
 VIEWER          = 0
 HONK            = 1
+CROWD          = 4                     ; passers-by at most at once (people.asm); 0 leaves them out
 PACKED          = 0
 PACK_FILE       = "packed.bin"
                 .endweak
@@ -56,6 +57,7 @@ HIGH_CODE       = $b2a3                 ; code that runs from just above the col
 MORE_CODE       = $cd80                 ; from after the screen copies,
 TOP_CODE        = $f300                 ; and from the top of memory: all copied there at start
 EXTRA_CODE      = $e000                 ; and from under the KERNAL ROM, which is switched out, up to TOP_CODE
+PEOPLE_FRAMES   = $2000                 ; the passers-by's sprite, copied there at start: 20 frames
 PLAYER_FRAMES   = $2580                 ; the player on foot's sprite, made at start: 42 frames, up to the screens
 
 ; ---------- zero page ----------
@@ -106,6 +108,7 @@ start           sei
                 #raise more_image, MORE_CODE, MORE_PAGES   ; waits, before anything is written over it there
                 #raise top_image, TOP_CODE, TOP_PAGES
                 #raise extra_image, EXTRA_CODE, EXTRA_PAGES
+                #raise people_image, PEOPLE_FRAMES, (size(people_image) + 255) / 256
 .endif
                 lda #<ignore            ; RESTORE does nothing (after the copy, which can run over the vectors)
                 sta $fffa
@@ -144,6 +147,9 @@ start           sei
 .if WITH_HONK
                 jsr honk.init           ; the same
 .endif
+.if VIEWER == 0 && CROWD != 0
+                jsr people.init
+.endif
 .if VIEWER == 0
                 jsr foot.init
 .endif
@@ -176,10 +182,16 @@ ready           jsr input.read          ; A = which directions are held
                 jsr honk.update         ; ... Big Honk ...
 .endif
                 jsr status.update       ; ... and the status panel
+.if CROWD != 0
+                jsr people.update       ; (and the passers-by, in a frame with time to spare)
+.endif
                 jsr foot.show           ; the car, or the player on foot
                 jsr traffic.show
 .if WITH_HONK
                 jsr honk.show           ; after the traffic, which leaves him where a sprite can start
+.endif
+.if CROWD != 0
+                jsr people.show         ; and the passers-by after him
 .endif
                 jsr sprites.plan
 .else
@@ -497,7 +509,9 @@ char_of         lda cam_hi,x
 
                 .include "irq.asm"
                 .include "input.asm"
-                .include "video.asm"
+.if VIEWER != 0
+                .include "video.asm"    ; (in the game, it runs from EXTRA_CODE)
+.endif
 .if VIEWER != 0
                 .include "panel.asm"
                 .include "digits.asm"
@@ -511,7 +525,7 @@ char_of         lda cam_hi,x
 .endif
 code_end
 .if VIEWER == 0
-                .cerror * > PLAYER_FRAMES, "code has run into the player's frames"
+                .cerror * > PEOPLE_FRAMES, "code has run into the passers-by's frames"
                 .cerror PLAYER_FRAMES + PLAYER_FRAME_COUNT * 64 > SCREEN_A, "the player's frames reach the screens"
 .else
                 .cerror * > SCREEN_A, "code has run into the screens"
@@ -548,7 +562,7 @@ packed_start    = *
                 .endv
 packed_bytes    .binary PACK_FILE
 packed_end
-PACK_HOME       = $a000                 ; where start moves it to unpack it: clear of where it unpacks to
+PACK_HOME       = (program_end + 255) & $ff00 ; where start moves it to unpack it: clear of where it unpacks to
                 .cerror program_end > PACK_HOME, "what is unpacked runs into the packed copy"
                 .cerror PACK_HOME + (packed_end - packed_start) > MORE_CODE, "the packed copy runs into MORE_CODE"
                 .cerror packed_end > PACK_HOME, "the packed data would be overwritten as it is moved"
