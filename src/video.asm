@@ -441,7 +441,20 @@ add             ldy pos_of,x            ; the fraction and that: what carries in
                 lda guess + 1
                 sbc follow_car.centre_hi,x
                 sta guess + 1
-                sec
+                bpl +                   ; and as follow_car keeps it: no further than the city's edges
+                lda #0
+                sta guess
+                sta guess + 1
++               lda guess
+                cmp max_lo,x
+                lda guess + 1
+                sbc max_hi,x
+                bcc +
+                lda max_lo,x
+                sta guess
+                lda max_hi,x
+                sta guess + 1
++               sec
                 lda guess
                 sbc cam_lo,x
                 sta guess

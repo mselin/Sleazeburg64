@@ -99,6 +99,7 @@ mn              .word ?
 oth             .word ?
 reach           .byte ?
 point           .byte ?
+moves           .byte ?
                 .send
 
 ; ---------- 16-bit helpers ----------
@@ -922,9 +923,24 @@ lead            lda angle + 1           ; the three points' offsets: middle, bac
                 bcs +
                 lda #$fc
                 sta reach
-+               ldy #2
++               sec                     ; how far it moves: -4 to 4 pixels, the same for every point
+                lda mn
+                sbc mo
+                sta moves
+                ldy #2
 next_point      sty point
-                lda along,y             ; e0 = mo + along + reach, e1 = mn + along + reach
+                lda along,y             ; a new tile only if where the edge is in its tile, moved that far,
+                clc                     ; is outside it (and where the car is now is clear, so in the city):
+                adc reach               ; the edge's pixel, low byte, is mo + along + reach
+                clc
+                adc mo
+                and #15
+                clc
+                adc moves
+                cmp #16
+                bcs +
+                jmp next                ; no new tiles for this box
++               lda along,y             ; e0 = mo + along + reach, e1 = mn + along + reach
                 clc
                 adc reach
                 sta t16                 ; (along + reach is from -10 to 10)

@@ -172,6 +172,9 @@ the swap it is worked out again from the map, a tile at a time (each tile has on
 the top, keeping ahead of the video chip. Each of these takes about a third of a frame, so the window crosses
 at most one character every two frames: 4 pixels a frame is the top speed. The routines that copy the screen
 and work out colour memory are written at start, fully unrolled, into memory the video chip does not need.
+When a frame has time left once it is done, it guesses from where the car's speed takes it whether the next
+frame will cross a character, and which way, and copies as much of that as it has time for onto the screen
+out of sight; the frame that crosses then copies only the rest.
 
 **The car.** A hires sprite, drawn by `tools/assets.mjs` in 16 directions. Its handling follows the browser
 game's sports car, done in fixed point once a frame: the velocity is split into the car's forward and
@@ -286,14 +289,14 @@ screen of its own, which the split switches to for its three rows.
 | `$b2a3` | Copied at start: code there is no room for lower down (Big Honk, the player on foot) |
 | `$bc00` | Made at start: quarter squares moved along, the second half of a multiplication |
 | `$c000` | Made at start: quarter squares for multiplying, then the 18 screen copies |
-| `$cd80` | Copied at start: more code (the water) |
+| `$cdb0` | Copied at start: more code (the water, the screen copy's helpers) |
 | `$e000` | Copied at start: more code (drawing the city, the status panel, the passers-by, the steering limit), under the KERNAL ROM, which is out |
 | `$f300` | Copied at start: more code (the traffic), up to the interrupt vectors |
 
 The video chip sees only the first 16K, and not `$1000`–`$1fff`, so sprites have to be there, and code that
-was there has moved up to make room. What runs from `$b2a3`, `$cd80`, `$e000` and `$f300`, the code that makes the player's
+was there has moved up to make room. What runs from `$b2a3`, `$cdb0`, `$e000` and `$f300`, the code that makes the player's
 frames and the twelve frames it makes them from all wait after the map in the program file, packed with the
-map (`src/waiting.asm`). At start the game moves the packed bytes up, just past where they unpack to, and unpacks them in place,
+map (`src/waiting.asm`). At start the game moves the packed bytes up, just past where they unpack to (into the RAM under the I/O area if need be), and unpacks them in place,
 then the code is copied up and the frames are made, before the colour memory routines are written over where
 they waited.
 
