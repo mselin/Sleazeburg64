@@ -198,7 +198,7 @@ test('in the water the player swims: slower, and drawn as a swimmer, in two pict
     // West of the fountain in the plaza near the start.
     await putOnFoot(vice, L, w, 88, 112, 0);
     const late = await settle(vice, w);
-    assert.equal(kindAt(88, 112), 0);
+    assert.equal(kindAt(88, 112), 4, 'the plaza');
     assert.equal(kindAt(100, 112), WATER, 'the fountain');
     await hold(vice, w, JOY.RIGHT, 12, 'east, into it');
     assert.equal(w.player.swim, 1, 'swimming');

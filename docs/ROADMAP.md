@@ -45,12 +45,20 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
   The player's frames come from the design's figure (`tools/assets.mjs`), so fighting adds four more poses to
   them: the arm out with a gun, a fist or a knife, and lying knocked down.
 - Traffic: a few cars following the lanes, drawn with a sprite multiplexer (done, not yet tried on real
-  hardware: six cars, which is what the frame time allows; the multiplexer shares sprites 1-7 and the tests try
-  it with sixteen). The player's car bounces off traffic, and wrecks a car it hits hard. By the design's
+  hardware: five cars, which is what the frame time allows beside the passers-by (six before them, the owner's
+  choice); the multiplexer shares sprites 1-7 and the tests try it with sixteen). The player's car bounces off traffic, and wrecks a car it hits hard. By the design's
   [Car against car](https://github.com/mselin/gta-c64/blob/main/specs/design.md#car-against-car), crashes now go
   by each kind's weight (a table of shares for each pair of kinds), and a knock off a car's middle spins it,
   which can wait until there are crashes to spin (#46).
-- Pedestrians, drawn as characters rather than sprites. The design now draws people about 12 pixels across in
+- Pedestrians (walking passers-by done, not yet tried on real hardware): up to four at once, multicolour sprites
+  shared through the multiplexer rather than characters (the owner's choice: characters could only be grey and
+  black), the player's figure in four directions and five poses in one of the design's eight shirt colours, with
+  black outline and hair and yellow skin, the colours all multicolour sprites share. They appear out of sight on
+  pavements and plazas, walk the pavements, plazas and grass, go once far off, and move only in a frame with
+  time to spare (`src/people.asm`). The player's car going 30 pixels a second or more runs someone over: they lie
+  flat in the design's knocked-down picture for four seconds, then are gone (no stain, which the city's characters
+  cannot show, and no heat yet). Still to come: crossing roads, traffic stopping for them, punches and getting up
+  again, scooter riders and the police. The design draws people about 12 pixels across in
   chunky 2 × 2 pixels with a black outline, more than one character, and police officers in light blue with a
   white cap; passers-by never look like the player or the police. Walkers have five walking poses, arms and feet
   swinging opposite ways, a pose with the arm held out for a shot, a punch or a stab, and one lying knocked

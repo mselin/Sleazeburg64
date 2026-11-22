@@ -55,7 +55,11 @@ update          lda foot.on
 +               lda #0
                 sta wet
                 jsr car.here            ; its middle ...
-                jsr point
+                jsr car.survey          ; (no water in the tiles round it: none at any of the three points,
+                and #2                  ; all within 6 pixels of it)
+                bne +
+                rts
++               jsr point
                 lda car.angle + 1
                 clc
                 adc #8

@@ -66,7 +66,7 @@ export class Traffic {
    * that a car the player leaves always has somewhere to go. `mine` is the place of the car the player left
    * last, which stays however far they go, or 0xff.
    */
-  constructor({ cars = 6, spawn = true } = {}) {
+  constructor({ cars = 5, spawn = true } = {}) {
     this.limit = cars;
     this.n = cars + 1;
     this.spawn = spawn;

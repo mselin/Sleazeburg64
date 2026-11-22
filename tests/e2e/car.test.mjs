@@ -54,7 +54,7 @@ function models() {
 /** One pass of the main loop in the models, then in the program, and check they agree. */
 async function pass(vice, m, bits, what) {
   const cell = [...m.cam.cell];
-  m.car.step(bits);
+  m.car.step(bits, null, m.cam.busy);
   m.cam.follow(m.car.px, m.car.py);
   waterStep(m, cell);
   await vice.joystick(bits);
@@ -184,7 +184,7 @@ test('flat out east along the street: top speed, the window keeps up, and every 
     const before = await missed();
     let latest = 0;
     for (let frame = 1; frame <= 240; frame++) {
-      m.car.step(JOY.UP);
+      m.car.step(JOY.UP, null, m.cam.busy);
       m.cam.follow(m.car.px, m.car.py);
       await vice.joystick(JOY.UP);
       await vice.runTo(L['frame.publish']);
@@ -227,7 +227,7 @@ test('flat out, steering is held to what the tyres hold: a wider line; the handb
     const turnFrom = (bits) => {
       const probe = new Car(0, 0);
       Object.assign(probe, { x: m.car.x, y: m.car.y, vx: m.car.vx, vy: m.car.vy, angle: m.car.angle });
-      probe.step(bits);
+      probe.step(bits, null, m.cam.busy);
       return (probe.angle - m.car.angle) & 0xffff;
     };
     assert.equal(turnFrom(JOY.UP | JOY.RIGHT), 500, 'held to the grip');
