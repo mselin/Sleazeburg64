@@ -18,7 +18,7 @@ swim across the canal, and get into any car, a passing one included. Drive into 
 the car wades, slower the deeper it goes, until it floods and sinks, leaving you swimming. Big Honk, the goose who runs Sleazeburg,
 wanders The Moat, the canal down the middle of the city; nothing hurts him, and a car that runs into him only
 makes him flap and run off. A few passers-by walk the pavements, the plazas and the grass, in the design's
-shirt colours; nothing knocks them down yet. A raster split keeps the status panel still under the city, on black: the money,
+shirt colours; drive into one fast and they lie flat for four seconds, then are gone. A raster split keeps the status panel still under the city, on black: the money,
 heat, health, the car and the ammo, the job, and messages, laid out as the browser game's. There is no
 sound and no game yet, so nothing changes the money or the rest yet. See [docs/ROADMAP.md](docs/ROADMAP.md) and the
 [issues](https://github.com/mselin/Sleazeburg64/issues) for what comes next.

@@ -108,7 +108,7 @@ start           sei
                 #raise more_image, MORE_CODE, MORE_PAGES   ; waits, before anything is written over it there
                 #raise top_image, TOP_CODE, TOP_PAGES
                 #raise extra_image, EXTRA_CODE, EXTRA_PAGES
-                #raise people_image, PEOPLE_FRAMES, 5
+                #raise people_image, PEOPLE_FRAMES, (size(people_image) + 255) / 256
 .endif
                 lda #<ignore            ; RESTORE does nothing (after the copy, which can run over the vectors)
                 sta $fffa

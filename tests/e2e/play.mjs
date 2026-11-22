@@ -87,6 +87,7 @@ export class World {
     if (this.honk) this.honk.step(this.car, this.traffic, this.cam, cell);
     const moves = ((this.cam.x >> 3) ^ cell[0]) & 31 || ((this.cam.y >> 3) ^ cell[1]) & 31;
     this.people.step(!moves && !busy, [this.player.px, this.player.py], this.cam);
+    this.people.tick(this.cam, this.car);
     this.list = [...this.traffic.show(this.cam), ...(this.honk ? this.honk.show(this.cam) : []), ...this.people.show(this.cam)].slice(0, 16); // the multiplexer lists sixteen
   }
   /** Every sprite that should be on screen, the one in front first: sprite 0, then sprites 1-7 as shared out. */

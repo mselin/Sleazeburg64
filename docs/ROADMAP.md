@@ -55,8 +55,10 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
   black), the player's figure in four directions and five poses in one of the design's eight shirt colours, with
   black outline and hair and yellow skin, the colours all multicolour sprites share. They appear out of sight on
   pavements and plazas, walk the pavements, plazas and grass, go once far off, and move only in a frame with
-  time to spare (`src/people.asm`). Still to come: crossing roads, traffic stopping for them, being run over and
-  knocked down (another picture), scooter riders and the police. The design draws people about 12 pixels across in
+  time to spare (`src/people.asm`). The player's car going 30 pixels a second or more runs someone over: they lie
+  flat in the design's knocked-down picture for four seconds, then are gone (no stain, which the city's characters
+  cannot show, and no heat yet). Still to come: crossing roads, traffic stopping for them, punches and getting up
+  again, scooter riders and the police. The design draws people about 12 pixels across in
   chunky 2 × 2 pixels with a black outline, more than one character, and police officers in light blue with a
   white cap; passers-by never look like the player or the police. Walkers have five walking poses, arms and feet
   swinging opposite ways, a pose with the arm held out for a shot, a punch or a stab, and one lying knocked

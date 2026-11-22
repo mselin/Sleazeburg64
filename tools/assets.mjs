@@ -406,8 +406,41 @@ export function personPixels(d, p) {
   ring(px, 1);
   return px;
 }
+/**
+ * Someone knocked down, by the design: flat on their back, head to the top, arms flung wide, legs out straight
+ * below in the trousers' colour (black, as the outline), face up (yellow) with the hair at the crown. One
+ * frame, whichever way they were going: frame PEOPLE_FRAME_COUNT.
+ */
+export function downPixels() {
+  const at = (x, y) => {
+    const disc = (cx, cy, r) => (x - cx) ** 2 + (y - cy) ** 2 <= r * r;
+    const nearLine = (ax, ay, bx, by, r) => {
+      const vx = bx - ax, vy = by - ay;
+      const t = Math.max(0, Math.min(1, ((x - ax) * vx + (y - ay) * vy) / (vx * vx + vy * vy)));
+      return (x - ax - t * vx) ** 2 + (y - ay - t * vy) ** 2 <= r * r;
+    };
+    let c = 0;
+    for (const side of [-1, 1]) if (nearLine(side * 1.2, 2, side * 1.6, 8, 1.0)) c = 1; // legs
+    if (Math.abs(x) <= 2.6 && y >= -3.6 && y <= 2.4) c = 2; // the shirt
+    for (const side of [-1, 1]) {
+      if (nearLine(side * 2.4, -2.6, side * 6, -5, 1.0)) c = 2; // sleeves, flung wide ...
+      if (disc(side * 6.6, -5.4, 1.3)) c = 3; // ... and hands
+    }
+    if (disc(0, -6.4, 2.7)) c = y < -7.6 ? 1 : 3; // the head: face up, hair at the crown
+    return c;
+  };
+  const px = new Array(12 * 21).fill(0);
+  for (let br = 0; br < 10; br++)
+    for (let m = 0; m < 12; m++) {
+      const c = at(2 * m + 1 - 12, 2 * br + 1 - 10);
+      px[2 * br * 12 + m] = px[(2 * br + 1) * 12 + m] = c;
+    }
+  ring(px, 1);
+  return px;
+}
 const people = [];
 for (let d = 0; d < PEOPLE_DIRS; d++) for (let p = 0; p < PLAYER_POSES; p++) people.push(spriteBytes(personPixels(d, p)));
+people.push(spriteBytes(downPixels()));
 writeFileSync(join(dir, 'people.bin'), Buffer.concat(people));
 writeFileSync(join(dir, 'player.bin'), Buffer.concat(player.stored)); // what the program file holds
 writeFileSync(join(dir, 'player-made.bin'), Uint8Array.from(player.made)); // and how it makes the rest

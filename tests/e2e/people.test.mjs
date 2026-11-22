@@ -31,7 +31,7 @@ test('their twenty frames are copied into place at start: four ways, five poses,
   withProgram(game.prg, async (vice) => {
     await vice.runTo(L.ready);
     assert.equal(L.PEOPLE_FRAMES / 64, PEOPLE_SPRITE);
-    assert.ok((await vice.read(L.PEOPLE_FRAMES, 20 * 64)).equals(assets.people), 'as tools/assets.mjs draws them');
+    assert.ok((await vice.read(L.PEOPLE_FRAMES, 21 * 64)).equals(assets.people), 'as tools/assets.mjs draws them, and the one lying');
     assert.ok(L.code_end <= L.PEOPLE_FRAMES, 'the code ends before them');
     // Shirts: the design's eight passers-by's colours, never the player's yellow.
     assert.deepEqual(P.SHIRTS, [4, 8, 3, 2, 10, 9, 5, 1]);
@@ -121,3 +121,36 @@ test('in the game, people arrive by themselves out of sight on pavements, walk, 
     assert.equal(await missed(vice, F) - again, 0, 'no frame was late');
     assert.ok(most <= P.CROWD);
   }, full, {}));
+
+test('the player\'s car going fast runs someone over: they lie flat for 4 seconds, then are gone; slowly, it does not', () =>
+  run(async (vice, w) => {
+    // On the street at the top of the city, facing east, someone standing in the road ahead (they cannot
+    // get there by themselves: people keep off the roads, so the test puts them there).
+    await putCar(vice, L, w, 200, 24, 0);
+    await hold(vice, w, 0, 3, 'put there');
+    const late = await missed(vice, L);
+    const p = await putPerson(vice, L, w.people, 2, { x: 290, y: 24, way: 1, spd: 0, col: 4, wait: 255 });
+    let frame = 0;
+    while (!p.down && frame < 120) await pass(vice, L, w, JOY.UP, `driving at them, ${++frame} frames`);
+    assert.equal(p.down, P.DOWN_TIME, 'run over');
+    assert.ok(Math.abs(w.car.vx) >= P.RUN_OVER, 'going fast enough');
+    assert.ok(Math.abs(p.px - w.car.px) <= P.HIT + 6, 'by the car');
+    await hold(vice, w, JOY.DOWN, 30, 'braking');
+    assert.equal(p.pointer, PEOPLE_SPRITE + P.DOWN_FRAME, 'lying');
+    await assertPicture(vice, L, w, 'someone run over, lying in the road', JOY.DOWN);
+    await hold(vice, w, JOY.DOWN, P.DOWN_TIME - 32, 'lying there');
+    assert.equal(p.on, 1, 'still there');
+    await hold(vice, w, 0, 2, 'the last of it');
+    assert.equal(w.people.people[2].on, 0, 'gone');
+    assert.equal(await missed(vice, L) - late, 0, 'no frame was late');
+    // Slowly into someone: they are not knocked down (and the car passes through them, as nothing stops it).
+    await putCar(vice, L, w, 200, 24, 0);
+    await hold(vice, w, 0, 3, 'put back, standing');
+    const q = await putPerson(vice, L, w.people, 1, { x: 230, y: 24, way: 1, spd: 0, col: 5, wait: 255 });
+    for (let i = 1; i <= 60; i++) {
+      const bits = Math.abs(w.car.vx) < P.RUN_OVER - 40 ? JOY.UP : 0;
+      await pass(vice, L, w, bits, `creeping, ${i} frames`);
+      assert.ok(Math.abs(w.car.vx) < P.RUN_OVER, 'slowly');
+    }
+    assert.equal(q.down, 0, 'not run over');
+  }));

@@ -17,8 +17,16 @@
 ; in turn from a random one, the way back usually last, the first that leads somewhere they like; if none
 ; does, any way that is not into a wall. They step forward only if what is TREAD pixels ahead is not a wall.
 ; The walk goes through the poses 2, 3, 4, 3, 2, 1, 0, 1, a pose every 1.6 pixels walked (the design's 0.15
-; steps a pixel, four poses a step). Not yet: crossing roads (the browser game's jaywalkers), traffic stopping
-; for them, or being run over, which needs a picture of someone knocked down.
+; steps a pixel, four poses a step). Not yet: crossing roads (the browser game's jaywalkers), or traffic
+; stopping for them.
+;
+; Run over. The player's car, going at least 30 pixels a second on either axis, runs someone over when its
+; middle comes within HIT of theirs on both axes or the point ahead of it within NOSE (the design's 10 and 9,
+; distances, taken here as squares). It is looked at when they are listed, every frame: anyone the car is on
+; is in sight, and a fast car crosses someone in a couple of frames. They lie flat for 4 seconds in the
+; design's picture of someone knocked down, then are gone (the browser game leaves a stain, which the city's
+; characters cannot show here). Nothing else follows yet: no heat, no pickup. Traffic does not run anyone over:
+; people keep off the roads.
 ;
 ; Time. They move, and new ones appear, only in a frame that neither moves the screen nor works out colour
 ; memory, which have no time to spare; in those they stand still for a frame. Listing them for the multiplexer
@@ -33,6 +41,11 @@ PAVEMENT        = 4                     ; a tile's kind (tools/assets.mjs): pave
 
 people          .block
 REACH           = 9                     ; how far ahead they look to choose a way
+RUN_OVER        = 154                   ; the player's car runs someone over going this fast on either axis,
+HIT             = 9                     ; in 1/256 pixel a frame (30 pixels a second), with its middle within
+NOSE            = 8                     ; HIT of theirs on both axes, or the point ahead of it within NOSE
+DOWN_TIME       = 200                   ; frames they lie, 4 seconds, then gone
+DOWN_FRAME      = 20                    ; their picture lying (tools/assets.mjs)
 TREAD            = 4                     ; and to take a step
 ARRIVE_GAP       = 16                    ; frames with time to spare between looking for a place for someone
 FAR             = $180                  ; 384: further than this from the player, they go
@@ -85,7 +98,10 @@ quiet
 
 ; Person X: gone if far off; else pick a way if it is time or what is ahead is not to their liking, a step
 ; if they can, and on through the walk.
-walk            jsr far_off
+walk            lda down,x              ; lying: no more walking
+                beq +
+                rts
++               jsr far_off
                 bcc +
                 lda #0
                 sta on,x
@@ -434,10 +450,19 @@ shirts          .byte PURPLE, ORANGE, CYAN, RED, LIGHT_RED, BROWN, GREEN, WHITE
 
 ; List everyone in sight for the multiplexer, after traffic.show (which leaves the window's corner, moved by
 ; where a sprite can start, in traffic.cx and cy) and Big Honk, as he is listed.
-show            ldx #CROWD - 1
+show            jsr hunting             ; the player's car, if it is going fast enough to run someone over
+                ldx #CROWD - 1
 each            lda on,x
-                beq hidden
-                sec                     ; down: 0 to LOWEST - 1 from cy
+                bne +
+                jmp hidden
++               lda down,x              ; lying: for DOWN_TIME frames, then gone
+                beq +
+                dec down,x
+                bne +
+                lda #0
+                sta on,x
+                jmp hidden
++               sec                     ; down: 0 to LOWEST - 1 from cy
                 lda yl,x
                 sbc traffic.cy
                 tay
@@ -470,7 +495,17 @@ each            lda on,x
                 sta sprites.sx
                 bcc +
                 inc sprites.sx + 1
-+               lda phh,x               ; the pose, through the walk
++               lda down,x
+                bne lying
+                lda chasing             ; run over?
+                beq walking
+                jsr struck
+                bcs walking
+                lda #DOWN_TIME
+                sta down,x
+lying           lda #PEOPLE_SPRITE + DOWN_FRAME
+                bne picture
+walking         lda phh,x               ; the pose, through the walk
                 and #7
                 tay
                 lda way,x
@@ -479,7 +514,7 @@ each            lda on,x
                 adc way,x               ; way * 5 (the carry is clear)
                 adc cycle,y
                 adc #PEOPLE_SPRITE
-                sta sprites.sp
+picture         sta sprites.sp
                 lda col,x
                 ora #$80                ; multicolour
                 sta sprites.sc
@@ -487,12 +522,117 @@ each            lda on,x
                 jsr sprites.add
                 ldx who
 hidden          dex
-                bpl each
-                rts
+                bmi +
+                jmp each
++               rts
 cycle           .byte 2, 3, 4, 3, 2, 1, 0, 1
 
+; chasing = 1 if the player's car is going RUN_OVER or more along either axis (as Big Honk's speedy), and then the
+; points that run someone over: its middle (cx, cy) and the point the car's axis ahead of it (fx, fy).
+hunting         lda #0
+                sta chasing
+                ldy #2                  ; down, then across
+-               lda car.vel_x + 1,y
+                beq forward
+                cmp #$ff
+                bne quick               ; 256 or more either way
+                lda car.vel_x,y         ; -256 to -1
+                cmp #256 - RUN_OVER + 1
+                bcc quick
+                bcs slow
+forward         lda car.vel_x,y         ; 0 to 255
+                cmp #RUN_OVER
+                bcs quick
+slow            dey
+                dey
+                bpl -
+                rts
+quick           inc chasing
+                lda car.angle + 1       ; the car's sprite direction, and its axis that way
+                clc
+                adc #8
+                lsr
+                lsr
+                lsr
+                lsr
+                tay
+                lda car.pos_x + 1
+                sta cx
+                lda car.pos_x + 2
+                sta cx + 1
+                lda car.pos_y + 1
+                sta cy
+                lda car.pos_y + 2
+                sta cy + 1
+                ldx #0
+                lda car.axis_x,y
+                jsr ahead_of
+                ldx #2
+                lda car.axis_y,y
+; fx (X = 0) or fy (X = 2) = cx or cy + the signed byte A.
+ahead_of        sta lim                 ; (spare)
+                and #$80
+                beq +
+                lda #$ff
++               sta lim + 1
+                clc
+                lda cx,x
+                adc lim
+                sta fx,x
+                lda cx + 1,x
+                adc lim + 1
+                sta fx + 1,x
+                rts
+
+; C clear if person X is run over: within HIT of the car's middle on both axes, or within NOSE of the point
+; ahead of it.
+struck          lda #HIT
+                ldy #0
+                jsr beside
+                bcc +
+                lda #NOSE
+                ldy #4
+                jsr beside
++               rts
+; C clear if person X is within A of the point at cx + Y (cx, cy, or fx, fy) on both axes.
+beside          sta lim
+                sec
+                lda xl,x
+                sbc cx,y
+                sta d
+                lda xh,x
+                sbc cx + 1,y
+                jsr within
+                bcs +
+                sec
+                lda yl,x
+                sbc cy,y
+                sta d
+                lda yh,x
+                sbc cy + 1,y
+                jmp within
++               rts
+; C clear if the difference A (high), d (low) is lim or less either way.
+within          sta d + 1
+                clc
+                lda d
+                adc lim
+                sta d
+                lda d + 1
+                adc #0
+                bne far_from
+                lda lim
+                asl
+                cmp d                   ; C set if 2 * lim >= d
+                bcc far_from
+                clc
+                rts
+far_from        sec
+                rts
+
 ; Its variables, here with the code (the panel screen's room for them is full with sixteen cars).
-on              .fill CROWD, 0            ; 1 for someone walking
+on              .fill CROWD, 0            ; 1 for someone walking, or lying
+down            .fill CROWD, 0          ; frames left lying, once run over; 0 walking
 xf              .fill CROWD, 0            ; x: fraction, pixel low and high
 xl              .fill CROWD, 0
 xh              .fill CROWD, 0
@@ -506,6 +646,13 @@ wait            .fill CROWD, 0            ; frames until they pick a way again
 phl             .fill CROWD, 0            ; how far through the walk: 1/256 pose
 phh             .fill CROWD, 0
 seed            .byte 0
+chasing            .byte 0                 ; show: 1 if the player's car can run someone over
+cx              .word 0                 ; its middle ...
+cy              .word 0
+fx              .word 0                 ; ... and the point ahead of it
+fy              .word 0
+lim             .word 0                 ; beside
+d               .word 0
 lull             .byte 0                 ; frames with time to spare until the next look for a place
 who             .byte 0                 ; the one being moved
 try             .byte 0                 ; pick
