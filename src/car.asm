@@ -813,14 +813,10 @@ high            lda #0
 ; looking at: a box is narrower than a tile, so that is at most one new column (or row) of two tiles for
 ; each box, and usually none. This gives the same answer as hits for the new place, for far less work.
 ; In: pos_off = 0 across or 3 down.
-; First, the 3 by 3 tiles round where it is (survey): a move is at most 4.3 pixels, so every point looked at
-; is within 14 pixels of its middle now, and if none of those tiles is a wall, none is in the way.
-lead            jsr here
-                jsr survey
-                lsr
-                bcs +
-                rts                     ; (C clear: clear)
-+               lda angle + 1           ; the three points' offsets: middle, back, front
+; Before the walls are looked at, the 3 by 3 tiles round where it is (survey): a move is at most 4.3 pixels, so
+; every point looked at is within 14 pixels of its middle now, and if none of those tiles is a wall, none is in
+; the way.
+lead            lda angle + 1           ; the three points' offsets: middle, back, front
                 clc
                 adc #8
                 lsr
@@ -868,7 +864,12 @@ lead            jsr here
                 sta oth
                 lda pos_x + 2,x
                 sta oth + 1
-                lda #4                  ; the leading edge: 4 pixels ahead, either way
+                jsr here                ; (traffic.bump uses all of the above; the walls only what follows)
+                jsr survey
+                lsr
+                bcs +
+                rts                     ; (C clear: clear)
++               lda #4                  ; the leading edge: 4 pixels ahead, either way
                 sta reach
                 lda mn
                 cmp mo
