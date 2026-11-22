@@ -139,6 +139,12 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
 
 ## What will not carry over from the browser game
 
+- **Choosing the scale.** The browser game draws the city 2 screen pixels to a city pixel by default, so that a
+  person is nearer their real size beside a car, and lets the player switch between 1×, 2× and 3× (the design's
+  [The scale](https://github.com/mselin/gta-c64/blob/main/specs/design.md#the-scale)). The C64 version has one
+  scale, its own choice. At 2, cars would be expanded sprites and tiles 4 × 4 characters, but top speeds would
+  halve at the same scroll rate. At 1, people stay as big as cars.
+
 - **The browser check.** The browser game checks the browser on its loading screen and says what is missing.
   A real C64 has no browser to check. The nearest thing here is the title screen's note on an NTSC machine
   (`src/title.asm`), which says the game is written for PAL; NTSC support is in milestone 4.
