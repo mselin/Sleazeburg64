@@ -527,8 +527,7 @@ hidden          dex
 +               rts
 cycle           .byte 2, 3, 4, 3, 2, 1, 0, 1
 
-; chasing = 1 if the player's car is going RUN_OVER or more along either axis (as Big Honk's speedy), and then the
-; points that run someone over: its middle (cx, cy) and the point the car's axis ahead of it (fx, fy).
+; chasing = 1 if the player's car is going RUN_OVER or more along either axis (as Big Honk's speedy).
 hunting         lda #0
                 sta chasing
                 ldy #2                  ; down, then across
@@ -547,7 +546,13 @@ slow            dey
                 dey
                 bpl -
                 rts
-quick           inc chasing
+quick           inc chasing             ; (the points only when someone in sight is to be looked at: points)
+                rts
+
+; The points that run someone over, worked out once a frame, the first time they are needed: the car's middle
+; (cx, cy) and the point ahead of it (fx, fy). chasing goes from 1 to 2.
+points          inc chasing
+                stx who                 ; (X is the person being looked at)
                 lda car.angle + 1       ; the car's sprite direction, and its axis that way
                 clc
                 adc #8
@@ -569,6 +574,9 @@ quick           inc chasing
                 jsr ahead_of
                 ldx #2
                 lda car.axis_y,y
+                jsr ahead_of
+                ldx who
+                rts
 ; fx (X = 0) or fy (X = 2) = cx or cy + the signed byte A.
 ahead_of        sta lim                 ; (spare)
                 and #$80
@@ -586,7 +594,11 @@ ahead_of        sta lim                 ; (spare)
 
 ; C clear if person X is run over: within HIT of the car's middle on both axes, or within NOSE of the point
 ; ahead of it.
-struck          lda #HIT
+struck          lda chasing
+                cmp #2
+                beq +
+                jsr points
++               lda #HIT
                 ldy #0
                 jsr beside
                 bcc +
