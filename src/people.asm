@@ -31,11 +31,8 @@
 ; people keep off the roads.
 ;
 ; Time. They move, and new ones appear, only in a frame that neither moves the screen nor works out colour
-; memory, which have no time to spare; in those they stand still for a frame. Someone in sight costs about
-; 300 cycles a frame to list and sort for the multiplexer, so in the busiest frames, where four in sight would
-; make the frame late, they are left out of the list for that frame (room), as the multiplexer leaves out what
-; does not fit: they flicker rather than make a frame late. Listing them for the multiplexer
-; happens every frame, as it must.
+; memory, which have no time to spare; in those they stand still for a frame. Listing them for the multiplexer
+; (about 300 cycles a frame for someone in sight) happens every frame, as it must.
 ;
 ; This code runs from EXTRA_CODE (main.asm), with its tables. Its random numbers are its own.
 ;
@@ -51,8 +48,6 @@ HIT             = 9                     ; in 1/256 pixel a frame (30 pixels a se
 NOSE            = 8                     ; HIT of theirs on both axes, or the point ahead of it within NOSE
 DOWN_TIME       = 200                   ; frames they lie, 4 seconds, then gone
 DOWN_FRAME      = 20                    ; their picture lying (tools/assets.mjs)
-SHOW_BY_BUSY    = 140                   ; room: they are listed only if the beam is this far past the bottom
-SHOW_BY         = 250                   ; interrupt at most (in a busy frame, and in any other), so no frame is late
 TREAD            = 4                     ; and to take a step
 ARRIVE_GAP       = 16                    ; frames with time to spare between looking for a place for someone
 FAR             = $180                  ; 384: further than this from the player, they go
@@ -497,7 +492,6 @@ shirts          .byte PURPLE, ORANGE, CYAN, RED, LIGHT_RED, BROWN, GREEN, WHITE
 ; List everyone in sight for the multiplexer, after traffic.show (which leaves the window's corner, moved by
 ; where a sprite can start, in traffic.cx and cy) and Big Honk, as he is listed.
 show            jsr hunting             ; the player's car, if it is going fast enough to run someone over
-                jsr room                ; and whether this frame has time to list them
                 ldx #CROWD - 1
 each            lda on,x
                 bne +
@@ -532,10 +526,7 @@ each            lda on,x
                 bcs listed
                 lda #DOWN_TIME
                 sta down,x
-listed          lda listing             ; listed for the multiplexer, unless this frame has no time for them (as
-                bne +                   ; the multiplexer leaves out what does not fit: they show again in the
-                jmp hidden              ; next)
-+               sec                     ; down: 0 to LOWEST - 1 from cy
+listed          sec                     ; down: 0 to LOWEST - 1 from cy
                 lda yl,x
                 sbc traffic.cy
                 tay
@@ -594,34 +585,6 @@ hidden          dex
                 jmp each
 +               rts
 cycle           .byte 2, 3, 4, 3, 2, 1, 0, 1
-
-; listing = 1 if this frame has time for them: how far the beam is past the bottom interrupt is under
-; SHOW_BY_BUSY in a frame that moves the screen or works out colour memory (about 160 lines of which are still
-; to come after this), or under SHOW_BY in any other.
-room            lda #0
-                sta listing
-                ldy #SHOW_BY
-                lda busy
-                bne +
-                jsr screen_moves
-                bcc ++
-+               ldy #SHOW_BY_BUSY
-+               sty first               ; (spare)
-                lda VIC_RASTER          ; lines since the bottom interrupt
-                ldx VIC_CTRL1
-                bpl +
-                clc                     ; 256 and on: - BOTTOM_LINE
-                adc #256 - BOTTOM_LINE
-                jmp ++
-+               sec
-                sbc #BOTTOM_LINE
-                bcs +                   ; BOTTOM_LINE to 255
-                adc #312 - 256          ; (C clear) before it: the next frame's lines, 312 on
-                bcs late                ; past 255 lines: no time
-+               cmp first
-                bcs late
-                inc listing
-late            rts
 
 ; chasing = 1 if the player's car is going RUN_OVER or more along either axis (as Big Honk's speedy).
 hunting         lda #0
@@ -763,7 +726,6 @@ fx              .word 0                 ; ... and the point ahead of it
 fy              .word 0
 lim             .word 0                 ; beside
 d               .word 0
-listing         .byte 0                 ; show: 1 if this frame has time to list them
 lull             .byte 0                 ; frames with time to spare until the next look for a place
 who             .byte 0                 ; the one being moved
 try             .byte 0                 ; pick

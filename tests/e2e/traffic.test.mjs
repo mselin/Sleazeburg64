@@ -12,7 +12,7 @@ import { Honk, readHonk } from './honk-model.mjs';
 import { modelTraffic, readTraffic } from './play.mjs';
 import { Player } from './foot-model.mjs';
 import { waterStep } from './water-model.mjs';
-import { People, readPeople } from './people-model.mjs';
+import { People, ROADWAY, putPerson, readPeople } from './people-model.mjs';
 
 const START = [9 * 16, 8 * 16];
 const RED = 2;
@@ -185,6 +185,50 @@ test('a car stops behind the player\'s car in its lane, waits, then gives up wai
     assert.ok(stoppedAt >= T.AHEAD_MIN && stoppedAt <= T.AHEAD_MAX, `it stopped ${stoppedAt} pixels behind`);
     assert.ok(waited >= T.HELD - 10, `it waited ${waited} frames before giving up`);
     assert.ok(c.px >= m.car.px + 40, 'and then drove on past');
+  }));
+
+test('a car stops for someone standing in the road ahead of it in its lane, and drives on once they are gone', () =>
+  withProgram(placed.prg, async (vice) => {
+    await vice.runTo(P.ready);
+    const m = models(new Traffic({ spawn: false }));
+    await pass(vice, P, m, 0, 'first');
+    // Someone standing in the eastbound lane, west of the player's car, and a car coming up behind them.
+    const at = m.car.px - 70;
+    assert.equal(People.kind(at, 192 + LANE[0]), ROADWAY);
+    const p = await putPerson(vice, P, m.people, 3, { x: at, y: 192 + LANE[0], way: 1, spd: 0, wait: 255, jay: 1 });
+    await putTraffic(vice, m, [{ x: at - 110, y: 192 + LANE[0], dir: 0, cruise: 150 }]);
+    const c = m.traffic.cars[0];
+    let stoppedAt = null;
+    for (let frame = 1; frame <= 120; frame++) {
+      await pass(vice, P, m, 0, `after ${frame} frames`);
+      if (c.sp === 0) stoppedAt ??= p.px - c.px;
+      if (frame === 100) await assertPicture(vice, P, m, 'with the car waiting for them');
+    }
+    assert.ok(stoppedAt !== null && stoppedAt >= 1 && stoppedAt <= T.P_AHEAD, `it stopped ${stoppedAt} pixels short of them`);
+    assert.ok(c.px < p.px, 'and has not driven through them');
+    // They go (as if far off): the car drives on.
+    m.people.people[3].on = 0;
+    await vice.write(P['people.on'] + 3, [0]);
+    for (let frame = 1; frame <= 120 && c.px < at + 20; frame++) await pass(vice, P, m, 0, `after they went, ${frame} frames`);
+    assert.ok(c.px >= at + 20, 'and drove on past where they stood');
+  }));
+
+test('someone ready to cross a road walks over it, as the model says', () =>
+  withProgram(placed.prg, async (vice) => {
+    await vice.runTo(P.ready);
+    const m = models(new Traffic({ spawn: false }));
+    await pass(vice, P, m, 0, 'first');
+    // On the pavement south of the street the player's car is on, facing north across it, ready to cross.
+    const x = m.car.px - 40;
+    let y = 192 + 40;
+    while (People.kind(x, y) === ROADWAY) y += 4;
+    const p = await putPerson(vice, P, m.people, 2, { x, y, way: 3, spd: 120, wait: 255, jay: 1 });
+    let onRoad = 0;
+    for (let frame = 1; frame <= 400; frame++) {
+      await pass(vice, P, m, 0, `after ${frame} frames`);
+      if (p.on && People.kind(p.px, p.py) === ROADWAY) onRoad++;
+    }
+    assert.ok(onRoad > 20, `they were on the road (${onRoad} frames)`);
   }));
 
 // ---------- the player's car running into traffic ----------

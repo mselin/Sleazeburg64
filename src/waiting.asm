@@ -33,6 +33,7 @@ more_end
 top_image
                 .logical TOP_CODE
                 .include "traffic.asm"
+                .dsection car_extra     ; (where there is room: the passers-by's jaywalking filled EXTRA_CODE)
 top_end
                 .endlogical
 extra_image
@@ -43,7 +44,6 @@ extra_image
                 .include "people.asm"
 .endif
                 .dsection status
-                .dsection car_extra
 extra_end
                 .endlogical
 people_image    .binary "people.bin"    ; the passers-by's frames, copied to PEOPLE_FRAMES at start
