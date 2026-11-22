@@ -73,7 +73,6 @@ export class World {
     this.player = new Player(this.car);
     this.cam = new Camera(...START);
     this.traffic = new Traffic(traffic);
-    this.traffic.people = this.people; // (which traffic stops for)
     this.honk = honk ? new Honk() : null;
     this.list = [];
   }

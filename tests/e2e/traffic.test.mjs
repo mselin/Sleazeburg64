@@ -30,9 +30,7 @@ function spritesFor(car, cam, list) {
 function models(traffic) {
   const car = new Car(START[0] + CENTRE_X, START[1] + CENTRE_Y);
   // Passers-by come by themselves only in a build whose traffic does (SPAWN).
-  const people = new People({ arrive: traffic.spawn });
-  traffic.people = people; // (which traffic stops for)
-  return { car, player: new Player(car), cam: new Camera(...START), traffic, honk: new Honk(), people, list: [] };
+  return { car, player: new Player(car), cam: new Camera(...START), traffic, honk: new Honk(), people: new People({ arrive: traffic.spawn }), list: [] };
 }
 
 /** One pass of the main loop in the models, with the joystick held as given. */

@@ -53,8 +53,6 @@ GHOST_TIME      = 80                    ; ... and it drives on without looking f
 AHEAD_MIN       = 4
 AHEAD_MAX       = 36
 SIDE            = 8
-P_AHEAD         = 26                    ; look: someone on foot, from the car's middle (the design's distances)
-P_SIDE          = 9
 FAR_X           = 400
 FAR_Y           = 320
 NEAR            = 37                    ; a new car: no car within this on both axes
@@ -495,74 +493,6 @@ loop            cpy i
                 rts
 next            dey
                 bpl loop
-.if CROWD != 0                          ; and the passers-by on a road, nearer: up to P_AHEAD in front, P_SIDE
-                lda people.crossing     ; to the side (only if anyone is on a road, which is seldom)
-                beq p_none
-                ldy #CROWD - 1
-p_loop          lda people.on,y
-                beq p_next
-                sec
-.if \oa == 0 && \back == 0
-                lda people.xl,y
-                sbc \ma
-                tax
-                lda people.xh,y
-                sbc \ma + 1
-.elsif \oa == 0
-                lda \ma
-                sbc people.xl,y
-                tax
-                lda \ma + 1
-                sbc people.xh,y
-.elsif \back == 0
-                lda people.yl,y
-                sbc \ma
-                tax
-                lda people.yh,y
-                sbc \ma + 1
-.else
-                lda \ma
-                sbc people.yl,y
-                tax
-                lda \ma + 1
-                sbc people.yh,y
-.endif
-                bne p_next
-                cpx #1
-                bcc p_next
-                cpx #P_AHEAD + 1
-                bcs p_next
-                sec
-.if \oa == 0
-                lda people.yl,y
-                sbc \mc
-                tax
-                lda people.yh,y
-.else
-                lda people.xl,y
-                sbc \mc
-                tax
-                lda people.xh,y
-.endif
-                sbc \mc + 1
-                sta t1
-                txa
-                clc
-                adc #P_SIDE
-                bcc +
-                inc t1
-+               ldx t1
-                bne p_next
-                cmp #2 * P_SIDE + 1
-                bcs p_next
-                ldx i
-                lda #1
-                sta blocked,x
-                rts
-p_next          dey
-                bpl p_loop
-p_none
-.endif
                 ldx i
                 lda #0
                 sta blocked,x

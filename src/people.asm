@@ -13,28 +13,23 @@
 ; axis goes. (The browser game keeps 24 within 400 pixels; four is what the frame time allows here.)
 ;
 ; Walking. At 15 to 21 pixels a second (77 to 108 in 1/256 pixel a frame), one of four ways. Every so often,
-; and whenever what is REACH pixels ahead is not a pavement, a plaza or grass (or a road, for someone ready to
-; cross one), they pick a way again. Each time, they are ready to cross a road if they are on one, or else one
-; time in ten, as the browser game's jaywalkers. Then: the four
+; and whenever what is REACH pixels ahead is not a pavement, a plaza or grass, they pick a way again: the four
 ; in turn from a random one, the way back usually last, the first that leads somewhere they like; if none
 ; does, any way that is not into a wall. They step forward only if what is TREAD pixels ahead is not a wall.
 ; The walk goes through the poses 2, 3, 4, 3, 2, 1, 0, 1, a pose every 1.6 pixels walked (the design's 0.15
-; steps a pixel, four poses a step). Traffic stops for someone in its lane up to 26 pixels ahead and 9 to the
-; side (traffic.look, the design's distances), as it does for a car.
+; steps a pixel, four poses a step). Not yet: crossing roads (the browser game's jaywalkers), or traffic
+; stopping for them.
 ;
 ; Run over. The player's car, going at least 30 pixels a second on either axis, runs someone over when its
 ; middle comes within HIT of theirs on both axes or the point ahead of it within NOSE (the design's 10 and 9,
-; distances, taken here as squares). It is looked at in every frame (show), so a fast car never crosses
-; someone unseen. They lie flat for 4 seconds in the
+; distances, taken here as squares). It is looked at when they are listed, every frame: anyone the car is on
+; is in sight, and a fast car crosses someone in a couple of frames. They lie flat for 4 seconds in the
 ; design's picture of someone knocked down, then are gone (the browser game leaves a stain, which the city's
 ; characters cannot show here). Nothing else follows yet: no heat, no pickup. Traffic does not run anyone over:
 ; people keep off the roads.
 ;
 ; Time. They move, and new ones appear, only in a frame that neither moves the screen nor works out colour
-; memory, which have no time to spare; in those they stand still for a frame. Someone in sight costs about
-; 300 cycles a frame to list and sort for the multiplexer, so in the busiest frames, where four in sight would
-; make the frame late, they are left out of the list for that frame (room), as the multiplexer leaves out what
-; does not fit: they flicker rather than make a frame late. Listing them for the multiplexer
+; memory, which have no time to spare; in those they stand still for a frame. Listing them for the multiplexer
 ; happens every frame, as it must.
 ;
 ; This code runs from EXTRA_CODE (main.asm), with its tables. Its random numbers are its own.
@@ -51,14 +46,10 @@ HIT             = 9                     ; in 1/256 pixel a frame (30 pixels a se
 NOSE            = 8                     ; HIT of theirs on both axes, or the point ahead of it within NOSE
 DOWN_TIME       = 200                   ; frames they lie, 4 seconds, then gone
 DOWN_FRAME      = 20                    ; their picture lying (tools/assets.mjs)
-SHOW_BY_BUSY    = 140                   ; room: they are listed only if the beam is this far past the bottom
-SHOW_BY         = 250                   ; interrupt at most (in a busy frame, and in any other), so no frame is late
 TREAD            = 4                     ; and to take a step
 ARRIVE_GAP       = 16                    ; frames with time to spare between looking for a place for someone
 FAR             = $180                  ; 384: further than this from the player, they go
 BACK_ODDS       = 205                   ; the way back is left for last when a random byte is below this: 0.8
-JAY_ODDS        = 26                    ; ready to cross a road when a random byte is below this: 0.1
-ROADWAY         = 0                     ; a tile's kind: a road or a car park (tools/assets.mjs)
 
 
 init            lda #0
@@ -102,21 +93,6 @@ quiet
                 jsr walk
                 ldx who
 +               dex
-                bpl -
-                lda #0                  ; how many are on a road, for the traffic, which looks for them only then
-                sta crossing
-                ldx #CROWD - 1
--               stx who
-                lda on,x
-                beq +
-                lda way,x
-                ldy #0
-                jsr ahead
-                cmp #ROADWAY
-                bne +
-                inc crossing
-+               ldx who
-                dex
                 bpl -
                 rts
 
@@ -247,22 +223,7 @@ north           sec
 +               rts
 
 ; Pick a way for person who, and how long until they pick again.
-pick            ldx who                 ; ready to cross a road: on one already, or one time in ten
-                lda way,x
-                ldy #0
-                jsr ahead               ; (the ground where they are)
-                ldy #1
-                cmp #ROADWAY
-                beq +
-                jsr rnd
-                ldy #1
-                cmp #JAY_ODDS
-                bcc +
-                dey
-+               ldx who
-                tya
-                sta jay,x
-                jsr rnd                 ; the four ways in turn from a random one ...
+pick            jsr rnd                 ; the four ways in turn from a random one ...
                 sta try
                 lda #4
                 sta tries
@@ -306,17 +267,12 @@ chosen          ldx who
                 sta wait,x
                 rts
 
-; C clear if person who likes ground of kind A: a pavement, a plaza or grass, or a road when ready to cross one.
+; C clear if they like ground of kind A: a pavement, a plaza or grass.
 likes           cmp #PAVEMENT
                 beq +
                 cmp #GRASS
                 beq +
-                cmp #ROADWAY
-                bne no_liking
-                ldx who
-                lda jay,x
-                bne +
-no_liking       sec
+                sec
                 rts
 +               clc
                 rts
@@ -441,8 +397,6 @@ arrive           ldx #CROWD - 1
                 jsr rnd
                 and #3
                 sta way,x
-                lda #0
-                sta jay,x
                 lda #1                  ; and they pick a way at once
                 sta wait,x
                 sta on,x
@@ -497,7 +451,6 @@ shirts          .byte PURPLE, ORANGE, CYAN, RED, LIGHT_RED, BROWN, GREEN, WHITE
 ; List everyone in sight for the multiplexer, after traffic.show (which leaves the window's corner, moved by
 ; where a sprite can start, in traffic.cx and cy) and Big Honk, as he is listed.
 show            jsr hunting             ; the player's car, if it is going fast enough to run someone over
-                jsr room                ; and whether this frame has time to list them
                 ldx #CROWD - 1
 each            lda on,x
                 bne +
@@ -505,45 +458,18 @@ each            lda on,x
 +               lda down,x              ; lying: for DOWN_TIME frames, then gone
                 beq +
                 dec down,x
-                bne listed
+                bne +
                 lda #0
                 sta on,x
                 jmp hidden
-+               lda chasing             ; walking: run over? Only if within 15 pixels of the car down (its
-                beq listed              ; middle and the point ahead of it are at most HIT and 6 away), which
-                sec                     ; most are not, so that is looked at first
-                lda yl,x
-                sbc car.pos_y + 1
-                sta d
-                lda yh,x
-                sbc car.pos_y + 2
-                sta d + 1
-                clc
-                lda d
-                adc #15
-                sta d
-                lda d + 1
-                adc #0
-                bne listed
-                lda d
-                cmp #31
-                bcs listed
-                jsr struck
-                bcs listed
-                lda #DOWN_TIME
-                sta down,x
-listed          lda listing             ; listed for the multiplexer, unless this frame has no time for them (as
-                bne +                   ; the multiplexer leaves out what does not fit: they show again in the
-                jmp hidden              ; next)
 +               sec                     ; down: 0 to LOWEST - 1 from cy
                 lda yl,x
                 sbc traffic.cy
                 tay
                 lda yh,x
                 sbc traffic.cy + 1
-                beq +
-                jmp hidden
-+               cpy #LOWEST
+                bne hidden
+                cpy #LOWEST
                 bcs hidden
                 sec                     ; across: 0-326 from cx
                 lda xl,x
@@ -570,8 +496,14 @@ listed          lda listing             ; listed for the multiplexer, unless thi
                 bcc +
                 inc sprites.sx + 1
 +               lda down,x
+                bne lying
+                lda chasing             ; run over?
                 beq walking
-                lda #PEOPLE_SPRITE + DOWN_FRAME
+                jsr struck
+                bcs walking
+                lda #DOWN_TIME
+                sta down,x
+lying           lda #PEOPLE_SPRITE + DOWN_FRAME
                 bne picture
 walking         lda phh,x               ; the pose, through the walk
                 and #7
@@ -594,34 +526,6 @@ hidden          dex
                 jmp each
 +               rts
 cycle           .byte 2, 3, 4, 3, 2, 1, 0, 1
-
-; listing = 1 if this frame has time for them: how far the beam is past the bottom interrupt is under
-; SHOW_BY_BUSY in a frame that moves the screen or works out colour memory (about 160 lines of which are still
-; to come after this), or under SHOW_BY in any other.
-room            lda #0
-                sta listing
-                ldy #SHOW_BY
-                lda busy
-                bne +
-                jsr screen_moves
-                bcc ++
-+               ldy #SHOW_BY_BUSY
-+               sty first               ; (spare)
-                lda VIC_RASTER          ; lines since the bottom interrupt
-                ldx VIC_CTRL1
-                bpl +
-                clc                     ; 256 and on: - BOTTOM_LINE
-                adc #256 - BOTTOM_LINE
-                jmp ++
-+               sec
-                sbc #BOTTOM_LINE
-                bcs +                   ; BOTTOM_LINE to 255
-                adc #312 - 256          ; (C clear) before it: the next frame's lines, 312 on
-                bcs late                ; past 255 lines: no time
-+               cmp first
-                bcs late
-                inc listing
-late            rts
 
 ; chasing = 1 if the player's car is going RUN_OVER or more along either axis (as Big Honk's speedy).
 hunting         lda #0
@@ -748,8 +652,6 @@ yf              .fill CROWD, 0            ; y the same
 yl              .fill CROWD, 0
 yh              .fill CROWD, 0
 way             .fill CROWD, 0            ; 0 east, 1 south, 2 west, 3 north
-jay             .fill CROWD, 0          ; 1: ready to cross a road
-crossing        .byte 0                 ; how many are on a road (update)
 spd             .fill CROWD, 0            ; 1/256 pixel a frame
 col             .fill CROWD, 0            ; shirt
 wait            .fill CROWD, 0            ; frames until they pick a way again
@@ -763,7 +665,6 @@ fx              .word 0                 ; ... and the point ahead of it
 fy              .word 0
 lim             .word 0                 ; beside
 d               .word 0
-listing         .byte 0                 ; show: 1 if this frame has time to list them
 lull             .byte 0                 ; frames with time to spare until the next look for a place
 who             .byte 0                 ; the one being moved
 try             .byte 0                 ; pick
