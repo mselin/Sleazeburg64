@@ -5,7 +5,7 @@
 import { CAR_SPRITE, MAP_PIXELS } from './game.mjs';
 
 export const T = {
-  ACCEL: 4, BRAKE: 11, CRUISE_MIN: 120, SLOW: 8, HELD: 175, GHOST: 80, AHEAD_MIN: 4, AHEAD_MAX: 36, SIDE: 8,
+  ACCEL: 4, BRAKE: 11, CRUISE_MIN: 120, SLOW: 8, HELD: 175, GHOST: 80, AHEAD_MIN: 4, AHEAD_MAX: 36, SIDE: 8, P_AHEAD: 26, P_SIDE: 9,
   FAR_X: 400, FAR_Y: 320, NEAR: 37, SPAWN_GAP: 16, SHOWN_X: 182, SHOWN_Y: 110,
   HARD: 180, BOX_LONG: 10, BOX_SHORT: 5, NEAR_BOX: 31,
 };
@@ -207,6 +207,15 @@ export class Traffic {
       const f = w16(back ? c[along] - o[along] : o[along] - c[along]);
       if (f < T.AHEAD_MIN || f > T.AHEAD_MAX) continue;
       if (w16(o[across] - c[across] + T.SIDE) > 2 * T.SIDE) continue;
+      c.blocked = 1;
+      return;
+    }
+    // And the passers-by (people-model.mjs, set by whoever steps the models), nearer.
+    for (const p of this.people?.crossing ? this.people.people : []) {
+      if (!p.on) continue;
+      const f = w16(back ? c[along] - p[along] : p[along] - c[along]);
+      if (f < 1 || f > T.P_AHEAD) continue;
+      if (w16(p[across] - c[across] + T.P_SIDE) > 2 * T.P_SIDE) continue;
       c.blocked = 1;
       return;
     }

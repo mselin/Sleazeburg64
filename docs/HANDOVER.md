@@ -98,11 +98,12 @@ A briefing for whoever picks this project up next, person or assistant. Written 
   - Four blocks of code are copied up at start. `EXTRA_CODE` (`$e000`-`$f2ff`, under the KERNAL ROM, which is
     switched out) took the status panel and the steering limit on 21 November 2026, when the owner chose to
     give the game the room the in-game test tune had, then drawing the city (`src/video.asm`, which left room
-    for the passers-by's frames at `$2000`) and the passers-by: about 1K is left there. `HIGH_CODE`
+    for the passers-by's frames at `$2000`) and the passers-by: about 200 bytes are left there (the
+    steering limit and grip moved to `TOP_CODE` when jaywalking came in). `HIGH_CODE`
     (`$b2a3`-`$bbff`, right after the third colour routine: Big Honk, the player on foot) has about 265 left;
     `MORE_CODE` (`$cdb0`-`$cfff`, after the screen copies: the water, and the screen copy's helpers and
     variables) about 185; `TOP_CODE` (`$f300`-`$fff9`:
-    the traffic) about 615; and below the screens, up to the passers-by's frames at `$2000`, about 220
+    the traffic, the car's grip and steering limit) about 100; and below the screens, up to the passers-by's frames at `$2000`, about 220
     (`car.init`, which makes the multiplication tables, runs once from where it waits in the program file, as
     `src/frames.asm` does).
     `$a1a3`-`$a1ff`, the 93 bytes after the second colour routine, are free too.

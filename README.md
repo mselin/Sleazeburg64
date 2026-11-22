@@ -290,8 +290,8 @@ screen of its own, which the split switches to for its three rows.
 | `$bc00` | Made at start: quarter squares moved along, the second half of a multiplication |
 | `$c000` | Made at start: quarter squares for multiplying, then the 18 screen copies |
 | `$cdb0` | Copied at start: more code (the water, the screen copy's helpers) |
-| `$e000` | Copied at start: more code (drawing the city, the status panel, the passers-by, the steering limit), under the KERNAL ROM, which is out |
-| `$f300` | Copied at start: more code (the traffic), up to the interrupt vectors |
+| `$e000` | Copied at start: more code (drawing the city, the status panel, the passers-by), under the KERNAL ROM, which is out |
+| `$f300` | Copied at start: more code (the traffic, the car's grip and steering limit), up to the interrupt vectors |
 
 The video chip sees only the first 16K, and not `$1000`–`$1fff`, so sprites have to be there, and code that
 was there has moved up to make room. What runs from `$b2a3`, `$cdb0`, `$e000` and `$f300`, the code that makes the player's
