@@ -87,6 +87,9 @@ ground          .byte ?                 ; the kind of tile under the car's middl
 open_col        .byte ?                 ; open: the tile last asked about, and whether it is walled
 open_row        .byte ?
 open_walled     .byte ?                 ; (bit 0 a wall near, bit 1 water)
+other_col       .byte ?                 ; and the tile asked about before that
+other_row       .byte ?
+other_walled    .byte ?
 pos_off         .byte ?                 ; axis_move: 0 or 3 into pos_x, and 0 or 2 into vel_x
 vel_off         .byte ?
 along           .byte ?, ?, ?           ; lead: the three points' offsets along the moving axis ...
@@ -810,7 +813,14 @@ high            lda #0
 ; looking at: a box is narrower than a tile, so that is at most one new column (or row) of two tiles for
 ; each box, and usually none. This gives the same answer as hits for the new place, for far less work.
 ; In: pos_off = 0 across or 3 down.
-lead            lda angle + 1           ; the three points' offsets: middle, back, front
+; First, the 3 by 3 tiles round where it is (survey): a move is at most 4.3 pixels, so every point looked at
+; is within 14 pixels of its middle now, and if none of those tiles is a wall, none is in the way.
+lead            jsr here
+                jsr survey
+                lsr
+                bcs +
+                rts                     ; (C clear: clear)
++               lda angle + 1           ; the three points' offsets: middle, back, front
                 clc
                 adc #8
                 lsr
@@ -975,15 +985,17 @@ one_tile        lda video.row_lo,x
                 clc
                 rts
 
-; What the 3 by 3 tiles round the tile (px, py) is in hold, kept for the tile last asked about (open_col,
-; open_row), which is usually the same one: A bit 0 set if any is a wall, bit 1 if any is water, both if they
+; What the 3 by 3 tiles round the tile (px, py) is in hold, kept for the last two tiles asked about (open_col,
+; open_row, and other_col, other_row), which are usually the same ones: A bit 0 set if any is a wall, bit 1 if any is water, both if they
 ; are not all in the city.
+city_edge       lda #3                  ; (for the first tests below, in reach)
+                rts
 survey          lda px + 1              ; (well inside the city: a high byte of 6 or less)
                 cmp #7
-                bcs edge_of_city
+                bcs city_edge
                 lda py + 1
                 cmp #7
-                bcs edge_of_city
+                bcs city_edge
                 lda px
                 ldx px + 1
                 jsr tile_of
@@ -1008,7 +1020,21 @@ survey          lda px + 1              ; (well inside the city: a high byte of 
                 bne +
                 lda open_walled         ; the same tile: as before
                 rts
-+               lda tx0
++               lda tx0                 ; or the one before that (the car's middle before and after a move)
+                cmp other_col
+                bne +
+                lda ty0
+                cmp other_row
+                bne +
+                lda other_walled
+                rts
++               lda open_col            ; neither: the last becomes the one before
+                sta other_col
+                lda open_row
+                sta other_row
+                lda open_walled
+                sta other_walled
+                lda tx0
                 sta open_col
                 lda ty0
                 sta open_row

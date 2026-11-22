@@ -562,9 +562,10 @@ packed_start    = *
                 .endv
 packed_bytes    .binary PACK_FILE
 packed_end
-PACK_HOME       = (program_end + 255) & $ff00 ; where start moves it to unpack it: clear of where it unpacks to
+PACK_HOME       = (program_end + 255) & $ff00 ; where start moves it to unpack it: clear of where it unpacks to, in
+                                        ; RAM that is free until the code is copied up after it
                 .cerror program_end > PACK_HOME, "what is unpacked runs into the packed copy"
-                .cerror PACK_HOME + (packed_end - packed_start) > MORE_CODE, "the packed copy runs into MORE_CODE"
+                .cerror PACK_HOME + (packed_end - packed_start) > $d000, "the packed copy runs into the I/O area"
                 .cerror packed_end > PACK_HOME, "the packed data would be overwritten as it is moved"
                 .cerror * - packed_start != size(packed_bytes), "the packed data is not all there"
 .endif
