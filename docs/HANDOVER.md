@@ -73,6 +73,22 @@ A briefing for whoever picks this project up next, person or assistant. Written 
     writes a new colour a frame after the new text; and the passers-by move only in a frame that neither moves
     the screen nor works out colour memory. With them, the long drive with traffic has its busiest frame ready
     310 lines after the bottom interrupt, of 312: the busiest frames still have almost no time left.
+  - The speed-up pass (22 November 2026), all of it exact (the models did not change): the car's sine, cosine
+    and multiplication tables are set only when its direction changes; update uses again the forward speed
+    steer worked out when the turn leaves the direction as it was; the drag's and grip's shifts take two or
+    three steps; nothing is multiplied by 0; and `car.lead` looks at a point's tiles only if its edge leaves
+    its tile in the move (where it is in the tile, plus the move, says so). And the screen copy is made partly
+    ahead (`video.ahead`): after `frame.publish`, a frame with time left guesses whether the next pass will
+    cross a character, and which way, from where the car's speed (a little more, and either way when it is
+    slow) takes the window, and copies as many columns of that as the raster says there is time for (6 lines
+    a column is allowed 8, done by line 228) onto the screen not shown, carrying on over frames; the pass that
+    crosses does only the rest (`pre_way`, `pre_next`), or the whole copy if it crosses some other way. The
+    copy routines stop at a column given each run (`cpx`) for that, 2 bytes and 2 cycles a column more. A
+    wrong guess costs only time a frame had spare. On the long drive with traffic (without jaywalking), the
+    pass that was 25 lines late is in time, and the busiest frame is ready 299 lines after the bottom
+    interrupt (13 to spare): a colour memory frame with the car moving by walls. Where a frame's time goes in
+    the visible part of the screen, a cycle of work takes about 1.5 cycles, with the video chip's bad lines,
+    the sprites' fetches and the multiplexer's interrupts.
   - The status panel (`src/status.asm`) writes only what changed, and only in a frame that does not move the
     screen: row 3 about 8 lines, 16 when its colour changes, and row 1 whole about 25, which also waits for a
     frame with no colour memory. The city viewer keeps the old readout (`src/panel.asm`, `src/digits.asm`).
@@ -84,7 +100,8 @@ A briefing for whoever picks this project up next, person or assistant. Written 
     give the game the room the in-game test tune had, then drawing the city (`src/video.asm`, which left room
     for the passers-by's frames at `$2000`) and the passers-by: about 1K is left there. `HIGH_CODE`
     (`$b2a3`-`$bbff`, right after the third colour routine: Big Honk, the player on foot) has about 265 left;
-    `MORE_CODE` (`$cd80`-`$cfff`, after the screen copies: the water) about 315; `TOP_CODE` (`$f300`-`$fff9`:
+    `MORE_CODE` (`$cdb0`-`$cfff`, after the screen copies: the water, and the screen copy's helpers and
+    variables) about 185; `TOP_CODE` (`$f300`-`$fff9`:
     the traffic) about 615; and below the screens, up to the passers-by's frames at `$2000`, about 220
     (`car.init`, which makes the multiplication tables, runs once from where it waits in the program file, as
     `src/frames.asm` does).
@@ -103,7 +120,8 @@ A briefing for whoever picks this project up next, person or assistant. Written 
     `PACKED=1`, where that part is assembled only for its labels and the packed bytes take its place. Both
     builds must put everything in the same place, which the script and the tests' `assemble` check: so the
     unpacker is assembled in both, and called only in the packed one. At start it moves the packed bytes to
-    just past where they unpack to (`PACK_HOME`) and unpacks them from `city_map` up, in about half a second.
+    just past where they unpack to (`PACK_HOME`) and unpacks them from `city_map` up, in about half a second;
+    while it does, all of memory is RAM, as the packed copy can reach into the I/O area's (up to `$e000`).
     The game file went from 33K to 25K (28K with the passers-by),
     and the music title build, which carries it, from 45K to 39K, well below the `$d000` it must LOAD under.
     The tests build the game packed too (`tests/e2e/game.mjs`), and `tests/e2e/pack.test.mjs` checks the

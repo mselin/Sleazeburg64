@@ -27,6 +27,7 @@ high_end
 more_image
                 .logical MORE_CODE
                 .include "water.asm"
+                .dsection video_more
 more_end
                 .endlogical
 top_image

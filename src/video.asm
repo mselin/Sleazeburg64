@@ -66,7 +66,9 @@ advance         .macro pointer, amount
 +
                 .endm
 
-init            lda #BLACK
+init            lda #$ff                ; no copy made ahead yet
+                sta pre_way
+                lda #BLACK
                 sta VIC_BORDER
                 lda #DARK_GREY          ; value 0 in a tile character: asphalt
                 sta VIC_BACKGROUND
@@ -257,19 +259,26 @@ shift           lda drow                ; which way: (drow + 1) * 3 + dcol + 1
                 adc dcol
                 clc
                 adc #4
+                jsr way_of
                 ldx front               ; and which screen to which: nine for each
                 beq +
                 clc
                 adc #9
 +               tax
-                lda copy_lo,x
-                sta copy_jump + 1
-                lda copy_hi,x
-                sta copy_jump + 2
-copy_jump       jsr $ffff               ; one of the routines write_copies made
                 lda #1
                 sta edges
-                rts
+                ldy k_first             ; all of it, or what ahead has not copied already
+                cpx pre_way
+                bne +
+                ldy pre_next
++               lda #$ff
+                sta pre_way
+                cpy k_last
+                beq +                   ; (all of it was)
+                lda k_last
+                jmp part
++               rts
+
 
 ; Draw the column and row that came into view on the screen at target: those the copy left out.
 draw_edges      ldx dcol
@@ -288,11 +297,279 @@ edge_col        jsr draw_col
 edge_row        jmp draw_row
 +               rts
 
+                .section video_more     ; (where there is room: waiting.asm)
+; k_first, k_last = the first column of way A's copies (0-8), and the one to stop after; A kept.
+way_of          tax
+                lda first_col,x
+                sta k_first
+                lda last_col,x
+                sta k_last
+                lda row_count,x
+                sta k_rows
+                txa
+                rts
+
+; Run copy X (of the 18) for its columns from Y down, stopping when the next would be column A.
+part            sty start_col
+                sta stop_col
+                lda copy_lo,x
+                sta ptr
+                lda copy_hi,x
+                sta ptr + 1
+                ldy #1                  ; ldx #start
+                lda start_col
+                sta (ptr),y
+                lda k_rows              ; cpx #stop: after the start, the rows and dex
+                asl
+                adc k_rows
+                asl
+                adc #4
+                tay
+                lda stop_col
+                sta (ptr),y
+                jmp (ptr)
+                .send
+
+; In the time a frame has left once it has been published: if the window, moving on as far as it just did,
+; would cross into the next character in the next pass, the first part of the copy that pass will then need
+; (its columns down to HALF), made now on the screen not shown. Only when there is time for it before the
+; bottom interrupt, as it goes by the raster, which is all this changes: the copy in that pass does the rest.
+.if VIEWER == 0
+EAGER           = 24                    ; 1/256 pixel a frame: a little more than the car speeds up by
+PRE_BY          = 228                   ; the raster line it is to be done by: a column takes about 6 lines (as
+                                        ; the video chip and the interrupts take time too), and it allows 8
+ahead           ldx #1
+-               sec                     ; the window's step this pass, and where it is now for the next
+                lda cam_lo,x
+                sbc last_lo,x
+                sta step_lo,x
+                lda cam_hi,x
+                sbc last_hi,x
+                sta step_hi,x
+                lda cam_lo,x
+                sta last_lo,x
+                lda cam_hi,x
+                sta last_hi,x
+                dex
+                bpl -
+                lda swapped             ; this pass brought in the other screen: the one not shown is still on
+                bne no_time             ; until the bottom interrupt
+                lda VIC_RASTER          ; time: the line, then bit 8 of it (so 256 is never taken for 0)
+                cmp #PRE_BY - 8
+                bcs no_time
+                sta lines
+                lda VIC_CTRL1
+                bpl +
+no_time         rts
++               ldx #1
+-               lda foot.on             ; where the window will be: on foot, as far on again ...
+                beq in_car
+                clc
+                lda cam_lo,x
+                adc step_lo,x
+                sta guess
+                lda cam_hi,x
+                adc step_hi,x
+                jmp guessed
+in_car          ldy vel_of,x            ; ... in the car, following it to where its speed takes it, as
+                lda car.vel_x,y         ; follow_car does (at most FOLLOW): the pixel the speed, a little more,
+                sta guess               ; takes it into (the guess only says what to get ready); slower than
+                lda car.vel_x + 1,y     ; half a pixel a frame, as it may yet stop or turn back, the nearer
+                sta guess + 1           ; pixel either side within that reach
+                beq forth
+                cmp #$ff
+                bne quick
+                lda guess
+                cmp #$80
+                bcc quick
+                eor #$ff                ; |v| = -v - 1, near enough
+                jmp slow
+forth           lda guess
+                cmp #$80
+                bcs quick
+slow            clc                     ; slow: |v| and a little more ...
+                adc #EAGER
+                sta guess
+                lda #0
+                sta guess + 1
+                ldy pos_of,x
+                lda car.pos_x,y
+                bmi add                 ; ... on, from the further half of the pixel ...
+                sec                     ; ... else back
+                lda #0
+                sbc guess
+                sta guess
+                lda #$ff
+                sta guess + 1
+                bne add                 ; (always)
+quick           lda guess + 1           ; fast: a little more, the way it goes
+                bmi +
+                clc
+                lda guess
+                adc #EAGER
+                sta guess
+                bcc add
+                inc guess + 1
+                bcs add                 ; (always)
++               sec
+                lda guess
+                sbc #EAGER
+                sta guess
+                bcs add
+                dec guess + 1
+add             ldy pos_of,x            ; the fraction and that: what carries into the pixel ...
+                lda car.pos_x,y
+                clc
+                adc guess
+                lda guess + 1
+                sta guess
+                and #$80
+                beq +
+                lda #$ff
++               sta guess + 1
+                ldy pos_of,x
+                lda car.pos_x + 1,y
+                adc guess
+                sta guess
+                lda car.pos_x + 2,y
+                adc guess + 1
+                sta guess + 1
+                sec                     ; less the centre and the window: how far it would move
+                lda guess
+                sbc follow_car.centre_lo,x
+                sta guess
+                lda guess + 1
+                sbc follow_car.centre_hi,x
+                sta guess + 1
+                bpl +                   ; and as follow_car keeps it: no further than the city's edges
+                lda #0
+                sta guess
+                sta guess + 1
++               lda guess
+                cmp max_lo,x
+                lda guess + 1
+                sbc max_hi,x
+                bcc +
+                lda max_lo,x
+                sta guess
+                lda max_hi,x
+                sta guess + 1
++               sec
+                lda guess
+                sbc cam_lo,x
+                sta guess
+                lda guess + 1
+                sbc cam_hi,x
+                bmi back_off
+                bne fore
+                lda guess
+                cmp #WINDOW_STEP + 1
+                bcc +
+fore            lda #WINDOW_STEP
+                bne +
+back_off        cmp #$ff
+                bne aft
+                lda guess
+                cmp #$100 - WINDOW_STEP
+                bcs +
+aft             lda #$100 - WINDOW_STEP
++               ldy #0                  ; the window there
+                cmp #$80
+                bcc +
+                dey
++               clc
+                adc cam_lo,x
+                sta guess
+                tya
+                adc cam_hi,x
+guessed         lsr                     ; the character it would be at, less the one it is at: -1, 0 or 1
+                ror guess
+                lsr
+                ror guess
+                lsr
+                lda guess
+                ror
+                sec
+                sbc cell,x
+                clc
+                adc #1
+                cmp #3
+                bcs none                ; (further: drawn afresh, nothing to get ready)
+                sta guess_dc,x
+                dex
+                bmi +
+                jmp -
++
+                lda guess_dc + 1        ; which way: row * 3 + column
+                asl
+                adc guess_dc + 1
+                adc guess_dc
+                cmp #4
+                beq none                ; not moving to another character
+                jsr way_of
+                ldx front
+                beq +
+                clc
+                adc #9
++               tax
+                ldy k_first             ; from the first column, or on from where it got to last time
+                cpx pre_way
+                bne +
+                ldy pre_next
+                cpy k_last
+                beq none                ; (all of it, already)
++               sec                     ; as many columns as there is time for: (PRE_BY - line) / 8
+                lda #PRE_BY
+                sbc lines
+                lsr
+                lsr
+                lsr
+                sta lines
+                beq none                ; (no time for a column)
+                sty start_col
+                sec                     ; the columns left: start - k_last (k_last is 0 or -1)
+                tya
+                sbc k_last
+                cmp lines
+                beq +
+                bcs ++
++               lda k_last              ; all of them
+                jmp ++
++               tya                     ; or n of them
+                sec
+                sbc lines
++               sta pre_next
+                stx pre_way
+                ldy start_col
+                jmp part
+none            rts
+pos_of          .byte 0, 3
+vel_of          .byte 0, 2
+                .section video_more
+last_lo         .byte 0, 0              ; where the window was when ahead last looked
+last_hi         .byte 0, 0
+step_lo         .byte 0, 0
+step_hi         .byte 0, 0
+guess           .byte 0, 0
+lines           .byte 0
+guess_dc        .byte 0, 0
+                .send
+.endif
+                .section video_more     ; (not with the variables, for which the build with the most traffic
+pre_way         .byte $ff               ; has no room) the copy (of the 18) whose first part ahead has made, or $ff
+pre_next        .byte 0                 ; the column the rest of that copy starts from
+k_first         .byte 0
+k_last          .byte 0
+k_rows          .byte 0
+start_col       .byte 0
+stop_col        .byte 0
+                .send
+
 ; Where the new screen's characters come from in the old one: 40 * drow + dcol. Each way leaves out the column
 ; and row that came into view, which are drawn from the map afterwards (draw_edges).
 DELTAS          = (-41, -40, -39, -1, 0, 1, 39, 40, 41)
 first_col       .byte 39, 39, 38, 39, 39, 38, 39, 39, 38        ; the window moved right: column 39 is new
-last_col        .byte $f0, $30, $30, $f0, $30, $30, $f0, $30, $30   ; moved left: column 0 is new (beq, not bmi)
+last_col        .byte 0, $ff, $ff, 0, $ff, $ff, 0, $ff, $ff     ; moved left: column 0 is new (stop at 0, not -1)
 first_row       .byte 1, 1, 1, 0, 0, 0, 0, 0, 0                 ; moved up: row 0 is new
 row_count       .byte ROWS - 1, ROWS - 1, ROWS - 1, ROWS, ROWS, ROWS, ROWS - 1, ROWS - 1, ROWS - 1
 
@@ -303,7 +580,7 @@ row_count       .byte ROWS - 1, ROWS - 1, ROWS - 1, ROWS, ROWS, ROWS, ROWS - 1, 
 ; for each row, in a loop over the 40 columns. What it copies from outside the old screen's city rows lands
 ; on the edges, which are drawn afresh after it. There are 18 (two screens, nine ways), made at start.
 COPIES          = $c400
-COPY_SIZE       = 2 + ROWS * 6 + 1 + 2 + 3 + 1  ; ldx #39, the rows, dex, bmi, jmp, rts
+COPY_SIZE       = 2 + ROWS * 6 + 1 + 2 + 2 + 3 + 1      ; ldx #39, the rows, dex, cpx #stop, beq, jmp, rts
                 .cerror COPIES + 18 * COPY_SIZE > $d000, "the copies run into the I/O area"
                 .cerror COPIES < SQUARES + 1024, "the copies run into the multiplication tables"
 copy_lo         .byte <(COPIES + range(18) * COPY_SIZE)
@@ -381,8 +658,12 @@ next_way        lda j                   ; each in its own place
                 bne -
                 lda #$ca                ; dex
                 jsr emit
-                ldx k                   ; bmi +3, or beq +3 if the new column is 0
+                lda #$e0                ; cpx #$ff, or #0 if the new column is 0 (part sets it for each run)
+                jsr emit
+                ldx k
                 lda last_col,x
+                jsr emit
+                lda #$f0                ; beq +3
                 jsr emit
                 lda #3
                 jsr emit
@@ -407,7 +688,9 @@ next_way        lda j                   ; each in its own place
 +               rts
 
 ; Draw every row of the screen at target from the map.
-draw_all        lda #0
+draw_all        lda #$ff                ; (no copy made ahead is any good after this)
+                sta pre_way
+                lda #0
 -               pha
                 jsr draw_row
                 pla

@@ -87,6 +87,9 @@ ground          .byte ?                 ; the kind of tile under the car's middl
 open_col        .byte ?                 ; open: the tile last asked about, and whether it is walled
 open_row        .byte ?
 open_walled     .byte ?                 ; (bit 0 a wall near, bit 1 water)
+other_col       .byte ?                 ; and the tile asked about before that
+other_row       .byte ?
+other_walled    .byte ?
 pos_off         .byte ?                 ; axis_move: 0 or 3 into pos_x, and 0 or 2 into vel_x
 vel_off         .byte ?
 along           .byte ?, ?, ?           ; lead: the three points' offsets along the moving axis ...
@@ -96,6 +99,7 @@ mn              .word ?
 oth             .word ?
 reach           .byte ?
 point           .byte ?
+moves           .byte ?
                 .send
 
 ; ---------- 16-bit helpers ----------
@@ -138,6 +142,20 @@ asr16           .macro v                ; arithmetic shift right: rounds down, a
                 ror \v + 1
                 ror \v
                 .endm
+asr_to          .macro v, n             ; mr = v >> n, the shift keeping the sign (as asr16 n times), n = 1-7:
+                ldy #0                  ; v as 24 bits, shifted left 8 - n times, the top two bytes kept
+                lda \v + 1
+                bpl +
+                dey
++               sty mr + 1
+                sta mr
+                lda \v
+.for i = 0, i < 8 - \n, i += 1
+                asl
+                rol mr
+                rol mr + 1
+.next
+                .endm
 mul             .macro v, s, to         ; to = v * s / 256, rounded towards 0, for s = cs or sn
                 #mov16 \v, mv
 .if \s == cs
@@ -152,6 +170,8 @@ mul             .macro v, s, to         ; to = v * s / 256, rounded towards 0, f
 ; Build the quarter square tables: SQUARES[n] = n * n / 4, rounded down, for n = 0..511, low bytes then high
 ; bytes, and SQUARES2[n] = SQUARES[|n - 255|], so that a * b = SQUARES[a + b] - SQUARES2[b - a + 255].
 init            lda #0
+                sta trig_set
+                sta fwd_set
                 sta sum
                 sta sum + 1
                 sta prod                ; n * n, 24 bits: prod, prod + 1, ta
@@ -281,26 +301,41 @@ update          tay
                 sta ground
                 lda #0                  ; the grip: not worked out yet this frame
                 sta held_grip
+                sta fwd_set
                 jsr steer
                 jsr trig
-                #mul vel_x, cs, fwd     ; forward = vx cos + vy sin
+                lda fwd_set             ; forward = vx cos + vy sin: as steer worked it out, if the direction
+                beq +                   ; is still the one it was for
+                lda fwd_dir
+                cmp angle + 1
+                bne +
+                #mov16 fwd0, fwd
+                jmp ++
++               #mul vel_x, cs, fwd
                 #mul vel_y, sn, mr
                 #add16 fwd, mr, fwd
-                #mul vel_y, cs, lat     ; sideways = vy cos - vx sin
++               #mul vel_y, cs, lat     ; sideways = vy cos - vx sin
                 #mul vel_x, sn, mr
                 #sub16 lat, mr, lat
                 jsr engine
                 jsr tyres
                 #sub16 nf, fwd, nf      ; the changes ...
                 #sub16 nl, lat, nl
-                #mul nf, cs, fwd        ; ... back into the velocity: vx += dF cos - dL sin
-                #mul nl, sn, lat
-                #sub16 fwd, lat, fwd
+                lda nf                  ; ... back into the velocity (what is multiplied by 0 adds nothing):
+                ora nf + 1              ; vx += dF cos - dL sin, vy += dF sin + dL cos
+                beq +
+                #mul nf, cs, fwd
                 #add16 vel_x, fwd, vel_x
-                #mul nf, sn, fwd        ; vy += dF sin + dL cos
-                #mul nl, cs, lat
-                #add16 fwd, lat, fwd
+                #mul nf, sn, fwd
                 #add16 vel_y, fwd, vel_y
++               lda nl
+                ora nl + 1
+                beq +
+                #mul nl, sn, lat
+                #sub16 vel_x, lat, vel_x
+                #mul nl, cs, lat
+                #add16 vel_y, lat, vel_y
++
                 jsr traffic.nearby      ; the traffic it could run into
                 jsr move_x
                 jmp move_y
@@ -310,8 +345,22 @@ here            #mov16 pos_x + 1, px
                 #mov16 pos_y + 1, py
                 rts
 
+trig_dir        .byte 0                 ; trig: the direction cs, sn and the tables are set for ...
+trig_set        .byte 0                 ; ... if this is 1
+fwd_dir         .byte 0                 ; steer: the direction it worked out the forward speed for ...
+fwd_set         .byte 0                 ; ... if this is 1 (this frame only) ...
+fwd0            .word 0                 ; ... and that speed
+
 ; cs, sn for the car's direction, and for multiplying by them: their sizes (0-256) and signs.
 trig            ldx angle + 1
+                lda trig_set            ; set for this direction already
+                beq +
+                cpx trig_dir
+                bne +
+                rts
++               stx trig_dir
+                lda #1
+                sta trig_set
                 lda sin_lo + 64,x
                 sta cs
                 lda sin_hi + 64,x
@@ -372,6 +421,11 @@ steer           lda turn
                 #mul vel_x, cs, fwd     ; the forward speed before turning
                 #mul vel_y, sn, mr
                 #add16 fwd, mr, fwd
+                #mov16 fwd, fwd0        ; (for update, if the direction stays the same)
+                lda angle + 1
+                sta fwd_dir
+                lda #1
+                sta fwd_set
                 lda fwd
                 ora fwd + 1
                 bne +
@@ -501,8 +555,7 @@ drag            lda hand
                 beq +
                 ldx #HANDBRAKE
                 jsr shrink_nf
-+               ldx #7                  ; nf -= nf >> 7
-                jsr nf_less
++               jsr nf_less_7           ; nf -= nf >> 7
                 lda thr
                 bne +
                 ldx #COAST
@@ -511,8 +564,7 @@ drag            lda hand
                 lda ground              ; and on grass, hard going: nf -= nf >> 6, the design's 0.8 of the
                 cmp #GRASS              ; speed a second
                 bne +
-                ldx #6
-                jsr nf_less
+                jsr nf_less_6
 +
                 ldy water.wet           ; no faster than TOP forwards or TOP_BACK backwards, less in the water
                 lda nf + 1
@@ -546,11 +598,7 @@ tyres           lda held_grip           ; (worked out already if the car turned)
                 #mov16 lat, nl
                 ldx held_grip
                 jsr shrink_nl
-                #mov16 nl, mr           ; nl -= nl >> 6
-                ldx #6
--               #asr16 mr
-                dex
-                bne -
+                #asr_to nl, 6              ; nl -= nl >> 6
                 #sub16 nl, mr, nl
                 rts
 
@@ -588,11 +636,11 @@ grip_set        jmp water.grip          ; and less in the water
 
                 .send
 
-; nf -= nf >> X, the shift keeping the sign.
-nf_less         #mov16 nf, mr
--               #asr16 mr
-                dex
-                bne -
+; nf -= nf >> 7, or >> 6, the shift keeping the sign.
+nf_less_7       #asr_to nf, 7
+                #sub16 nf, mr, nf
+                rts
+nf_less_6       #asr_to nf, 6
                 #sub16 nf, mr, nf
                 rts
 
@@ -810,6 +858,9 @@ high            lda #0
 ; looking at: a box is narrower than a tile, so that is at most one new column (or row) of two tiles for
 ; each box, and usually none. This gives the same answer as hits for the new place, for far less work.
 ; In: pos_off = 0 across or 3 down.
+; Before the walls are looked at, the 3 by 3 tiles round where it is (survey): a move is at most 4.3 pixels, so
+; every point looked at is within 14 pixels of its middle now, and if none of those tiles is a wall, none is in
+; the way.
 lead            lda angle + 1           ; the three points' offsets: middle, back, front
                 clc
                 adc #8
@@ -858,7 +909,12 @@ lead            lda angle + 1           ; the three points' offsets: middle, bac
                 sta oth
                 lda pos_x + 2,x
                 sta oth + 1
-                lda #4                  ; the leading edge: 4 pixels ahead, either way
+                jsr here                ; (traffic.bump uses all of the above; the walls only what follows)
+                jsr survey
+                lsr
+                bcs +
+                rts                     ; (C clear: clear)
++               lda #4                  ; the leading edge: 4 pixels ahead, either way
                 sta reach
                 lda mn
                 cmp mo
@@ -867,9 +923,24 @@ lead            lda angle + 1           ; the three points' offsets: middle, bac
                 bcs +
                 lda #$fc
                 sta reach
-+               ldy #2
++               sec                     ; how far it moves: -4 to 4 pixels, the same for every point
+                lda mn
+                sbc mo
+                sta moves
+                ldy #2
 next_point      sty point
-                lda along,y             ; e0 = mo + along + reach, e1 = mn + along + reach
+                lda along,y             ; a new tile only if where the edge is in its tile, moved that far,
+                clc                     ; is outside it (and where the car is now is clear, so in the city):
+                adc reach               ; the edge's pixel, low byte, is mo + along + reach
+                clc
+                adc mo
+                and #15
+                clc
+                adc moves
+                cmp #16
+                bcs +
+                jmp next                ; no new tiles for this box
++               lda along,y             ; e0 = mo + along + reach, e1 = mn + along + reach
                 clc
                 adc reach
                 sta t16                 ; (along + reach is from -10 to 10)
@@ -975,15 +1046,17 @@ one_tile        lda video.row_lo,x
                 clc
                 rts
 
-; What the 3 by 3 tiles round the tile (px, py) is in hold, kept for the tile last asked about (open_col,
-; open_row), which is usually the same one: A bit 0 set if any is a wall, bit 1 if any is water, both if they
+; What the 3 by 3 tiles round the tile (px, py) is in hold, kept for the last two tiles asked about (open_col,
+; open_row, and other_col, other_row), which are usually the same ones: A bit 0 set if any is a wall, bit 1 if any is water, both if they
 ; are not all in the city.
+city_edge       lda #3                  ; (for the first tests below, in reach)
+                rts
 survey          lda px + 1              ; (well inside the city: a high byte of 6 or less)
                 cmp #7
-                bcs edge_of_city
+                bcs city_edge
                 lda py + 1
                 cmp #7
-                bcs edge_of_city
+                bcs city_edge
                 lda px
                 ldx px + 1
                 jsr tile_of
@@ -1008,7 +1081,21 @@ survey          lda px + 1              ; (well inside the city: a high byte of 
                 bne +
                 lda open_walled         ; the same tile: as before
                 rts
-+               lda tx0
++               lda tx0                 ; or the one before that (the car's middle before and after a move)
+                cmp other_col
+                bne +
+                lda ty0
+                cmp other_row
+                bne +
+                lda other_walled
+                rts
++               lda open_col            ; neither: the last becomes the one before
+                sta other_col
+                lda open_row
+                sta other_row
+                lda open_walled
+                sta other_walled
+                lda tx0
                 sta open_col
                 lda ty0
                 sta open_row

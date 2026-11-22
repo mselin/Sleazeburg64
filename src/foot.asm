@@ -76,8 +76,9 @@ try             .byte ?
 ; After video.init, which fills where the variables are with spaces. Also the two colours every multicolour
 ; sprite shares: black for outlines, hair and Big Honk's shades, yellow for the player's jacket and his beak and
 ; chain; and the water's idea of how wet the car is, which the car's first frame uses.
-init            lda #$ff                ; (car.open: no tile asked about yet)
+init            lda #$ff                ; (car.survey: no tile asked about yet)
                 sta car.open_col
+                sta car.other_col
                 lda #0
                 sta on
                 sta water.wet
