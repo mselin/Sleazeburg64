@@ -144,8 +144,21 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
       slow, so "hold the stick for half a second" is not the same distance everywhere.
     - WebKit's phone mode cannot go full screen, like an iPhone, and Firefox has no phone mode at all.
     - Real phones need a device cloud on top.
+  - **An on-screen joystick of its own.** Once the emulator runs on our own page, phones need a joystick and a
+    fire button on it. These parts of the browser game's touch spec apply as they stand:
+    - targets at least 44 CSS pixels (FR-11);
+    - full screen where the phone allows it (FR-13);
+    - nothing over the game area on a phone held sideways (FR-15);
+    - the turn-your-phone notice when held upright (FR-17).
+
+    Steering by finger does not carry over: the game reads a joystick, and the page only stands in for one.
 
 ## What will not carry over from the browser game
+
+- **The touch controls.** The browser game is played on a phone by holding a finger on the screen: you walk, or
+  drive, towards it. Buttons fire, get in and out, and work the handbrake (`specs/touch-controls.md` there). A
+  C64 is played with a joystick in port 2. On a phone, the play page opens VirtualC64 Web with its own on-screen
+  joystick (`#touch=true`).
 
 - **Choosing the scale.** The browser game draws the city 2 screen pixels to a city pixel by default, so that a
   person is nearer their real size beside a car, and lets the player switch between 1×, 2× and 3× (the design's
