@@ -577,7 +577,9 @@ packed_end
 PACK_HOME       = (program_end + 255) & $ff00 ; where start moves it to unpack it: clear of where it unpacks to, in
                                         ; RAM that is free until the code is copied up after it
                 .cerror program_end > PACK_HOME, "what is unpacked runs into the packed copy"
-                .cerror PACK_HOME + (packed_end - packed_start) > EXTRA_CODE, "the packed copy runs past the RAM under the I/O area"
+                .cerror PACK_HOME + (packed_end - packed_start) > $fffa, "the packed copy runs into the interrupt vectors"
+                                        ; (past $d000 it is in the RAM under the I/O area and the KERNAL, which the
+                                        ; code copied up there only takes once it has been unpacked)
                 .cerror packed_end > PACK_HOME, "the packed data would be overwritten as it is moved"
                 .cerror * - packed_start != size(packed_bytes), "the packed data is not all there"
 .endif
