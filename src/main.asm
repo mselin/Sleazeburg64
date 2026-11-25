@@ -563,9 +563,11 @@ code_end
                 * = PLAYER_FRAMES
                 .include "frames.asm"
                 .dsection low_more
+low_end
                 .cerror * > SCREEN_A, "the code after the player's frames has run into the screens"
 .else
                 .cerror * > SCREEN_A, "code has run into the screens"
+low_end         = PLAYER_FRAMES         ; (no part from PLAYER_FRAMES: for the title screen, src/title.asm)
 .endif
 
 ; ---------- variables with no starting value: in the panel's screen, whose rows 0-20 are never shown ----------
