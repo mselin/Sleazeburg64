@@ -98,6 +98,9 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
   It stops where it floods rather than drifting on, and it is out of the way from the moment it floods rather
   than once it is on the bottom. See the design's
   [Water](https://github.com/mselin/gta-c64/blob/main/specs/design.md#water).
+  - **Fixed in the browser game:** getting out of the car in the very frame it floods stopped the game with an
+    error, as the flood had already taken the player out of it. Now the player is simply left swimming
+    (mselin/gta-c64#56).
 - Big Honk, the crime boss (done, not yet tried on real hardware): a goose who wanders The Moat, crossing a
   bridge now and then, and whom nothing hurts. A car that runs into him only makes him flap and run off. One
   multicolour sprite, shared through the multiplexer. Still to come: a honk when there is sound, and traffic
@@ -179,9 +182,16 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
     - **The lights.** The browser game flashes four hazard lights at the car's corners with the high note. Here,
       lit corners on the car's picture would double its frames in every direction. Flashing the car's own sprite
       colour yellow (7) instead costs no frames.
-  - **Changed in the browser game since:** the car alarm now has a status line, 7 seconds in, picked at random
-    (mselin/gta-c64#50). See the design's
-    [Cursed driver assistance](https://github.com/mselin/gta-c64/blob/main/specs/design.md#cursed-driver-assistance).
+  - **Changed in the browser game since:**
+    - The car alarm has a status line, 7 seconds in, picked at random (mselin/gta-c64#50).
+    - Emergency braking brakes to a full stop, even if the way clears; then the gas does nothing until the
+      player lets go of it and presses again. It works reversing too, looking 1 car length behind, and going
+      forward it looks at least 2 car lengths ahead (mselin/gta-c64#48).
+    - Police cars never have lane assist or emergency braking, but every one has anti-theft, on the usual time,
+      and a stolen police car's alarm says `CAR ALARM: WHAT DID YOU EXPECT?` (mselin/gta-c64#56). The notes
+      above on which cars have what, and on emergency braking, were written before these changes.
+
+    See the design's [Cursed driver assistance](https://github.com/mselin/gta-c64/blob/main/specs/design.md#cursed-driver-assistance).
 - Jobs, starting with deliveries and the cult of 6-7.
 - Pickups, money, getting arrested, the hospital. Pickups include the knife (a **K**, also dropped now and then
   by someone the player kills), and ammo stops at 99 so the panel always shows two digits.
