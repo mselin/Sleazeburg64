@@ -250,6 +250,15 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
     characters in double-size letters, and the text under it broken into even lines of at most 38 of the 40
     columns. The browser game used to let lines over 40 characters run off both sides (mselin/gta-c64#14). On
     the C64 the screen is 40 columns too, so the same limits hold.
+  - **Changed in the browser game** (mselin/gta-c64#76): the police take the player's weapons, the knife and all
+    the ammo, only when they are involved. They always do when they bust the player. They do when the player is
+    wasted with the police about: a chasing car, a manned patrol car or an officer on foot who is not knocked
+    down, within the distances they notice the player at. They do when an officer shoots the player dead, however
+    far off. Wasted with no police about, in a crash or a car blowing up, the player keeps both. Before, the
+    knife went however the player went down, and the ammo stayed whenever they were wasted. The busted line now
+    ends YOUR WEAPONS ARE NOW "EVIDENCE", and when the police took them the hospital's ends THE POLICE KEPT YOUR
+    WEAPONS AS "EVIDENCE". See "Wasted or busted" under the design's
+    [Heat and the police](https://github.com/mselin/gta-c64/blob/main/specs/design.md#heat-and-the-police).
 - The status panel (done, not yet tried on real hardware), by the design's
   [The status panel](https://github.com/mselin/gta-c64/blob/main/specs/design.md#the-status-panel), in place
   of the demo text (#44). Row 1: money, heat, health, the car while in one, and what fire does, `AMMO12`
