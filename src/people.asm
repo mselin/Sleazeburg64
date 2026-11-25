@@ -1026,6 +1026,11 @@ knock           lda #DOWN_TIME
                 ldy status.knife
                 lda ko_of,y             ; knocked down by a punch; killed by the knife
                 sta ko,x
+.if ITEMS != 0
+                bne +
+                jsr pickups.drop        ; killed: what they drop
++
+.endif
                 lda xl,x                ; who is near them runs
                 sta cx
                 lda xh,x
@@ -1078,14 +1083,18 @@ reach_y         .char 0, 5, PUNCH_REACH, 5, 0, -5, -PUNCH_REACH, -5
                 .char 0, 7, STAB_REACH, 7, 0, -7, -STAB_REACH, -7
                 .cerror cy - cx != 2, "punch expects cy two bytes after cx"
 
-; Person X has been run over, a kill: heat 6. X kept.
+; Person X has been run over, a kill: heat 6, and what they drop. X kept.
 killed          txa
                 pha
                 lda #2 * 6
                 jsr status.add_heat
                 pla
                 tax
+.if ITEMS != 0
+                jmp pickups.drop        ; and what they drop
+.else
                 rts
+.endif
 
 ; Person X's DOWN_TIME is up: C set if they are gone (run over), else (knocked down by a punch) up and running.
 got_up          lda ko,x

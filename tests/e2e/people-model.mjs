@@ -205,6 +205,7 @@ export class People {
       if (!p.on || (p.down && !(knife && p.ko)) || !near(p, pt, P.PUNCH_LIM)) continue;
       p.down = P.DOWN_TIME;
       p.ko = knife ? 0 : 1;
+      if (knife) this.onKill?.(p); // killed: what they drop (pickups-model.mjs)
       for (const q of this.people) if (q.on && !q.down && near(q, [p.px, p.py], P.SCARE)) q.flee = P.FLEE_TURNS;
       return;
     }
@@ -262,7 +263,10 @@ export class People {
         continue;
       }
       if (p.down || !fast) continue; // (anyone the car can run over is in sight)
-      if (points.some(([x, y, lim]) => within(p.px - x, lim) && within(p.py - y, lim))) p.down = P.DOWN_TIME;
+      if (points.some(([x, y, lim]) => within(p.px - x, lim) && within(p.py - y, lim))) {
+        p.down = P.DOWN_TIME;
+        this.onKill?.(p); // run over by the player: what they drop
+      }
     }
   }
   /** What they list for the multiplexer for the window `cam`, after the traffic and Big Honk (after tick). */

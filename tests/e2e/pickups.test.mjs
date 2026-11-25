@@ -6,9 +6,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JOY } from './vice.mjs';
 import { PICKUP_SPRITE, assemble, assets, withProgram } from './game.mjs';
-import { World, assertPicture, missed, pass, putOnFoot } from './play.mjs';
+import { World, assertPicture, missed, pass, putCar, putOnFoot } from './play.mjs';
 import { AMMO, BANDAGE, CASH, DONUT, K, KNIFE } from './pickups-model.mjs';
-import { People } from './people-model.mjs';
+import { P, People, putPerson } from './people-model.mjs';
 
 const game = assemble('pickups', { defs: { SPAWN: 0, HONK: 0 } });
 const L = game.labels;
@@ -138,4 +138,105 @@ test('one picked up comes back 40 to 70 seconds later, somewhere else', () =>
     assert.ok(frames >= 40 * 50 && frames <= 70 * 50, `back after ${frames} frames`);
     assert.notDeepEqual([p.col, p.row], [2, 8], 'somewhere else');
     assert.ok([PAVEMENT, GRASS].includes(People.kind(p.col * 16 + 8, p.row * 16 + 8)));
+  }));
+
+/** A seed for the pickups' random numbers whose next byte is at least `lo` and below `hi`. */
+function seedFor(lo, hi) {
+  for (let seed = 1; ; seed++) {
+    let a = seed << 1;
+    if (a > 0xffff) a = (a & 0xffff) ^ 0x2d;
+    if ((a & 255) >= lo && (a & 255) < hi) return seed;
+  }
+}
+async function putSeed(vice, w, seed) {
+  w.pickups.seed = seed;
+  await vice.write(L['pickups.seed'], [seed & 255, seed >> 8]);
+}
+/** With a knife, the player on the pavement facing north stabs someone STAB_REACH ahead, the roll from `seed`. */
+async function stab(vice, w, seed) {
+  await vice.write(L['status.knife'], [1]);
+  w.pickups.knife = 1;
+  await putOnFoot(vice, L, w, 40, 150, 6);
+  await hold(vice, w, 0, P.STAB_WAIT, 'put on the pavement');
+  return stabNow(vice, w, seed);
+}
+async function stabNow(vice, w, seed) {
+  await putSeed(vice, w, seed);
+  const p = await putPerson(vice, L, w.people, 3, { x: 40, y: 150 - P.STAB_REACH, way: 1, spd: 0, col: 3, wait: 255 });
+  await pass(vice, L, w, JOY.FIRE, 'the stab');
+  assert.equal(p.down, P.DOWN_TIME - 1, 'killed');
+  assert.equal(p.ko, 0);
+  await pass(vice, L, w, 0, 'let go');
+  return p;
+}
+const shown = (w, kind) => w.list.some((s) => s.pointer === PICKUP_SPRITE + kind);
+
+test('someone stabbed may drop cash at their feet: the player, standing within reach, has $10 to $90 at once', () =>
+  run(async (vice, w) => {
+    await stab(vice, w, seedFor(K.KNIFE_ODDS, 256)); // (put in place, and a stab that drops nothing)
+    assert.deepEqual(w.pickups.taken, [], 'nothing dropped');
+    await hold(vice, w, 0, P.STAB_WAIT, 'ready to stab again');
+    const before = await status(vice), late = await missed(vice, L);
+    await stabNow(vice, w, seedFor(0, K.CASH_ODDS));
+    assert.deepEqual(w.pickups.taken, [CASH], 'dropped, and picked up');
+    const got = (await status(vice)).money - before.money;
+    assert.ok(got >= 10 && got <= 90 && got % 10 === 0 && got === w.pickups.lastCash, `${got} dollars`);
+    assert.ok(w.pickups.drops.every((x) => x.kind === K.AWAY), 'gone');
+    assert.equal(await missed(vice, L) - late, 0, 'no frame was late');
+  }));
+
+/** Run over someone in the road at the top of the city, the roll from `seed`, then the car put back west of them. */
+async function runOver(vice, w, seed) {
+  await putCar(vice, L, w, 200, 24, 0);
+  await hold(vice, w, 0, 3, 'put there');
+  await putSeed(vice, w, seed);
+  const p = await putPerson(vice, L, w.people, 2, { x: 290, y: 24, way: 1, spd: 0, col: 4, wait: 255 });
+  for (let i = 1; i <= 120 && !p.down; i++) await pass(vice, L, w, JOY.UP, `driving at them, ${i} frames`);
+  assert.equal(p.down, P.DOWN_TIME, 'run over');
+  return p;
+}
+
+test('what is dropped lies where they fell for 20 seconds, blinking in its last 4; a roll for nothing drops nothing', () =>
+  run(async (vice, w) => {
+    const p = await runOver(vice, w, seedFor(0, K.CASH_ODDS));
+    const d = w.pickups.drops.find((x) => x.kind !== K.AWAY);
+    assert.ok(d && d.kind >= 1 && d.kind <= 9, 'cash dropped');
+    assert.deepEqual([d.x, d.y], [p.px, p.py], 'where they were hit');
+    await putCar(vice, L, w, 230, 24, 0); // (out of its reach, in sight)
+    await hold(vice, w, 0, 2, 'put back');
+    assert.ok(shown(w, CASH), 'shown as cash');
+    await assertPicture(vice, L, w, 'the cash dropped');
+    let frames = 0, on = 0, off = 0;
+    const late = await missed(vice, L);
+    while (d.kind !== K.AWAY && frames < 1100) {
+      await pass(vice, L, w, 0, `waiting, ${++frames} frames`);
+      if (d.kind === K.AWAY) break;
+      if (d.life >= K.BLINK) assert.ok(shown(w, CASH), `shown all the while before its last 4 seconds (${frames})`);
+      else if (shown(w, CASH)) on++;
+      else off++;
+    }
+    assert.ok(frames > 900 && frames < K.LIFE, `gone when its 20 seconds are up (${frames} frames more)`);
+    assert.ok(on >= 90 && off >= 90, `blinking in its last 4 seconds: shown ${on} frames, hidden ${off}`);
+    assert.equal(await missed(vice, L) - late, 0, 'no frame was late');
+    await runOver(vice, w, seedFor(K.KNIFE_ODDS, 256));
+    assert.ok(w.pickups.drops.every((x) => x.kind === K.AWAY), 'nothing dropped');
+  }));
+
+test('a knife may be dropped only if the player has none: running someone over with none, it is, and the car picks it up', () =>
+  run(async (vice, w) => {
+    await runOver(vice, w, seedFor(K.CASH_ODDS, K.KNIFE_ODDS));
+    const d = w.pickups.drops.find((x) => x.kind !== K.AWAY);
+    assert.equal(d?.kind, K.DROP_KNIFE, 'a knife dropped');
+    for (let i = 1; i <= 120 && d.kind !== K.AWAY; i++) {
+      const bits = w.car.px < d.x - 6 ? JOY.UP : w.car.px > d.x + 6 ? JOY.DOWN : 0;
+      await pass(vice, L, w, bits, `back to it, ${i} frames`);
+    }
+    assert.equal(d.kind, K.AWAY, 'picked up by the car');
+    assert.equal((await status(vice)).knife, 1);
+    // With a knife now, the same roll drops nothing.
+    for (let i = 1; i <= 100 && Math.abs(w.car.vx) > 120; i++) await pass(vice, L, w, JOY.DOWN, `slowing, ${i} frames`);
+    await pass(vice, L, w, 0, 'slow enough to get out');
+    const taken = w.pickups.taken.length;
+    await stab(vice, w, seedFor(K.CASH_ODDS, K.KNIFE_ODDS));
+    assert.equal(w.pickups.taken.length, taken, 'no second knife');
   }));

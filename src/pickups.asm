@@ -20,6 +20,8 @@
 ; turn comes round again. Only the near ones are looked at for being picked up and shown. When the window
 ; jumps, all of them are looked at at once.
 ;
+; Someone the player kills may drop cash or a knife where they fell (drop, at the end): it lies 20 seconds.
+;
 ; tests/e2e/pickups-model.mjs does the same in JavaScript, and the tests hold the two to each other.
 
 pickups         .block
@@ -138,6 +140,7 @@ window_tile     lda cam_lo + 1
 ; Once a pass, after the window has moved: those taken come back in time; TURN_EACH of them are looked at for
 ; nearness (all of them if the window jumped); and the near ones are picked up if the player is on them.
 update          inc clock
+                jsr age                 ; (what has been dropped, every frame)
                 lda busy                ; colour memory this frame, or the screen moving a character: nothing
                 bne +                   ; more (show still lists them)
                 jsr screen_moves
@@ -189,7 +192,18 @@ all_now         jmp all_near
 
 ; C set if pickup X is picked up, the player on it (show): then away, having done what it does. X kept.
 taking          jsr middle
-                sec
+                jsr reached
+                bcs +
+                stx who
+                jsr take
+                ldx who
+                sec                     ; (picked up)
+                rts
++               clc                     ; (not)
+                rts
+
+; C clear if the player's middle is within REACH of mid_x, mid_y either way.
+reached         sec
                 lda mid_x
                 sbc player_at
                 tay
@@ -203,15 +217,8 @@ taking          jsr middle
                 tay
                 lda mid_y + 1
                 sbc player_at + 3
-                jsr within
-                bcs +
-                stx who
-                jsr take
-                ldx who
-                sec                     ; (picked up)
-                rts
-+               clc                     ; (not)
-                rts
+                jmp within
++               rts
 
 ; C clear if the difference A (high), Y (low) is REACH or less either way.
 within          sta mid_hi
@@ -335,7 +342,7 @@ take            ldx who
                 beq donut
                 cmp #KIND_BANDAGE
                 beq bandage
-                lda status.knife        ; a knife: kept, or a spare one pawned for $10
+knife           lda status.knife        ; a knife: kept, or a spare one pawned for $10
                 bne +
                 inc status.knife
                 rts
@@ -451,7 +458,7 @@ show            lda player_at           ; the player's tile, for a quick look at
                 jsr one
                 ldy list_at
                 bne -
-+               rts
++               jmp show_drops          ; and what has been dropped
 ; Near one X: picked up, or listed if in sight. X kept.
 one             ldy kind,x
                 cpy #AWAY
@@ -495,7 +502,9 @@ one             ldy kind,x
                 bcc ++
                 jmp hidden
 +               jsr middle
-+               ldy kind,x
++               lda kind,x
+; Listed if in sight: one of kind A, its middle at mid_x, mid_y. X kept.
+sight           sta seen
                 sec                     ; down: 0 to LOWEST - 1 from cy
                 lda mid_y
                 sbc traffic.cy
@@ -537,7 +546,7 @@ one             ldy kind,x
                 sta sprites.sx
                 bcc +
                 inc sprites.sx + 1
-+               lda kind,x
++               lda seen
                 tay
                 clc
                 adc #PICKUP_SPRITE
@@ -586,4 +595,143 @@ row_now         .byte 0
 mid_x           .word 0
 mid_y           .word 0
 mid_hi          .byte 0
+seen            .byte 0                 ; sight: the kind
+
+; ---------- what someone the player kills drops ----------
+; The design: cash 40 % of the time, $10 to $90 in steps of $10, or a knife 8 % if the player has none. It
+; lies where they were killed for 20 seconds, blinking in the last 4, and is picked up as a pickup is (but
+; does not come back). DROPS at once: one more, with none free, is not dropped. The kinds: 1-9, cash of that
+; many tens of dollars; DROP_KNIFE; AWAY, none.
+
+DROPS           = 3
+DROP_LIFE       = 20 * 50               ; frames
+BLINK           = 4 * 50                ; the last frames, hidden every other 8 of them
+DROP_KNIFE      = 10
+DROP_CASH_ODDS  = 102                   ; a random byte below this, cash: 40 %
+DROP_KNIFE_ODDS = 123                   ; ... else below this, a knife: 8 %
+
+                .section low_more       ; (where there is room: main.asm)
+; Person X (people.asm), killed by the player: what they drop, if anything. X kept.
+drop            jsr rnd
+                cmp #DROP_CASH_ODDS
+                bcc drop_cash
+                cmp #DROP_KNIFE_ODDS
+                bcs no_drop
+                lda status.knife
+                bne no_drop
+                lda #DROP_KNIFE
+                bne drop_it
+drop_cash       jsr rnd                 ; $10 to $90
+-               cmp #9
+                bcc +
+                sbc #9
+                bcs -
++               adc #1                  ; (the carry is clear)
+drop_it         ldy #DROPS - 1          ; a place for it
+-               pha
+                lda dkind,y
+                cmp #AWAY
+                beq +
+                pla
+                dey
+                bpl -
+no_drop         rts
++               pla
+                sta dkind,y
+                lda people.xl,x
+                sta dx_lo,y
+                lda people.xh,x
+                sta dx_hi,y
+                lda people.yl,x
+                sta dy_lo,y
+                lda people.yh,x
+                sta dy_hi,y
+                lda #<DROP_LIFE
+                sta dlife_lo,y
+                lda #>DROP_LIFE
+                sta dlife_hi,y
+                rts
+
+; Once a frame: the time each has left, and gone when it is up.
+age             ldx #DROPS - 1
+-               lda dkind,x
+                cmp #AWAY
+                beq next_age
+                lda dlife_lo,x
+                bne +
+                dec dlife_hi,x
++               dec dlife_lo,x
+                bne next_age
+                lda dlife_hi,x
+                bne next_age
+                lda #AWAY
+                sta dkind,x
+next_age        dex
+                bpl -
+                rts
+
+; After the near ones: each dropped one picked up if the player is on it (not in a frame of colour memory);
+; else listed if in sight, unless blinking off.
+show_drops      ldx #DROPS - 1
+-               lda dkind,x
+                cmp #AWAY
+                beq next_drop
+                lda dx_lo,x
+                sta mid_x
+                lda dx_hi,x
+                sta mid_x + 1
+                lda dy_lo,x
+                sta mid_y
+                lda dy_hi,x
+                sta mid_y + 1
+                lda busy
+                bne +
+                jsr reached
+                bcs +
+                jsr take_drop
+                jmp next_drop
++               lda dlife_hi,x          ; its last BLINK frames: hidden every other 8
+                bne +
+                lda dlife_lo,x
+                cmp #BLINK
+                bcs +
+                lda clock
+                and #8
+                bne next_drop
++               lda dkind,x
+                cmp #DROP_KNIFE
+                lda #KIND_KNIFE
+                bcs +
+                lda #KIND_CASH
++               jsr sight
+next_drop       dex
+                bpl -
+                rts
+
+; Dropped one X picked up.
+take_drop       lda dkind,x
+                pha
+                lda #AWAY
+                sta dkind,x
+                lda #1
+                sta status.changed
+                pla
+                cmp #DROP_KNIFE
+                bne +
+                jmp knife
++               asl                     ; that many tens of dollars
+                asl
+                asl
+                asl
+                ldy #0
+                jmp pay
+
+dkind           .fill DROPS, AWAY
+dx_lo           .fill DROPS, 0          ; where, in pixels: where the one who dropped it was
+dx_hi           .fill DROPS, 0
+dy_lo           .fill DROPS, 0
+dy_hi           .fill DROPS, 0
+dlife_lo        .fill DROPS, 0          ; frames left
+dlife_hi        .fill DROPS, 0
+                .send
                 .bend
