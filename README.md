@@ -20,7 +20,8 @@ wanders The Moat, the canal down the middle of the city; nothing hurts him, and 
 makes him flap and run off. A few passers-by walk the pavements, the plazas and the grass, in the design's
 shirt colours, and now and then cross a road, where traffic stops for them; a car in their way stops them, and
 they wait, then step round it. Drive into one fast and they lie flat for four seconds, then are gone. Crimes add heat, as the design counts
-it, and with no police yet it cools a level every 9 seconds. A raster split keeps the status panel still under the city, on black: the money,
+it, and with no police yet it cools a level every 9 seconds. Pickups lie about on pavements and grass, bobbing:
+ammo, cash, donuts, bandages and knives, by the design's shares; walk or drive over one to take it. A raster split keeps the status panel still under the city, on black: the money,
 heat, health, the car and the ammo, the job, and messages, laid out as the browser game's. There is no
 sound and no game yet, so nothing changes the money or the rest yet. See [docs/ROADMAP.md](docs/ROADMAP.md) and the
 [issues](https://github.com/mselin/Sleazeburg64/issues) for what comes next.
@@ -281,7 +282,8 @@ screen of its own, which the split switches to for its three rows.
 | `$0400` | The panel's screen: rows 21–23. Rows 0–20, never shown, hold the sprite lists and traffic tables |
 | `$0801` | BASIC line that starts the program |
 | `$0840` | The car's sprite in 16 directions |
-| `$0c40` | Code |
+| `$0c40` | The pickups' sprite in five kinds |
+| `$0d80` | Code |
 | `$2000` | Copied at start: the passers-by's sprite, 20 frames |
 | `$2580` | Made at start: the player on foot's sprite, 42 frames |
 | `$3000` | Screen A: the city in rows 0–20 |

@@ -32,6 +32,8 @@ more_image
                 .logical MORE_CODE
                 .include "water.asm"
                 .dsection video_more
+                .dsection car_more
+                .dsection pickups_more
 .if CROWD != 0
                 .dsection people_more
 .endif

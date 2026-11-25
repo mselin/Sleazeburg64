@@ -14,7 +14,7 @@ import { waterStep } from './water-model.mjs';
 import { H, Honk, putHonk, readHonk, rowMod12 } from './honk-model.mjs';
 
 // No traffic of its own: the tests put a car where they want one.
-const game = assemble('honk', { defs: { SPAWN: 0 } });
+const game = assemble('honk', { defs: { SPAWN: 0, ITEMS: 0 } }); // (no pickups: these tests are about Big Honk)
 const L = game.labels;
 const START = [9 * 16, 8 * 16];
 const RED = 2;

@@ -16,6 +16,7 @@
 ;   CARS               how many traffic cars at most (traffic.asm)
 ;   SPAWN              0: no traffic appears by itself, for tests that place their own
 ;   HONK               0 leaves Big Honk out
+;   ITEMS              0 leaves the pickups out (pickups.asm), for tests about something else
 ;   PACKED             1 carries the map and the code that is copied up packed, from PACK_FILE (the Makefile)
 
         .cpu "6502"
@@ -28,6 +29,7 @@ AUTOPILOT       = 0
 MUSIC           = 0
 VIEWER          = 0
 HONK            = 1
+ITEMS           = 1
 CROWD          = 4                     ; passers-by at most at once (people.asm); 0 leaves them out
 PACKED          = 0
 PACK_FILE       = "packed.bin"
@@ -52,6 +54,7 @@ CENTRE_X        = VIEW_W / 2            ; where in the window the view keeps the
 CENTRE_Y        = VIEW_H / 2
 CAR_FRAMES      = $0840                 ; the car's sprite in 16 directions, 64 bytes each
 CAR_SPRITE      = CAR_FRAMES / 64       ; sprite pointer of the first
+PICKUP_FRAMES   = CAR_FRAMES + 16 * 64  ; the pickups' sprite in five kinds, after the car's
 SQUARES         = $c000                 ; quarter squares for multiplying (see car.init): 1K, made at start
 SQUARES2        = $bc00                 ; and the same moved along, for the other half of a multiplication: 1K
 HIGH_CODE       = video.COLOUR_END       ; code that runs from just above the colour routines,
@@ -87,6 +90,11 @@ tmp             .byte ?
 ; ---------- the car's sprite, where the video chip can see it ----------
                 * = CAR_FRAMES
                 .binary "car.bin"
+; ---------- and the pickups', the same ----------
+.if VIEWER == 0
+                .cerror * != PICKUP_FRAMES, "the pickups' frames follow the car's"
+                .binary "pickups.bin"
+.endif
 
 start           sei
                 cld
@@ -156,6 +164,9 @@ start           sei
 .endif
 .if VIEWER == 0
                 jsr foot.init
+.if ITEMS != 0
+                jsr pickups.init        ; after video.init: the window is where it starts
+.endif
 .endif
 .if VIEWER != 0
                 jsr panel.init
@@ -189,6 +200,9 @@ ready           jsr input.read          ; A = which directions are held
 .if CROWD != 0
                 jsr people.update       ; (and the passers-by, in a frame with time to spare)
 .endif
+.if ITEMS != 0
+                jsr pickups.update
+.endif
                 jsr foot.show           ; the car, or the player on foot
                 jsr traffic.show
 .if WITH_HONK
@@ -196,6 +210,9 @@ ready           jsr input.read          ; A = which directions are held
 .endif
 .if CROWD != 0
                 jsr people.show         ; and the passers-by after him
+.endif
+.if ITEMS != 0
+                jsr pickups.show        ; and the pickups
 .endif
                 jsr sprites.plan
 .else
@@ -531,6 +548,7 @@ char_of         lda cam_hi,x
                 .include "sprites.asm"
 .if VIEWER == 0
                 .include "car.asm"
+                .include "pickups.asm"
 .endif
 .if MUSIC != 0 && VIEWER != 0
                 .include "music.asm"

@@ -20,7 +20,10 @@ test('the program file carries the map and the code that is copied up packed, an
 
 test('start unpacks it in place, byte for byte, before anything else is set up', () =>
   withProgram(game.prg, async (vice) => {
-    await vice.runTo(L['car.init']); // the first thing after the unpacking and the copies up
+    // The first thing after the unpacking and the copies up. (Run to the unpacker first: car.init runs from the
+    // waiting area, which reaches into the BASIC ROM's addresses, which run as the program loads.)
+    await vice.runTo(L.unpack);
+    await vice.runTo(L['car.init']);
     const wanted = region(game.unpacked, L.city_map, L.program_end);
     const got = await vice.read(L.city_map, wanted.length);
     let first = -1;
