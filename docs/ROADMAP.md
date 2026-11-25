@@ -242,6 +242,11 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
   character has one colour. Nothing changes the money, health or ammo yet (heat, above): what does sets
   `status.changed`, and row 1 is drawn again. The jobs (#9) fill row 2.
 - Title screen, game-over and victory pictures.
+  - **Changed in the browser game** (mselin/gta-c64#58): the title screen shows its text page for 10 seconds,
+    then a sunset picture for 8, in turn: the owner's artwork with the SLEAZEBURG 64 logo, made C64-like, 320 ×
+    180 in the 16 colours and double-wide pixels. The boot shows the same picture loading, a character row at a
+    time while the border flashes, before READY. and RUN. See "The two pages" and "The boot" under the design's
+    [Title screen and icon](https://github.com/mselin/gta-c64/blob/main/specs/design.md#title-screen-and-icon).
 
 ## Milestone 4: sound and polish
 
