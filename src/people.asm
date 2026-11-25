@@ -55,6 +55,11 @@ ARRIVE_GAP       = 16                    ; frames with time to spare between loo
 FAR             = $180                  ; 384: further than this from the player, they go
 BACK_ODDS       = 205                   ; the way back is left for last when a random byte is below this: 0.8
 JAY_ODDS        = 26                    ; ready to cross a road when a random byte is below this: 0.1
+PUNCH_WAIT      = 18                    ; frames between punches (0.35 seconds)
+PUNCH_REACH     = 7                     ; a punch: the first passer-by within PUNCH_LIM of the point this far
+PUNCH_LIM       = 7                     ; ahead of the player is knocked down
+SCARE           = 60                    ; and anyone this near them runs
+FLEE_TURNS      = 50                    ; for 2 seconds (in their turns, every other frame), twice as fast
 HALT            = 10                    ; a car in the way: they stand this many of their turns (0.4 seconds) ...
 TURN_AFTER      = 75                    ; ... then step round it, and turn another way after 3 seconds in all
 CAR_LONG        = 13                    ; a traffic car's body, as traffic.bump has it, and their 3 pixels: along
@@ -134,6 +139,9 @@ walk            lda down,x              ; lying: no more walking
                 lda #0
                 sta on,x
                 rts
++               lda flee,x              ; running: away from the player (flee_way)
+                beq +
+                jmp flee_way
 +               dec wait,x
                 beq +
                 lda way,x
@@ -142,6 +150,7 @@ walk            lda down,x              ; lying: no more walking
                 jsr likes
                 bcc ++
 +               jsr pick
+step_on
 +               ldx who
                 lda way,x
                 ldy #TREAD
@@ -169,6 +178,10 @@ phase           ldx who                 ; phase += spd * 5/8, a pose every 1.6 p
                 adc spd,x
                 sta try
                 ldy #2
+                lda flee,x              ; (running: twice that)
+                beq +
+                ldy #4
++
 -               clc
                 lda try
                 adc phl,x
@@ -183,7 +196,13 @@ phase           ldx who                 ; phase += spd * 5/8, a pose every 1.6 p
 steps           jsr stride
                 ldx who
                 jsr stride
-                lda #0
+                ldx who                 ; running: as far again
+                lda flee,x
+                beq +
+                jsr stride
+                ldx who
+                jsr stride
++               lda #0
                 ldy #0
                 jsr ahead
                 ldx who
@@ -471,6 +490,7 @@ axis_of         .byte 0, 2, 0, 2        ; nx or ny, by way
                 .cerror ny - nx != 2, "ahead expects ny two bytes after nx"
 
 .if SPAWN != 0
+                .section people_high    ; (where there is room: waiting.asm)
 ; Someone new in a free place, if the point picked at random is out of sight and on a pavement or a plaza.
 arrive           ldx #CROWD - 1
 -               lda on,x
@@ -540,6 +560,8 @@ arrive           ldx #CROWD - 1
                 lda #0
                 sta jay,x
                 sta road,x
+                sta ko,x
+                sta flee,x
                 lda #1                  ; and they pick a way at once
                 sta wait,x
                 sta on,x
@@ -589,21 +611,25 @@ seen            clc
 unseen          sec
                 rts
 shirts          .byte PURPLE, ORANGE, CYAN, RED, LIGHT_RED, BROWN, GREEN, WHITE
+                .send
 .endif
 
 ; List everyone in sight for the multiplexer, after traffic.show (which leaves the window's corner, moved by
 ; where a sprite can start, in traffic.cx and cy) and Big Honk, as he is listed.
-show            jsr hunting             ; the player's car, if it is going fast enough to run someone over
+show            lda punch_left          ; (the time until the player can punch again)
+                beq +
+                dec punch_left
++               jsr hunting             ; the player's car, if it is going fast enough to run someone over
                 ldx #CROWD - 1
 each            lda on,x
                 bne +
                 jmp hidden
-+               lda down,x              ; lying: for DOWN_TIME frames, then gone
-                beq +
++               lda down,x              ; lying: for DOWN_TIME frames, then gone, or up and running if knocked
+                beq +                   ; down by a punch (got_up)
                 dec down,x
                 bne listed
-                lda #0
-                sta on,x
+                jsr got_up
+                bcc listed
                 jmp hidden
 +               lda chasing             ; walking: run over? Only if within 15 pixels of the car down (its
                 beq listed              ; middle and the point ahead of it are at most HIT and 6 away), which
@@ -947,6 +973,189 @@ by              .word 0
 body_x          .byte 0
 body_y          .byte 0
 car_no          .byte 0
+                .send
+
+                .section people_high
+; Fire on foot with no ammo and no knife (foot.update): a punch, unless the last was under PUNCH_WAIT frames
+; ago. It knocks down the first passer-by within PUNCH_LIM of the point PUNCH_REACH ahead of the player:
+; they lie DOWN_TIME frames, then get up and run (got_up), and anyone within SCARE of them runs now.
+punch           lda punch_left
+                bne +
+                lda #PUNCH_WAIT
+                sta punch_left
+                ldx foot.face           ; the point
+                ldy #0
+                lda reach_x,x
+                jsr nudge_point
+                ldy #2
+                lda reach_y,x
+                jsr nudge_point
+                ldx #CROWD - 1
+-               lda on,x
+                beq next_one
+                lda down,x
+                bne next_one
+                lda #PUNCH_LIM
+                ldy #0
+                jsr beside
+                bcc knock
+next_one        dex
+                bpl -
++               rts
+knock           lda #DOWN_TIME
+                sta down,x
+                lda #1
+                sta ko,x
+                lda xl,x                ; who is near them runs
+                sta cx
+                lda xh,x
+                sta cx + 1
+                lda yl,x
+                sta cy
+                lda yh,x
+                sta cy + 1
+                ldx #CROWD - 1
+-               lda on,x
+                beq +
+                lda down,x
+                bne +
+                lda #SCARE
+                ldy #0
+                jsr beside
+                bcs +
+                lda #FLEE_TURNS
+                sta flee,x
++               dex
+                bpl -
+                rts
+; cx (Y = 0) or cy (Y = 2) = the player's position on that axis + A, a signed byte.
+nudge_point     sta d
+                ldx foot.face
+                and #$80
+                beq +
+                lda #$ff
++               sta d + 1
+                lda #0
+                cpy #0
+                beq +
+                lda #3
++               tax
+                clc
+                lda foot.pos + 1,x
+                adc d
+                sta cx,y
+                lda foot.pos + 2,x
+                adc d + 1
+                sta cx + 1,y
+                ldx foot.face
+                rts
+reach_x         .char PUNCH_REACH, 5, 0, -5, -PUNCH_REACH, -5, 0, 5             ; by the way they face: east first,
+reach_y         .char 0, 5, PUNCH_REACH, 5, 0, -5, -PUNCH_REACH, -5             ; clockwise
+                .cerror cy - cx != 2, "punch expects cy two bytes after cx"
+
+; Person X's DOWN_TIME is up: C set if they are gone (run over), else (knocked down by a punch) up and running.
+got_up          lda ko,x
+                bne +
+                sta on,x
+                sec
+                rts
++               lda #0
+                sta ko,x
+                lda #FLEE_TURNS
+                sta flee,x
+                clc
+                rts
+
+; A turn of running (person who, flee set): away from the player, along the axis they are further from them on
+; (the other if that way is a wall), ready to cross roads, and without stopping before a car.
+flee_way        dec flee,x
+                lda #1
+                sta jay,x
+                lda #0
+                sta stall,x
+                ldy #0                  ; |dx| and |dy|, and which way is away on each
+                jsr away
+                sta f_x
+                lda a_lo
+                sta a_x
+                lda a_hi
+                sta a_x + 1
+                ldy #2
+                jsr away
+                sta f_y
+                lda a_lo
+                sta a_y
+                lda a_hi
+                sta a_y + 1
+                lda a_x + 1             ; the further first (across, if neither)
+                cmp a_y + 1
+                bne +
+                lda a_x
+                cmp a_y
++               lda f_x
+                ldy f_y
+                bcs +
+                lda f_y
+                ldy f_x
++               sty f_other
+                ldx who
+                sta way,x
+                ldy #TREAD
+                jsr ahead
+                cmp #WALL
+                bne +
+                lda f_other             ; a wall that way: the other, if that is not one too
+                ldy #TREAD
+                jsr ahead
+                cmp #WALL
+                beq +
+                ldx who
+                lda f_other
+                sta way,x
++               jmp step_on
+; A = the way away from the player on axis Y (0 across, 2 down) for person who; a_lo, a_hi = how far.
+away            ldx who
+                lda xl,x
+                sta a_lo
+                lda xh,x
+                cpy #0
+                beq +
+                lda yl,x
+                sta a_lo
+                lda yh,x
++               sta a_hi
+                sec
+                lda a_lo
+                sbc player_at,y
+                sta a_lo
+                lda a_hi
+                sbc player_at + 1,y
+                sta a_hi
+                bmi +
+                tya                     ; no further left or up: east (0) or south (1)
+                lsr
+                rts
++               sec                     ; further left or up: west (2) or north (3), and the size
+                lda #0
+                sbc a_lo
+                sta a_lo
+                lda #0
+                sbc a_hi
+                sta a_hi
+                tya
+                lsr
+                ora #2
+                rts
+ko              .fill CROWD, 0          ; 1: knocked down by a punch (they get up); 0: run over (gone)
+flee            .fill CROWD, 0          ; turns left running away
+punch_left      .byte 0                 ; frames until the player can punch again
+a_lo            .byte 0
+a_hi            .byte 0
+a_x             .word 0
+a_y             .word 0
+f_x             .byte 0
+f_y             .byte 0
+f_other         .byte 0
                 .send
 
 ; Its variables, here with the code (the panel screen's room for them is full with sixteen cars).

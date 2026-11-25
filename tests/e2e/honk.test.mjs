@@ -38,7 +38,7 @@ function models() {
 function step(m, bits) {
   const busy = m.cam.busy; // this pass works out colour memory if the last one swapped the screens
   const cell = [...m.cam.cell]; // the character the window is in before it moves
-  m.player.step(bits, m.traffic, busy);
+  m.player.step(bits, m.traffic, busy, m.people);
   m.cam.follow(m.player.px, m.player.py);
   m.traffic.step(m.player.px, m.player.py, m.cam, busy);
   waterStep(m, cell);

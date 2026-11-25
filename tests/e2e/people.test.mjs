@@ -156,3 +156,56 @@ test('the player\'s car going fast runs someone over: they lie flat for 4 second
     }
     assert.equal(q.down, 0, 'not run over');
   }));
+
+test('fire on foot is a punch: it knocks down the passer-by in front, who gets up after 4 seconds and runs, as does anyone near', () =>
+  run(async (vice, w) => {
+    // The pavement down the west side of the first block, the player facing north up it (no car in reach).
+    await putOnFoot(vice, L, w, 40, 150, 6);
+    await hold(vice, w, 0, 3, 'put on the pavement');
+    const late = await missed(vice, L);
+    const p = await putPerson(vice, L, w.people, 3, { x: 40, y: 150 - P.PUNCH_REACH, way: 1, spd: 90, col: 3, wait: 255 });
+    const q = await putPerson(vice, L, w.people, 2, { x: 40, y: 100, way: 3, spd: 90, col: 4, wait: 255 });
+    await pass(vice, L, w, JOY.FIRE, 'the punch');
+    assert.equal(w.player.on, 1, 'still on foot: no car to get into');
+    assert.equal(p.down, P.DOWN_TIME - 1, 'knocked down');
+    assert.equal(p.ko, 1, 'by a punch: they will get up');
+    assert.equal(q.flee, P.FLEE_TURNS, 'and the one near them runs');
+    await hold(vice, w, JOY.FIRE, 5, 'fire held: no more punches');
+    await assertPicture(vice, L, w, 'someone knocked down in front of the player');
+    // Lying their four seconds, then up and running away from the player, north.
+    await hold(vice, w, 0, P.DOWN_TIME - 7, 'lying there');
+    assert.equal(p.down, 1);
+    await pass(vice, L, w, 0, 'getting up');
+    assert.equal(p.down, 0);
+    assert.equal(p.on, 1, 'still there');
+    assert.equal(p.flee, P.FLEE_TURNS, 'and running');
+    const y0 = p.py;
+    await hold(vice, w, 0, 60, 'running');
+    assert.ok(y0 - p.py > 20, `away from the player, twice as fast as walking (${y0 - p.py} pixels in 60 frames)`);
+    assert.equal(await missed(vice, L) - late, 0, 'no frame was late');
+  }));
+
+test('punches come no faster than one every 0.35 seconds, and none in the water', () =>
+  run(async (vice, w) => {
+    await putOnFoot(vice, L, w, 40, 150, 6);
+    await hold(vice, w, 0, 3, 'put on the pavement');
+    const a = await putPerson(vice, L, w.people, 3, { x: 40, y: 150 - P.PUNCH_REACH, way: 1, spd: 0, col: 3, wait: 255 });
+    await pass(vice, L, w, JOY.FIRE, 'the first punch');
+    assert.equal(a.ko, 1);
+    // Someone else in front at once: fire again too soon does nothing.
+    const b = await putPerson(vice, L, w.people, 1, { x: 41, y: 150 - P.PUNCH_REACH, way: 1, spd: 0, col: 5, wait: 255 });
+    await pass(vice, L, w, 0, 'let go');
+    await pass(vice, L, w, JOY.FIRE, 'too soon');
+    assert.equal(b.down, 0, 'not knocked down');
+    await hold(vice, w, 0, P.PUNCH_WAIT, 'waiting');
+    await pass(vice, L, w, JOY.FIRE, 'again, in time');
+    assert.equal(b.ko, 1, 'knocked down');
+    // In the fountain in the plaza near the start, swimming, someone in front: no punch.
+    await hold(vice, w, 0, P.PUNCH_WAIT, 'waiting again');
+    await putOnFoot(vice, L, w, 100, 112, 0);
+    await hold(vice, w, 0, 3, 'put in the fountain');
+    assert.equal(w.player.swim, 1, 'swimming');
+    const c = await putPerson(vice, L, w.people, 0, { x: 100 + P.PUNCH_REACH, y: 112, way: 1, spd: 0, col: 2, wait: 255 });
+    await pass(vice, L, w, JOY.FIRE, 'fire in the water');
+    assert.equal(c.down, 0, 'nobody fights in the water');
+  }));

@@ -98,7 +98,7 @@ init            lda #0
                 lda #100
                 sta hp
                 sta car_hp
-                lda #$12
+                lda #0                  ; no ammo until there is a gun: fire on foot is a punch
                 sta ammo
                 lda #FLASH_FRAMES
                 sta flash_wait

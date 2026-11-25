@@ -30,8 +30,11 @@
 ; under the city would upset the split (irq.asm). With the window as far south as it goes that happens 11
 ; pixels from the edge of the city, so that is as far south as the player's middle goes.
 ;
-; Not here yet: the player cannot be hurt, cars drive through them (though traffic stops for them as it does
-; for a car), and there is nothing to do with fire on foot but get into a car.
+; Fire on foot, with no car within reach to get into, is a punch (people.punch): there is no gun yet, so the
+; game starts with no ammo, as the design has the player punch once it runs out. Nobody fights in the water.
+;
+; Not here yet: the player cannot be hurt, and cars drive through them (though traffic stops for them as it
+; does for a car).
 ;
 ; tests/e2e/foot-model.mjs does the same in JavaScript, and the tests hold the two to each other exactly.
 
@@ -57,6 +60,7 @@ swim            .byte ?                 ; 1: in the water
 fire_was        .byte ?                 ; 1: fire was held in the pass before
 joy             .byte ?                 ; this pass's joystick
 use             .byte ?                 ; 1: fire has just been pressed with the stick centred
+press           .byte ?                 ; 1: fire has just been pressed, the stick anywhere
 stuck           .byte ?                 ; walk: inside a wall
 amount          .word ?                 ; walk: how far along an axis this frame
 next            .fill 3                 ; walk: where that would put them on the axis
@@ -99,11 +103,13 @@ init            lda #$ff                ; (car.survey: no tile asked about yet)
 update          sta joy
                 lda #0
                 sta use
+                sta press
                 lda joy
                 and #JOY_FIRE
                 beq fire_up             ; (A is 0: not held)
                 lda fire_was
                 bne fire_down
+                inc press
                 lda joy
                 and #JOY_UP | JOY_DOWN | JOY_LEFT | JOY_RIGHT
                 bne fire_down
@@ -120,8 +126,18 @@ fire_up         sta fire_was
                 jmp where
 walking         jsr walk
                 lda use
+                beq +
+                jsr enter               ; (into a car within reach, if there is one)
+                lda on
                 beq where
-                jsr enter
++
+.if CROWD != 0
+                lda press               ; else fire is a punch: no ammo yet, no knife (people.punch), and
+                beq where               ; nobody fights in the water
+                lda swim
+                bne where
+                jsr people.punch
+.endif
 where           lda on
                 bne +
                 lda car.pos_x + 1
