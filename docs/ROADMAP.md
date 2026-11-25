@@ -253,6 +253,16 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
     180 in the 16 colours and double-wide pixels. The boot shows the same picture loading, a character row at a
     time while the border flashes, before READY. and RUN. See "The two pages" and "The boot" under the design's
     [Title screen and icon](https://github.com/mselin/gta-c64/blob/main/specs/design.md#title-screen-and-icon).
+  - **The title page on the C64** (#11, `src/title-page.asm`): the game as shipped starts on the sunset
+    picture, with PRESS FIRE TO COMMIT CRIMES blinking under it twice a second, until fire (held since the
+    start, only once it has been let go). The browser game's picture (`assets/title-sunset.png`, a copy) is
+    made a multicolour bitmap by `tools/picture.mjs`: 10 lines down a black screen, each 4 x 8 cell keeping
+    black and its three most used colours (about 4 % of the pixels take the nearest of those), the text in
+    the last character row in the font. It is packed, 8.8K, after the rest of the packed program file, and
+    shown before anything is unpacked, from $c000 and $e000, which the game then writes over: it costs no
+    memory in play. The owner chose this and a loading picture, shown by a loader on a disk image while the
+    game loads, still to come. The browser game's text page and its taking turns with the picture are not
+    copied: the C64's title page is the picture alone.
   - **Fixed in the browser game** (mselin/gta-c64#70): fire starts the game from the title screen, and fire
     also shoots, so a press still held when play began fired a shot at once, and the player started a bullet
     short. Now the press that starts the game is not a shot; fire shoots once let go of and pressed again.
@@ -305,6 +315,16 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
     a sunset, in a circle, in the artwork's own colours, in place of the S. The play page's `site/index.html`
     names icons of its own, copies of the old S. See "Icon" under the design's
     [Title screen and icon](https://github.com/mselin/gta-c64/blob/main/specs/design.md#title-screen-and-icon).
+  - **The title page on the C64** (#11, `src/title-page.asm`): the game as shipped starts on the sunset
+    picture, with PRESS FIRE TO COMMIT CRIMES blinking under it twice a second, until fire (held since the
+    start, only once it has been let go). The browser game's picture (`assets/title-sunset.png`, a copy) is
+    made a multicolour bitmap by `tools/picture.mjs`: 10 lines down a black screen, each 4 x 8 cell keeping
+    black and its three most used colours (about 4 % of the pixels take the nearest of those), the text in
+    the last character row in the font. It is packed, 8.8K, after the rest of the packed program file, and
+    shown before anything is unpacked, from $c000 and $e000, which the game then writes over: it costs no
+    memory in play. The owner chose this and a loading picture, shown by a loader on a disk image while the
+    game loads, still to come. The browser game's text page and its taking turns with the picture are not
+    copied: the C64's title page is the picture alone.
 
 ## What will not carry over from the browser game
 
