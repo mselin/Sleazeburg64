@@ -34,7 +34,9 @@ function models(traffic) {
   const people = new People({ arrive: traffic.spawn });
   traffic.people = people; // (which traffic stops for)
   const cam = new Camera(...START);
-  return { car, player: new Player(car), cam, traffic, honk: new Honk(), people, pickups: new Pickups(cam), list: [] };
+  const pickups = new Pickups(cam);
+  people.onKill = (p) => pickups.drop(p.px, p.py); // (what someone killed drops)
+  return { car, player: new Player(car), cam, traffic, honk: new Honk(), people, pickups, list: [] };
 }
 
 /** One pass of the main loop in the models, with the joystick held as given. */

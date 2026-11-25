@@ -78,6 +78,7 @@ export class World {
     this.traffic.people = this.people; // (which traffic stops for)
     this.honk = honk ? new Honk() : null;
     this.pickups = pickups ? new Pickups(this.cam) : null;
+    if (this.pickups) this.people.onKill = (p) => this.pickups.drop(p.px, p.py);
     this.list = [];
   }
   /** One pass of the main loop with the joystick held as given. */

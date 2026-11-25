@@ -102,7 +102,7 @@ A briefing for whoever picks this project up next, person or assistant. Written 
     its low bytes: `car.sine` makes the high one). From `$2540` to the screens
     are the player on foot's sprite (`src/frames.asm`): two buffers, then from `$2600` the twelve frames the
     program file holds, the tables and code that make the other 30 (mirror images) into a buffer when the
-    picture turns to one, and then about 1.1K free for code (the section `low_more`). Making one costs about
+    picture turns to one, and then code (the section `low_more`: what people drop, `src/pickups.asm`) with about 850 bytes free. Making one costs about
     30 raster lines, so it is done only in a frame with no colour memory and no screen copy; in another the
     picture stays as it was a frame longer. To leave time for that in the busiest pass, getting out of the car
     no longer works out the car's frame first (25 November 2026).
