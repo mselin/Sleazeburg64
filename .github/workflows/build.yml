@@ -39,6 +39,7 @@ jobs:
           name: sleazeburg64
           path: |
             build/sleazeburg64.prg
+            build/sleazeburg64.d64
             build/screenshot-*.png
             build/vice-*.log
 
@@ -69,7 +70,7 @@ jobs:
         run: |
           mkdir -p public
           cp site/index.html site/icon-*.png public/
-          cp build/sleazeburg64.prg public/
+          cp build/sleazeburg64.prg build/sleazeburg64.d64 public/
           cp build/screenshot-autopilot.png public/screenshot.png
       # Named after the run's attempt, so that re-running this job (as the deploy step asks when GitHub Pages fails)
       # deploys its own upload: a run keeps the uploads of every attempt, and two of the same name stop the deploy

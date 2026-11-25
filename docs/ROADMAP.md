@@ -260,8 +260,10 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
     black and its three most used colours (about 4 % of the pixels take the nearest of those), the text in
     the last character row in the font. It is packed, 8.8K, after the rest of the packed program file, and
     shown before anything is unpacked, from $c000 and $e000, which the game then writes over: it costs no
-    memory in play. The owner chose this and a loading picture, shown by a loader on a disk image while the
-    game loads, still to come. The browser game's text page and its taking turns with the picture are not
+    memory in play. The owner chose this and a loading picture: `make` also writes a disk image,
+    `build/sleazeburg64.d64`, whose first file, the loader (`src/loader.asm`), shows the same picture saying
+    LOADING while the KERNAL loads the game, the second file, from the same drive. The web page still runs the
+    `.prg` (its open-source ROMs cannot load a second file from a disk), and offers the disk to download. The browser game's text page and its taking turns with the picture are not
     copied: the C64's title page is the picture alone.
   - **Fixed in the browser game** (mselin/gta-c64#70): fire starts the game from the title screen, and fire
     also shoots, so a press still held when play began fired a shot at once, and the player started a bullet
@@ -322,8 +324,10 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
     black and its three most used colours (about 4 % of the pixels take the nearest of those), the text in
     the last character row in the font. It is packed, 8.8K, after the rest of the packed program file, and
     shown before anything is unpacked, from $c000 and $e000, which the game then writes over: it costs no
-    memory in play. The owner chose this and a loading picture, shown by a loader on a disk image while the
-    game loads, still to come. The browser game's text page and its taking turns with the picture are not
+    memory in play. The owner chose this and a loading picture: `make` also writes a disk image,
+    `build/sleazeburg64.d64`, whose first file, the loader (`src/loader.asm`), shows the same picture saying
+    LOADING while the KERNAL loads the game, the second file, from the same drive. The web page still runs the
+    `.prg` (its open-source ROMs cannot load a second file from a disk), and offers the disk to download. The browser game's text page and its taking turns with the picture are not
     copied: the C64's title page is the picture alone.
 
 ## What will not carry over from the browser game
