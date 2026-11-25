@@ -34,8 +34,9 @@ AUTOPILOT       = 0
 LOAD            = $0801
 GAME_CODE       = $080d                                 ; after the game's BASIC line, which is not needed
 GAME_FILE       = "sleazeburg64-ingame.prg"
-CODE_SIZE       = game.code_end - GAME_CODE             ; the game is code, a gap, then data:
-DATA_SIZE       = game.file_end - game.charset          ; the gap is not carried (the game unpacks the rest)
+CODE_SIZE       = game.code_end - GAME_CODE             ; the game is code, a gap, the player's frames and
+LOW_SIZE        = game.low_end - game.PLAYER_FRAMES     ; more code, another gap, then data: the gaps are not
+DATA_SIZE       = game.file_end - game.charset          ; carried (the game unpacks the rest)
 LOAD_LIMIT      = $d000                                 ; LOAD stops at the I/O area
 PAL_FLAG        = $02a6         ; set by the KERNAL at power-on: 1 on a PAL machine. The tune reads it too.
 CIA1_DDR_A      = $dc02
@@ -190,8 +191,10 @@ ntsc_note       .text "ntsc machine: written for pal"
 
 ; ---------- the game, waiting to be moved down ----------
 image_code      .binary GAME_FILE, 2 + GAME_CODE - LOAD, CODE_SIZE
+image_low       .binary GAME_FILE, 2 + game.PLAYER_FRAMES - LOAD, LOW_SIZE
 image_data      .binary GAME_FILE, 2 + game.charset - LOAD, DATA_SIZE
                 ; The copies run upwards, which is safe only when each part moves down in memory.
+                .cerror image_low < game.PLAYER_FRAMES, "the player's frames would be overwritten while they are moved"
                 .cerror image_data < game.charset, "the game's data would be overwritten while it is moved"
 
 ; Runs with the ROMs out (the title screen switches them before it jumps here), so it can be under BASIC's.
@@ -206,6 +209,17 @@ move_game       .cerror * < game.file_end, "this routine would overwrite itself"
                 sty to + 1
                 ldx #<CODE_SIZE
                 ldy #>CODE_SIZE
+                jsr copy
+                ldx #<image_low
+                ldy #>image_low
+                stx from
+                sty from + 1
+                ldx #<game.PLAYER_FRAMES
+                ldy #>game.PLAYER_FRAMES
+                stx to
+                sty to + 1
+                ldx #<LOW_SIZE
+                ldy #>LOW_SIZE
                 jsr copy
                 ldx #<image_data
                 ldy #>image_data

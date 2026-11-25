@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JOY } from './vice.mjs';
-import { PEOPLE_SPRITE, PUNCH_SPRITE, assemble, assets, withProgram } from './game.mjs';
+import { PEOPLE_SPRITE, assemble, assets, withProgram } from './game.mjs';
 import { World, assertPicture, missed, pass, putCar, putOnFoot } from './play.mjs';
 import { P, PAVEMENT, People, WALL, putPerson } from './people-model.mjs';
 
@@ -168,7 +168,7 @@ test('fire on foot is a punch: it knocks down the passer-by in front, who gets u
     await pass(vice, L, w, JOY.FIRE, 'the punch');
     assert.equal(w.player.on, 1, 'still on foot: no car to get into');
     assert.equal(w.player.arm, P.ARM_OUT, 'the arm out');
-    assert.equal(w.player.pointer(0), PUNCH_SPRITE + 6, 'in the picture punching north');
+    assert.deepEqual([w.player.frame(0), w.player.face], [-1, 6], 'in the picture punching north');
     assert.ok((await vice.read(L.PUNCH_FRAMES, 8 * 64)).equals(assets.punch), 'its eight frames copied into place at start');
     assert.equal(p.down, P.DOWN_TIME - 1, 'knocked down');
     assert.equal(p.ko, 1, 'by a punch: they will get up');

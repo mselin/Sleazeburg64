@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JOY } from './vice.mjs';
-import { MAP_PIXELS, MAX_Y, PLAYER_FRAMES, PLAYER_FRAME_COUNT, PLAYER_SPRITE, assemble, assets, readPanel, withProgram } from './game.mjs';
+import { MAP_PIXELS, MAX_Y, PLAYER_FRAMES, PLAYER_FRAME_COUNT, assemble, assets, readPanel, withProgram } from './game.mjs';
 import { World, assertPicture, missed, pass, putCar, putOnFoot, putTrafficCar } from './play.mjs';
 import { F, blocked, kindAt } from './foot-model.mjs';
 import { T } from './traffic-model.mjs';
@@ -43,15 +43,43 @@ async function settle(vice, w) {
   return async () => (await missed(vice, L)) - before;
 }
 
-test('the player\'s 42 frames are made at start from the twelve in the program file, as tools/assets.mjs draws them', () =>
-  withProgram(game.prg, async (vice) => {
-    await vice.runTo(L.ready);
-    const made = await vice.read(PLAYER_FRAMES, PLAYER_FRAME_COUNT * 64);
-    for (let n = 0; n < PLAYER_FRAME_COUNT; n++)
-      assert.deepEqual([...made.subarray(n * 64, n * 64 + 64)], [...assets.player.subarray(n * 64, n * 64 + 64)], `frame ${n}`);
-    assert.ok(L.code_end <= PLAYER_FRAMES, 'the code ends before them');
-    const stored = L['frames.player_made'] - L['frames.player_data'];
-    assert.equal(stored, 12 * 64, 'twelve frames in the file');
+/** The 63 bytes the program shows the player on foot with: from the sprite pointer this pass sets. */
+async function shownBitmap(vice, labels = L) {
+  const [sp] = await vice.read(labels['frame.next_sp'], 1);
+  return [...(await vice.read(sp * 64, 63))];
+}
+
+test('the twelve frames the program file holds, and every other of the 42 made from them when shown, as tools/assets.mjs draws them', () =>
+  run(async (vice, w) => {
+    const stored = await vice.read(PLAYER_FRAMES, 12 * 64);
+    assert.equal(L['frames.pairs_back'] - L['frames.player_data'], 12 * 64, 'twelve frames in the file');
+    const made = assets.playerMade;
+    for (let f = 0; f < PLAYER_FRAME_COUNT; f++) {
+      if (made[f] & 3) continue;
+      const n = made[f] >> 2;
+      assert.deepEqual([...stored.subarray(n * 64, n * 64 + 63)], [...assets.player.subarray(f * 64, f * 64 + 63)], `frame ${f}, held as it is`);
+    }
+    assert.ok(L.code_end <= L.PEOPLE_FRAMES, 'the code ends before the frames');
+    // Every frame in turn, as the program shows it: put on foot, then every way walking, the picture checked
+    // each pass, and two each way standing still, which go back to frames made already. One flipped from the
+    // twelve is made only in a pass with time to spare: in another, the picture stays as it was.
+    await press(vice, w, 'getting out');
+    const before = await missed(vice, L), seen = new Set();
+    let stayed = 0;
+    await hold(vice, w, JOY.UP, 20, 'north');
+    const ways = [JOY.RIGHT, JOY.RIGHT | JOY.DOWN, JOY.DOWN, JOY.DOWN | JOY.LEFT, JOY.LEFT, JOY.LEFT | JOY.UP, JOY.UP, JOY.UP | JOY.RIGHT];
+    for (const [k, bits] of ways.entries()) {
+      for (let i = 1; i <= 26; i++) {
+        await pass(vice, L, w, i <= 24 ? bits : 0, `way ${k}, frame ${i}`);
+        const f = w.player.frame(w.traffic.tick);
+        assert.deepEqual(await shownBitmap(vice), [...w.player.drawn], `way ${k}, frame ${i}: frame ${f}`);
+        if (w.player.drawn.equals(w.player.bitmap(w.traffic.tick))) seen.add(f);
+        else stayed++;
+      }
+    }
+    assert.ok(stayed <= 40, `the picture stayed a frame longer only now and then (${stayed} times)`);
+    assert.equal(seen.size, 40, 'all 40 walking');
+    assert.equal(await missed(vice, L) - before, 0, 'no frame was late');
   }));
 
 test('fire with the stick centred gets out of a slow car and back in; held from the start, held on, or with a direction, it does not', () =>
@@ -122,15 +150,15 @@ test('walking eight ways: the model\'s pace frame by frame, every pose of the wa
       const x0 = w.player.x, y0 = w.player.y, poses = new Set();
       for (let i = 1; i <= 12; i++) {
         await pass(vice, L, w, bits, `way ${face}, frame ${i}`);
-        poses.add((w.player.pointer(0) - PLAYER_SPRITE) % 5);
-        assert.equal(Math.floor((w.player.pointer(0) - PLAYER_SPRITE) / 5), face, 'drawn facing the way they walk');
+        poses.add(w.player.frame(0) % 5);
+        assert.equal(Math.floor(w.player.frame(0) / 5), face, 'drawn facing the way they walk');
         if (i === 3 || i === 9) await assertPicture(vice, L, w, `way ${face}, frame ${i}`, bits);
       }
       const far = face & 1 ? F.WALK_DIAGONAL : F.WALK;
       assert.deepEqual([Math.abs(w.player.x - x0), Math.abs(w.player.y - y0)].sort((a, b) => b - a), [12 * far, face & 1 ? 12 * far : 0], `58 pixels a second, way ${face}`);
       assert.deepEqual([...poses].sort(), [0, 1, 2, 3, 4], `all five poses, way ${face}`);
       await pass(vice, L, w, 0, 'standing');
-      assert.equal(w.player.pointer(0), PLAYER_SPRITE + face * 5 + 2, 'standing still is the middle pose, still facing that way');
+      assert.equal(w.player.frame(0), face * 5 + 2, 'standing still is the middle pose, still facing that way');
     }
     assert.equal(await missed(vice, L) - before, 0, 'no frame was late');
   }));
@@ -210,11 +238,11 @@ test('in the water the player swims: slower, and drawn as a swimmer, in two pict
     assert.equal(w.player.y - y0, 10 * F.SWIM_DIAGONAL);
     const seen = new Set();
     for (let i = 0; i < 3; i++) {
-      seen.add(w.player.pointer(w.traffic.tick));
+      seen.add(w.player.frame(w.traffic.tick));
       await assertPicture(vice, L, w, `swimming, picture ${i + 1}`);
       await hold(vice, w, 0, 16, 'treading water');
     }
-    assert.deepEqual([...seen].sort(), [PLAYER_SPRITE + 40, PLAYER_SPRITE + 41], 'both pictures');
+    assert.deepEqual([...seen].sort(), [40, 41], 'both pictures');
     await hold(vice, w, JOY.LEFT, 80, 'back out west');
     assert.equal(w.player.swim, 0, 'on land again');
     assert.equal(await late(), 0, 'no frame was late');
@@ -395,6 +423,7 @@ test('a long session with traffic and Big Honk: driving, stopping, getting out, 
       if (frame % 50 === 0) await assertPicture(vice, W, w, `after ${frame - 1} frames`, bits);
       const was = w.player.on;
       await pass(vice, W, w, bits, `${what}, frame ${frame}`);
+      if (w.player.on) assert.deepEqual(await shownBitmap(vice, W), [...w.player.drawn], `the player's picture, ${what}, frame ${frame}`);
       if (w.player.on && !was) outs++;
       if (was && !w.player.on) ins++;
       const on = w.traffic.cars.filter((c) => c.on).length;
