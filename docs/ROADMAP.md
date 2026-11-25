@@ -10,6 +10,11 @@ The game's rules and look, with the numbers, are in the browser game's
 people, cars and walls, heat and the police, the title and the icon. The items below follow it, and its
 "C64 notes" point out where the hardware forces a choice.
 
+Each project stays in its own repository (CLAUDE.md, "Stay in this repository", #69). Notes on what changed in the
+browser game come from its sessions when the owner asks, with links to the design document and the pull request.
+How the C64 version does it is decided here. Where the design document is unclear, wrong or hard to follow on a
+C64, that goes in an issue in mselin/gta-c64, and the browser game's sessions change it.
+
 ## Milestone 1: can it scroll and drive?
 
 - **1a. City viewer** (done). The city drawn in character mode, moved a tile at a time with the joystick.
