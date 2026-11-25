@@ -70,6 +70,15 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
   - **Memory is the limit.** A figure has nine poses in each direction it keeps: five walking, the arm out with
     a gun, a fist or a knife, and knocked down. Mirror images save some, as they do for the player. The handover
     notes say more sprite frames mean moving code out of the way, or keeping fewer frames.
+  - **Cars are solid for people on foot** (mselin/gta-c64#38). The browser game let people walk through a
+    stopped car and scooter riders ride through one. Now a car's body, its length and width turned with it,
+    stops anyone on foot. A passer-by stops just short of it, waits 0.4 seconds, then steps sideways round its
+    nearer end and carries on; with no way round, or after 3 seconds, they turn another way. The police and
+    anyone fleeing go round the same way, the player slides along a car's side, and someone a car has stopped
+    on can walk out from under it, but never into another car or a wall. See "Cars are solid for anyone on
+    foot" in the design's
+    [People on foot](https://github.com/mselin/gta-c64/blob/main/specs/design.md#people-on-foot). With five
+    cars and four people here, that is at most twenty boxes to test a frame.
 - Water: cars flood and sink, people swim (done, not yet tried on real hardware). The player's car wades,
   slower the deeper it is, floods once it is wholly in, and sinks in three colours, leaving the player swimming.
   It stops where it floods rather than drifting on, and it is out of the way from the moment it floods rather
@@ -102,6 +111,14 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
     in 27 (mselin/gta-c64#33). See the design's
     [Pickups](https://github.com/mselin/gta-c64/blob/main/specs/design.md#pickups): what there is, how often,
     what each does and what people drop.
+  - **As big as the city draws them** (mselin/gta-c64#40). Pickups and the job markers (J, P, X) are drawn at
+    the city's scale, not the people's: a pickup is a square 8 city pixels across in its colour, with a black
+    edge of 1 and its letter filling it, and a marker is a flashing square of 12 with its letter in a black
+    middle of 10. For a while after the browser game drew the city 2×, it drew them their old size on screen,
+    half as big beside the streets, and the markers lost their letter. The C64 version has one scale, so
+    they are simply that size: about a character each, the edge spilling into the next. A letter in one
+    colour on a square of another is two colours in one cell, which hires characters cannot do; how (multicolour
+    characters, extended background colour or sprites) is the C64 version's choice.
   - **Banners that fit the screen.** BUSTED, FLATLINED and the job banners put big text across the middle of the
     screen with a line or more under it. By the design's
     [Banners](https://github.com/mselin/gta-c64/blob/main/specs/design.md#banners): a title of at most 19
