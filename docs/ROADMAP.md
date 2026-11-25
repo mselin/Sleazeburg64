@@ -107,6 +107,13 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
   - **Fixed in the browser game:** getting out of the car in the very frame it floods stopped the game with an
     error, as the flood had already taken the player out of it. Now the player is simply left swimming
     (mselin/gta-c64#56).
+  - **Changed in the browser game** (mselin/gta-c64#74):
+    - Nobody shoots while swimming: the police in the water hold fire until they are out, as the player already
+      could not shoot or fight there.
+    - A fountain's water is its round pool, out to 13 pixels from its middle, just inside its black rim at 15.
+      The corners of its 2 × 2 tiles outside the rim are plaza, so nobody swims on dry ground beside it.
+    See "A fountain" under the design's
+    [Water](https://github.com/mselin/gta-c64/blob/main/specs/design.md#water).
 - Big Honk, the crime boss (done, not yet tried on real hardware): a goose who wanders The Moat, crossing a
   bridge now and then, and whom nothing hurts. A car that runs into him only makes him flap and run off. One
   multicolour sprite, shared through the multiplexer. Still to come: a honk when there is sound, and traffic
