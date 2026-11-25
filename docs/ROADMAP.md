@@ -106,6 +106,26 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
   the gun while there is ammo, then the knife if the player has one, otherwise fists. A punch knocks someone
   down for 4 seconds, for half a kill's heat; a police officer who is down cannot arrest, shoot or notice the
   player. A stab kills, and reaches farther. The panel shows `AMMO12`, then `KNIFE` or `FIST`.
+- Cursed driver assistance (#61), by the design's
+  [Cursed driver assistance](https://github.com/mselin/gta-c64/blob/main/specs/design.md#cursed-driver-assistance)
+  (mselin/gta-c64#42). Some cars have lane assist that now and then takes the wheel and swerves
+  (`CURSED LANE ASSIST TOOK OVER`), emergency braking that stops for people and cars on the move every time but
+  for things standing still only 35 % of the time (`EMERGENCY BRAKING ENGAGED`), or anti-theft. It works only
+  while the player drives. Here each is a bit a car, set from `rnd` when the car appears, and the times are frames.
+  - **Cursed lane assist.** After 6 to 14 seconds (300 to 700 frames, from `rnd`) of driving faster than 50 px/s
+    (1 pixel a frame), it takes the wheel for 0.8 seconds (40 frames): hard one way, then every 10 frames hard one
+    way or the other, changing its mind 2 times in 3 (a random byte under 171). Meanwhile the stick's left and
+    right do nothing; up, down and fire still work. In `src/car.asm` that is `update` taking `turn` from the
+    assist rather than the stick, so the swerve is held to the grip like any steering: flat out it is a sharp
+    wiggle, not a spin. `CURSED LANE ASSIST TOOK OVER` is 28 characters, and a chime goes with it once there is
+    sound.
+  - **Anti-theft and its alarm.** 10 to 25 seconds after the player takes the car, it stops it for good
+    (`ANTI-THEFT ENGAGED: ENGINE IMMOBILISED`, 38 characters, inside row 3's 40; getting back in, `THE
+    IMMOBILISER SAYS NO`). Then the alarm sounds for 20 seconds: a high note and a low one in turn, 12 or 13
+    frames each, quieter the further away the player is. It takes a SID voice that long, so it waits for sound
+    (milestone 4). The browser game flashes four hazard lights at the car's corners with the high note. Here,
+    lit corners on the car's picture would double its frames in every direction. Flashing the car's own sprite
+    colour yellow (7) instead costs no frames.
 - Jobs, starting with deliveries and the cult of 6-7.
 - Pickups, money, getting arrested, the hospital. Pickups include the knife (a **K**, also dropped now and then
   by someone the player kills), and ammo stops at 99 so the panel always shows two digits.
