@@ -253,6 +253,9 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
     180 in the 16 colours and double-wide pixels. The boot shows the same picture loading, a character row at a
     time while the border flashes, before READY. and RUN. See "The two pages" and "The boot" under the design's
     [Title screen and icon](https://github.com/mselin/gta-c64/blob/main/specs/design.md#title-screen-and-icon).
+  - **Fixed in the browser game** (mselin/gta-c64#70): fire starts the game from the title screen, and fire
+    also shoots, so a press still held when play began fired a shot at once, and the player started a bullet
+    short. Now the press that starts the game is not a shot; fire shoots once let go of and pressed again.
 
 ## Milestone 4: sound and polish
 
