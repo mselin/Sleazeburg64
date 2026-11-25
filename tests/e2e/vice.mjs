@@ -102,16 +102,17 @@ export function readLabels(file) {
 export class Vice {
   /**
    * Start VICE and load and run a program (a path relative to the repository). The joystick is let go
-   * before the program is loaded, and the machine then waits, stopped, for the first runTo().
+   * before the program is loaded, and the machine then waits, stopped, for the first runTo(). `extra`: more
+   * of VICE's command-line options (a disk drive, for a disk image).
    */
-  static async start(prg, { timeoutMs = 60000 } = {}) {
+  static async start(prg, { timeoutMs = 60000, extra = [] } = {}) {
     roms();
     const port = await freePort();
     // Control port 2 gets VICE's "I/O simulation" device, whose five lines the monitor can set: that is the
     // joystick. Port 1 stays empty.
     const args = ['-a', 'x64sc', '-default', '-kernal', join(ROMS, ROM_FILES.kernal), '-basic', join(ROMS, ROM_FILES.basic),
       '-chargen', join(ROMS, ROM_FILES.chargen), '-controlport2device', '37', '-sounddev', 'dummy', '-warp',
-      '-autostartprgmode', '1', '-binarymonitor', '-binarymonitoraddress', `ip4://127.0.0.1:${port}`];
+      '-autostartprgmode', '1', '-binarymonitor', '-binarymonitoraddress', `ip4://127.0.0.1:${port}`, ...extra];
     // In a process group of its own, so that quitting can stop xvfb-run's virtual display along with VICE.
     const child = spawn('xvfb-run', args, { cwd: ROOT, stdio: 'ignore', detached: true });
     const vice = new Vice(child, await connect(port, child), timeoutMs);

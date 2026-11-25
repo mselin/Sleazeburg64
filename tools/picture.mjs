@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // The title picture, as the C64 shows it: a multicolour bitmap made from the browser game's picture.
 //
-//   node tools/picture.mjs assets/title-sunset.png build/title.bin [preview.png]
+//   node tools/picture.mjs assets/title-sunset.png build/title.bin [preview.png] [TEXT]
+//
+// TEXT in place of PRESS FIRE TO COMMIT CRIMES: the loader's picture says LOADING (src/loader.asm).
 //
 // The browser game's picture (mselin/gta-c64, assets/title-sunset.png) is 320 x 180 in the 16 C64 colours,
 // its pixels two wide: a multicolour bitmap's pixels, but with no care for what a character cell may hold.
@@ -22,7 +24,7 @@ import { pack } from './pack.mjs';
 export const PALETTE = ['000000', 'ffffff', '68372b', '70a4b2', '6f3d86', '588d43', '352879', 'b8c76f',
   '6f4f25', '433900', '9a6759', '444444', '6c6c6c', '9ad284', '6c5eb5', '959595'].map((h) => [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16)));
 export const WIDTH = 160, HEIGHT = 200, TOP = 10, BACKGROUND = 0, TEXT_COLOUR = 1;
-export const TEXT = 'PRESS FIRE TO COMMIT CRIMES', TEXT_ROW = 24;
+export const TEXT = 'PRESS FIRE TO COMMIT CRIMES', LOADING = 'LOADING', TEXT_ROW = 24;
 const SPACE = 4; // a space's width in pixels: with a whole glyph's, the text would be wider than the screen
 
 /** An 8-bit RGB or RGBA PNG with no interlace: { width, height, pixel(x, y) → [r, g, b] }. */
@@ -103,12 +105,12 @@ export function colours(png) {
   return out;
 }
 
-/** The text written into `pixels` across the last character row, in the middle. */
-export function text(pixels) {
-  const width = [...TEXT].reduce((w, ch) => w + (ch === ' ' ? SPACE : 6), -1);
+/** `words` written into `pixels` across the last character row, in the middle. */
+export function text(pixels, words = TEXT) {
+  const width = [...words].reduce((w, ch) => w + (ch === ' ' ? SPACE : 6), -1);
   if (width > WIDTH) throw new Error('the text is wider than the screen');
   let x = (WIDTH - width) >> 1;
-  for (const ch of TEXT) {
+  for (const ch of words) {
     if (ch === ' ') {
       x += SPACE;
       continue;
@@ -171,8 +173,8 @@ export function bitmap(pixels) {
 }
 
 if (process.argv[1] && import.meta.url.endsWith(process.argv[1].replace(/.*\//, ''))) {
-  const [source, out, preview] = process.argv.slice(2);
-  const { koala, shown, changed } = bitmap(text(colours(readPng(readFileSync(source)))));
+  const [source, out, preview, words = TEXT] = process.argv.slice(2);
+  const { koala, shown, changed } = bitmap(text(colours(readPng(readFileSync(source))), words));
   const packed = Buffer.from(pack(layout(koala)));
   writeFileSync(out, packed);
   if (preview) {
