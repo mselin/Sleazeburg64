@@ -112,6 +112,10 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
   (`CURSED LANE ASSIST TOOK OVER`), emergency braking that stops for people and cars on the move every time but
   for things standing still only 35 % of the time (`EMERGENCY BRAKING ENGAGED`), or anti-theft. It works only
   while the player drives. Here each is a bit a car, set from `rnd` when the car appears, and the times are frames.
+  - **Which cars.** Each car rolls for each of the three on its own when it appears: lane assist 20 %, emergency
+    braking 25 %, anti-theft 20 %, sports cars twice as often. As random bytes: under 51, 64 and 51, or 102, 128
+    and 102 for a sports car. Never the job's limo, nor the first car beside the hospital, so the first car the
+    player takes is clean; never anti-theft in a police car. Nothing shows which a car has until it acts.
   - **Cursed lane assist.** After 6 to 14 seconds (300 to 700 frames, from `rnd`) of driving faster than 50 px/s
     (1 pixel a frame), it takes the wheel for 0.8 seconds (40 frames): hard one way, then every 10 frames hard one
     way or the other, changing its mind 2 times in 3 (a random byte under 171). Meanwhile the stick's left and
