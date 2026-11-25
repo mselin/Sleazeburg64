@@ -1,6 +1,7 @@
 # Sleazeburg 64 for the Commodore 64.
 #
-#   make            build build/sleazeburg64.prg
+#   make            build build/sleazeburg64.prg, and build/sleazeburg64.d64: a disk with a loader that shows
+#                   the title picture while it loads the game (needs VICE's c1541)
 #   make run        build and start it in VICE (needs VICE with C64 ROMs installed)
 #   make test       check the tools, run the end-to-end tests in a headless emulator, and keep screenshots
 #   make e2e        only the end-to-end tests
@@ -21,12 +22,14 @@ MUSIC_PRG = build/sleazeburg64-music.prg
 INGAME_PRG = build/sleazeburg64-ingame.prg
 ASSETS    = build/chars.bin build/tiles.bin build/map.bin
 TITLE_PIC = build/title.bin
+DISK      = build/sleazeburg64.d64
+LOADER    = build/loader.prg
 SOURCES   = $(wildcard src/*.asm src/*.inc)
 ASMFLAGS  = --cbm-prg --ascii --quiet -Wall -Wno-implied-reg -I src -I build
 # Extra -D options, for example: make DEFS="-D START_X=40 -D START_Y=60"
 DEFS     ?=
 
-all: $(PRG)
+all: $(PRG) $(DISK)
 
 $(ASSETS) &: tools/assets.mjs tools/city.mjs tools/font.mjs
 	$(NODE) tools/assets.mjs build
@@ -34,6 +37,21 @@ $(ASSETS) &: tools/assets.mjs tools/city.mjs tools/font.mjs
 # The title page's picture (src/title-page.asm): the browser game's, made a C64 multicolour bitmap, packed.
 $(TITLE_PIC): assets/title-sunset.png tools/picture.mjs tools/pack.mjs tools/font.mjs
 	$(NODE) tools/picture.mjs $< $@
+
+build/loading.bin: assets/title-sunset.png tools/picture.mjs tools/pack.mjs tools/font.mjs
+	$(NODE) tools/picture.mjs $< $@ '' LOADING
+
+# The disk: the loader first, which LOAD"*",8,1 takes, then the game, which it loads by name.
+$(LOADER): src/loader.asm src/c64.inc build/loading.bin $(PRG)
+	$(ASM) $(ASMFLAGS) -o $@ src/loader.asm
+	@ls -l $@
+
+$(DISK): $(LOADER) $(PRG)
+	rm -f $@
+	c1541 -silent -format "sleazeburg 64,sb" d64 $@ -write $(LOADER) "sleazeburg 64" -write $(PRG) "game" >/dev/null
+	@ls -l $@
+
+disk: $(DISK)
 
 # The game as it is shipped starts with the title page.
 $(PRG): $(SOURCES) $(ASSETS) $(TITLE_PIC) tools/pack.mjs tools/build-game.sh
@@ -71,4 +89,4 @@ test: $(ASSETS) $(TITLE_PIC)
 clean:
 	rm -rf build
 
-.PHONY: all run test e2e clean music test-music
+.PHONY: all run test e2e clean music test-music disk

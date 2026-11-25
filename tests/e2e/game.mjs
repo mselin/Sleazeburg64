@@ -103,8 +103,8 @@ export function assemble(name, { source = 'src/main.asm', defs = {}, include = [
 }
 
 /** Run `body(vice)` against a freshly started program, and always shut VICE down afterwards. */
-export async function withProgram(prg, body) {
-  const vice = await Vice.start(prg);
+export async function withProgram(prg, body, options = {}) {
+  const vice = await Vice.start(prg, options);
   try {
     return await body(vice);
   } finally {
