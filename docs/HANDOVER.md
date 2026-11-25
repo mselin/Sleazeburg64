@@ -104,13 +104,14 @@ A briefing for whoever picks this project up next, person or assistant. Written 
     give the game the room the in-game test tune had, then drawing the city (`src/video.asm`, which left room
     for the passers-by's frames at `$2000`) and the passers-by: about 40 bytes are left there (the
     steering limit and grip moved to `TOP_CODE` when jaywalking came in). `HIGH_CODE`
-    (`$b2a3`-`$bbff`, right after the third colour routine: Big Honk, the player on foot, and the passers-by's test for a car in their way) has about 85 left;
+    (`$aef2`-`$bbff`, right after the colour routines: Big Honk, the player on foot, and the passers-by's test for a car in their way) has about 1030 left
+    since the colour routines were packed end to end (25 November 2026: each had had room for the longest,
+    and the one after the map 600 bytes more);
     `MORE_CODE` (`$cdb0`-`$cfff`, after the screen copies: the water, and the screen copy's helpers and
     variables, and more of the passers-by's car test) about 35; `TOP_CODE` (`$f300`-`$fff9`:
     the traffic, the car's grip and steering limit) about 100; and below the screens, up to the passers-by's frames at `$2000`, about 220
     (`car.init`, which makes the multiplication tables, runs once from where it waits in the program file, as
     `src/frames.asm` does).
-    `$a1a3`-`$a1ff`, the 93 bytes after the second colour routine, are free too.
     All four are assembled with `.logical` and wait after the map in the program file; start copies them up
     before `video.init` writes the colour routines over where they waited.
     `src/frames.asm` and the twelve frames it reads wait there too and run once from there.
