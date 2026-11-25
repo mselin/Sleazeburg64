@@ -292,13 +292,13 @@ screen of its own, which the split switches to for its three rows.
 | `$6d00` | Made at start: the four colour memory routines, end to end |
 | `$aef2` | Copied at start: code there is no room for lower down (Big Honk, the player on foot) |
 | `$bc00` | Made at start: quarter squares moved along, the second half of a multiplication |
-| `$c000` | Made at start: quarter squares for multiplying, then the 18 screen copies |
-| `$cdb0` | Copied at start: more code (the water, the screen copy's helpers) |
+| `$c000` | Made at start: quarter squares for multiplying, then the nine screen copies |
+| `$c8e0` | Copied at start: more code (the water, the screen copy's helpers) |
 | `$e000` | Copied at start: more code (drawing the city, the status panel, the passers-by), under the KERNAL ROM, which is out |
 | `$f300` | Copied at start: more code (the traffic, the car's grip and steering limit), up to the interrupt vectors |
 
 The video chip sees only the first 16K, and not `$1000`–`$1fff`, so sprites have to be there, and code that
-was there has moved up to make room. What runs from `$aef2`, `$cdb0`, `$e000` and `$f300`, the code that makes the player's
+was there has moved up to make room. What runs from `$aef2`, `$c8e0`, `$e000` and `$f300`, the code that makes the player's
 frames and the twelve frames it makes them from all wait after the map in the program file, packed with the
 map (`src/waiting.asm`). At start the game moves the packed bytes up, just past where they unpack to (into the RAM under the I/O area if need be), and unpacks them in place,
 then the code is copied up and the frames are made, before the colour memory routines are written over where
