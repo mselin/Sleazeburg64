@@ -12,3 +12,10 @@ Working agreements from the owner, for every Claude Code session in this reposit
 - Every item in `docs/ROADMAP.md` has an issue here.
 - The game's rules and look come from the browser game's design document, `specs/design.md` in
   mselin/gta-c64.
+- **Stay in this repository.** Sessions on the Commodore 64 version make no code or spec changes in
+  mselin/gta-c64: not the browser game, its tests, tools or CI, and not `specs/design.md`. Where the design
+  document is unclear, wrong, or hard to follow on a C64, say so in an issue there, and the browser game's
+  sessions change it.
+  - The one exception the other way: when the owner asks, the browser game's sessions add short notes to
+    `docs/ROADMAP.md` here on what changed in the browser game, with links. How the C64 version does it is for
+    the sessions here to decide and to write down.
