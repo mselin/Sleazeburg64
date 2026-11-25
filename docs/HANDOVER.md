@@ -97,13 +97,16 @@ A briefing for whoever picks this project up next, person or assistant. Written 
     screen: row 3 about 8 lines, 16 when its colour changes, and row 1 whole about 25, which also waits for a
     frame with no colour memory. The city viewer keeps the old readout (`src/panel.asm`, `src/digits.asm`).
 - Room is short everywhere, and where things are is decided by what the video chip must see:
-  - Below the screens (`$0d80`-`$1fff`, after the car's and the pickups' sprites) there are about 130 bytes of
-    code left (the car's wall test moved to `MORE_CODE` for the pickups, and the car's sine table keeps only
+  - Below the screens (`$0d80`-`$1fff`, after the car's and the pickups' sprites) there are about 460 bytes of
+    code left since what start runs once moved out (25 November 2026: `boot`, the title page, the unpacker and
+    the copying up are in the program file at `$3000`, where the screens will be, and run from there before
+    `video.init` draws the screens over them; `start` keeps only what comes after `video.init`). Before that,
+    about 130 were left (the car's wall test moved to `MORE_CODE` for the pickups, and the car's sine table keeps only
     its low bytes: `car.sine` makes the high one). From `$2540` to the screens
     are the player on foot's sprite (`src/frames.asm`): two buffers, then from `$2600` the twelve frames the
     program file holds, the tables and code that make the other 30 (mirror images) into a buffer when the
-    picture turns to one, and then code (the section `low_more`: what people drop, the title page and the gun) with about 15 bytes
-    free: the next code wants room made elsewhere. Making one costs about
+    picture turns to one, and then code (the section `low_more`: what people drop and the gun) with about 170
+    bytes free. Making one costs about
     30 raster lines, so it is done only in a frame with no colour memory and no screen copy; in another the
     picture stays as it was a frame longer. To leave time for that in the busiest pass, getting out of the car
     no longer works out the car's frame first (25 November 2026).

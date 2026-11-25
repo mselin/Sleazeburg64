@@ -16,7 +16,7 @@ TEXT_ROW        = 24                    ; the character row of PRESS FIRE ..., i
 BLINK           = 25                    ; frames on, then off
 CIA2_PRA        = $dd00                 ; bits 0-1: the video chip's bank, the other way up
 
-                .section low_more
+                .section boot           ; (runs once: from where the screens will be, main.asm)
 show            lda #<packed_title      ; the picture, unpacked from the program file to $c000-$ff3f
                 sta unpack.src
                 lda #>packed_title

@@ -294,8 +294,8 @@ screen of its own, which the split switches to for its three rows.
 | `$0d80` | Code |
 | `$2000` | Copied at start: the passers-by's sprite, 20 frames |
 | `$2540` | The player on foot's sprite: two frames, made from the twelve below when the picture turns to one of them; then a bullet's, made at start |
-| `$2600` | The player on foot's sprite: the twelve frames the other 30 are mirror images of, then the code that makes those, then more code (what people drop, the title page, the gun), with about 15 bytes free |
-| `$3000` | Screen A: the city in rows 0–20 |
+| `$2600` | The player on foot's sprite: the twelve frames the other 30 are mirror images of, then the code that makes those, then more code (what people drop, the gun), with about 170 bytes free |
+| `$3000` | Screen A: the city in rows 0–20. Until `video.init` draws it, what start runs once: the title page, unpacking, copying code up (loaded there with the program file) |
 | `$3400` | Screen B, the same |
 | `$3800` | Character set: font in 0–63, tile characters after, then Big Honk's sprite from `$3dc0`, then the panel's bars |
 | `$4000` | Tile definitions, the colour of each character, what each tile is to a car, and its colour |

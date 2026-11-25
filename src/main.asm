@@ -104,65 +104,10 @@ tmp             .byte ?
 .endif
 
 start           sei
-                cld
                 ldx #$ff
                 txs
-                lda #$7f                ; no timer interrupts from either CIA
-                sta CIA1_IRQ
-                sta CIA2_IRQ
-                lda CIA1_IRQ            ; and forget any that were pending
-                lda CIA2_IRQ
-                lda #$35                ; BASIC and KERNAL out, I/O in: the program owns the machine
-                sta CPU_PORT
-.if VIEWER == 0
-.if PACKED != 0 && TITLE != 0
-                jsr title_page.show     ; first of all, the title page, until fire
-.elsif TITLE != 0
-                bit title_page.show     ; (the same size, as below)
-.endif
-.if PACKED != 0
-                jsr unpack              ; first: everything after the tiles is still packed
-.else
-                bit unpack              ; (the same size: both builds put everything in the same place)
-.endif
-.endif
-.if VIEWER == 0
-                #raise high_image, HIGH_CODE, HIGH_PAGES   ; the code that runs from higher up, from where it
-                #raise more_image, MORE_CODE, MORE_PAGES   ; waits, before anything is written over it there
-                #raise top_image, TOP_CODE, TOP_PAGES
-                #raise extra_image, EXTRA_CODE, EXTRA_PAGES
-                #raise people_image, PEOPLE_FRAMES, (size(people_image) + 255) / 256
-                #raise punch_image, PUNCH_FRAMES, 2
-.endif
-                lda #<ignore            ; RESTORE does nothing (after the copy, which can run over the vectors)
-                sta $fffa
-                lda #>ignore
-                sta $fffb
-
-                lda #<(START_X * 16)
-                sta cam_lo
-                lda #>(START_X * 16)
-                sta cam_hi
-                lda #<(START_Y * 16)
-                sta cam_lo + 1
-                lda #>(START_Y * 16)
-                sta cam_hi + 1
-                lda #0
-                sta busy
-.if VIEWER == 0
-                jsr car.init
-                clc                     ; the car in the middle of the window
-                lda #<(START_X * 16 + CENTRE_X)
-                ldx #>(START_X * 16 + CENTRE_X)
-                ldy #>(START_Y * 16 + CENTRE_Y)
-                sty car.sum
-                ldy #<(START_Y * 16 + CENTRE_Y)
-                jsr car.place
-                jsr frames.init         ; none of the player's flipped frames made yet
-.endif
-.if MUSIC != 0
-                jsr tune.copy           ; out of the way of a colour routine (video.asm) before it is written
-.endif
+                jsr boot                ; what runs once, before video.init (from where the screens will be, in
+                                        ; the game: video.init then draws them over it)
                 jsr video.init          ; draws the first picture and sets up the raster interrupts
 .if VIEWER == 0
                 jsr traffic.init        ; after video.init clears the panel's screen, where its tables are
@@ -246,7 +191,70 @@ ready           jsr input.read          ; A = which directions are held
 
 ignore          rti
 
+                .section boot
+; What start does once, before video.init: the title page and unpacking (in the game), copying code up to
+; where it runs, and setting up what video.init needs.
+boot            cld
+                lda #$7f                ; no timer interrupts from either CIA
+                sta CIA1_IRQ
+                sta CIA2_IRQ
+                lda CIA1_IRQ            ; and forget any that were pending
+                lda CIA2_IRQ
+                lda #$35                ; BASIC and KERNAL out, I/O in: the program owns the machine
+                sta CPU_PORT
 .if VIEWER == 0
+.if PACKED != 0 && TITLE != 0
+                jsr title_page.show     ; first of all, the title page, until fire
+.elsif TITLE != 0
+                bit title_page.show     ; (the same size, as below)
+.endif
+.if PACKED != 0
+                jsr unpack              ; first: everything after the tiles is still packed
+.else
+                bit unpack              ; (the same size: both builds put everything in the same place)
+.endif
+.endif
+.if VIEWER == 0
+                #raise high_image, HIGH_CODE, HIGH_PAGES   ; the code that runs from higher up, from where it
+                #raise more_image, MORE_CODE, MORE_PAGES   ; waits, before anything is written over it there
+                #raise top_image, TOP_CODE, TOP_PAGES
+                #raise extra_image, EXTRA_CODE, EXTRA_PAGES
+                #raise people_image, PEOPLE_FRAMES, (size(people_image) + 255) / 256
+                #raise punch_image, PUNCH_FRAMES, 2
+.endif
+                lda #<ignore            ; RESTORE does nothing (after the copy, which can run over the vectors)
+                sta $fffa
+                lda #>ignore
+                sta $fffb
+
+                lda #<(START_X * 16)
+                sta cam_lo
+                lda #>(START_X * 16)
+                sta cam_hi
+                lda #<(START_Y * 16)
+                sta cam_lo + 1
+                lda #>(START_Y * 16)
+                sta cam_hi + 1
+                lda #0
+                sta busy
+.if VIEWER == 0
+                jsr car.init
+                clc                     ; the car in the middle of the window
+                lda #<(START_X * 16 + CENTRE_X)
+                ldx #>(START_X * 16 + CENTRE_X)
+                ldy #>(START_Y * 16 + CENTRE_Y)
+                sty car.sum
+                ldy #<(START_Y * 16 + CENTRE_Y)
+                jsr car.place
+.endif
+.if MUSIC != 0
+                jsr tune.copy           ; out of the way of a colour routine (video.asm) before it is written
+.endif
+                rts
+                .send
+
+.if VIEWER == 0
+                .section boot
 ; Copy whole pages of code from where they wait in the program file to where they run.
 raise           .macro image, home, pages
                 lda #<(\image)
@@ -359,6 +367,7 @@ to              sta $ffff,y
                 bne from
                 rts
                 .bend
+                .send
 .endif
 
 ; Move the window by the joystick, keeping it inside the city. In a frame whose time went on colour memory
@@ -580,6 +589,9 @@ char_of         lda cam_hi,x
 .if MUSIC != 0 && VIEWER != 0
                 .include "music.asm"
 .endif
+.if VIEWER != 0
+                .dsection boot          ; (in the city viewer, with the rest)
+.endif
 code_end
 .if VIEWER == 0
                 .cerror * > PEOPLE_FRAMES, "code has run into the passers-by's frames"
@@ -590,9 +602,17 @@ code_end
                 .dsection low_more
 low_end
                 .cerror * > SCREEN_A, "the code after the player's frames has run into the screens"
+
+; What start runs once (boot), in the program file where the screens will be: video.init draws them over it.
+; Nothing writes there before: the title page's picture goes to $c000, the unpacking from city_map up.
+                * = SCREEN_A
+                .dsection boot
+boot_end
+                .cerror * > charset, "what start runs once has run into the character set"
 .else
                 .cerror * > SCREEN_A, "code has run into the screens"
 low_end         = PLAYER_FRAMES         ; (no part from PLAYER_FRAMES: for the title screen, src/title.asm)
+boot_end        = PLAYER_FRAMES
 .endif
 
 ; ---------- variables with no starting value: in the panel's screen, whose rows 0-20 are never shown ----------
