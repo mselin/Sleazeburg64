@@ -850,16 +850,18 @@ last_upper      lda tile_tl,x
 ; and cmap moved on by a row of the map between rows of tiles: some 6800 cycles, against 10,500 for working
 ; it out a character at a time. Which characters each tile covers depends on whether the window starts on a
 ; tile's first or second column and row, so there are four routines. At 4.2K each they are too much to load,
-; so init writes them, into memory the video chip does not need: three after the program, and the fourth
-; after the map, where a music build's tune waits until it has been copied away.
-COLOUR_00       = $8000                 ; the window starts on a tile's first column and row
-COLOUR_10       = $9100                 ; second column, first row
-COLOUR_01       = $a200                 ; first column, second row
+; so init writes them, into memory the video chip does not need: end to end after the map, where what waits
+; in the program file (and a music build's tune) has been copied away by then. Starting on a tile's second
+; column, a routine has 21 tiles across, else 20.
+COLOUR_SIZE     = 11 * 2 + 10 * 11 + 21 * 11 * 7 - 11 + ROWS * 40 * 3 + 1      ; 21 tiles across
+COLOUR_SIZE_20  = 11 * 2 + 10 * 11 + 20 * 11 * 7 - 11 + ROWS * 40 * 3 + 1      ; 20
 COLOUR_11       = $6d00                 ; second column, second row
-COLOUR_SIZE     = 11 * 2 + 10 * 11 + 21 * 11 * 7 - 11 + ROWS * 40 * 3 + 1      ; the longest: 21 tiles across
-                .cerror COLOUR_SIZE > COLOUR_10 - COLOUR_00, "a colour routine does not fit its place"
-                .cerror COLOUR_01 + COLOUR_SIZE > SQUARES2, "the colour routines run into multiplication tables"
-                .cerror map_end > COLOUR_11 || COLOUR_11 + COLOUR_SIZE > COLOUR_00, "no room after the map"
+COLOUR_00       = COLOUR_11 + COLOUR_SIZE       ; the window starts on a tile's first column and row
+COLOUR_10       = COLOUR_00 + COLOUR_SIZE_20    ; second column, first row
+COLOUR_01       = COLOUR_10 + COLOUR_SIZE       ; first column, second row
+COLOUR_END      = COLOUR_01 + COLOUR_SIZE_20
+                .cerror COLOUR_END > SQUARES2, "the colour routines run into multiplication tables"
+                .cerror map_end > COLOUR_11, "no room after the map"
                 .cerror (tile_colour & $ff) != 0, "tile_colour must start a page"
 colour_lo       .byte <COLOUR_00, <COLOUR_10, <COLOUR_01, <COLOUR_11
 colour_hi       .byte >COLOUR_00, >COLOUR_10, >COLOUR_01, >COLOUR_11

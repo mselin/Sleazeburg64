@@ -285,9 +285,8 @@ screen of its own, which the split switches to for its three rows.
 | `$3800` | Character set: font in 0–63, tile characters after, then Big Honk's sprite from `$3dc0`, then the panel's bars |
 | `$4000` | Tile definitions, the colour of each character, what each tile is to a car, and its colour |
 | `$4700` | City map |
-| `$6d00` | Made at start: the fourth colour memory routine |
-| `$8000` | Made at start: the other three colour memory routines |
-| `$b2a3` | Copied at start: code there is no room for lower down (Big Honk, the player on foot) |
+| `$6d00` | Made at start: the four colour memory routines, end to end |
+| `$aef2` | Copied at start: code there is no room for lower down (Big Honk, the player on foot) |
 | `$bc00` | Made at start: quarter squares moved along, the second half of a multiplication |
 | `$c000` | Made at start: quarter squares for multiplying, then the 18 screen copies |
 | `$cdb0` | Copied at start: more code (the water, the screen copy's helpers) |
@@ -295,7 +294,7 @@ screen of its own, which the split switches to for its three rows.
 | `$f300` | Copied at start: more code (the traffic, the car's grip and steering limit), up to the interrupt vectors |
 
 The video chip sees only the first 16K, and not `$1000`–`$1fff`, so sprites have to be there, and code that
-was there has moved up to make room. What runs from `$b2a3`, `$cdb0`, `$e000` and `$f300`, the code that makes the player's
+was there has moved up to make room. What runs from `$aef2`, `$cdb0`, `$e000` and `$f300`, the code that makes the player's
 frames and the twelve frames it makes them from all wait after the map in the program file, packed with the
 map (`src/waiting.asm`). At start the game moves the packed bytes up, just past where they unpack to (into the RAM under the I/O area if need be), and unpacks them in place,
 then the code is copied up and the frames are made, before the colour memory routines are written over where
@@ -304,7 +303,7 @@ they waited.
 The program switches BASIC and the KERNAL out and does not call them.
 
 In the city viewer's music test build its tune follows the map and is copied to
-`$e000`–`$f2ff` at start (the game uses that for code, so it has no tune), before the fourth colour memory routine is written over where it waited; its player
+`$e000`–`$f2ff` at start (the game uses that for code, so it has no tune), before the colour memory routines are written over where it waited; its player
 also uses zero page `$e0`–`$e3`. The title tune sits at `$1000`–`$5150`, which is why the title screen is a
 separate program: its own code comes before the tune, the game waits after it, and the title screen moves
 the game into place when it hands over. The file runs past `$a000`, the end of BASIC's memory, which LOAD

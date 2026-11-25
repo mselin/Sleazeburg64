@@ -58,7 +58,7 @@ HIGH_PAGES      = (high_end - HIGH_CODE + 255) / 256
 MORE_PAGES      = (more_end - MORE_CODE + 255) / 256
 TOP_PAGES       = (top_end - TOP_CODE + 255) / 256
 EXTRA_PAGES     = (extra_end - EXTRA_CODE + 255) / 256
-                .cerror HIGH_CODE < video.COLOUR_01 + video.COLOUR_SIZE, "HIGH_CODE is in a colour routine"
+                .cerror HIGH_CODE < video.COLOUR_END, "HIGH_CODE is in a colour routine"
                 .cerror high_end > SQUARES2, "the code at HIGH_CODE runs into the tables"   ; (the rest of its last
                                         ; page is copied over them too, before car.init makes them)
                 .cerror top_end > $fffa, "the code at TOP_CODE runs into the interrupt vectors"
