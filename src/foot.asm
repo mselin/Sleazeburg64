@@ -388,8 +388,17 @@ not_this        dex
                 ldx best
                 bpl take
                 rts
-; Car X of the traffic's tables becomes the player's.
-take            lda traffic.pf,x
+; Car X of the traffic's tables becomes the player's: heat 4, if it is taken from its driver (one driving: a car
+; left standing has none).
+take            lda traffic.cruise,x
+                beq +
+                txa
+                pha
+                lda #2 * 4
+                jsr status.add_heat
+                pla
+                tax
++               lda traffic.pf,x
                 sta car.pos_x
                 lda traffic.pl,x
                 sta car.pos_x + 1

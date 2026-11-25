@@ -654,6 +654,7 @@ each            lda on,x
                 bcs listed
                 lda #DOWN_TIME
                 sta down,x
+                jsr killed
 listed          sec                     ; down: 0 to LOWEST - 1 from cy
                 lda yl,x
                 sbc traffic.cy
@@ -1029,7 +1030,8 @@ knock           lda #DOWN_TIME
                 sta flee,x
 +               dex
                 bpl -
-                rts
+                lda #2 * 3              ; heat: 3, half a kill
+                jmp status.add_heat
 ; cx (Y = 0) or cy (Y = 2) = the player's position on that axis + A, a signed byte.
 nudge_point     sta d
                 ldx foot.face
@@ -1054,6 +1056,15 @@ nudge_point     sta d
 reach_x         .char PUNCH_REACH, 5, 0, -5, -PUNCH_REACH, -5, 0, 5             ; by the way they face: east first,
 reach_y         .char 0, 5, PUNCH_REACH, 5, 0, -5, -PUNCH_REACH, -5             ; clockwise
                 .cerror cy - cx != 2, "punch expects cy two bytes after cx"
+
+; Person X has been run over, a kill: heat 6. X kept.
+killed          txa
+                pha
+                lda #2 * 6
+                jsr status.add_heat
+                pla
+                tax
+                rts
 
 ; Person X's DOWN_TIME is up: C set if they are gone (run over), else (knocked down by a punch) up and running.
 got_up          lda ko,x

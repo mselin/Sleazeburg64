@@ -67,7 +67,8 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
   with no ammo, fire on foot knocks down the passer-by in front (7 pixels ahead, within 7), who lies four seconds,
   then gets up and runs from the player for two seconds at twice their pace, as does anyone within 60. The player's
   arm goes out for 0.2 seconds with each punch, in eight frames drawn from the same figure, at `$0200` (the
-  KERNAL's pages, unused once it is switched out). Still to come: heat for a punch, the gun and knife, scooter
+  KERNAL's pages, unused once it is switched out). Punches, running people over and taking a car
+  from its driver add heat (below). Still to come: the gun and knife, scooter
   riders and the police. The design draws people about 12 pixels across in
   chunky 2 × 2 pixels with a black outline, more than one character, and police officers in light blue with a
   white cap; passers-by never look like the player or the police. Walkers have five walking poses, arms and feet
@@ -106,6 +107,11 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
 
 - Heat and police, by the design's rules: the heat levels and what each crime adds, the distances the police
   notice from, and the stolen police car (driving one where the police notice it raises the heat to 2).
+  - **Heat** (started): points, kept in halves, at most 230; the levels from 8, 25, 60, 110 and 180, with their
+    messages; with no police yet it cools a level every 9 seconds, its points to that level's start, the time
+    counted afresh with every crime (`status.add_heat`, `status.cooling`). The crimes the game has so far: a
+    punch that lands 3, running someone over 6 (a kill), taking a car from its driver 4. Still to come: the
+    police, and the other crimes (shots, ramming, police cars).
   - **The siren and the flashing border.** The border flashes red and blue (`$D020`, every 25 frames) only while
     the siren sounds: the police near, in play. It never flashes with nobody about, on the busted screen or
     while paused. The browser game got this wrong and kept flashing as long as there was any heat
@@ -197,7 +203,7 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
   or the election fund. The browser game's positions between character columns are rounded to whole ones,
   the car's bar is 24 pixels rather than 26, a message scrolls a character every 6 frames rather than 70
   pixels a second, and the part of a bar that is not filled is dark grey only in whole characters, as a
-  character has one colour. Nothing changes the money, heat, health or ammo yet: what does sets
+  character has one colour. Nothing changes the money, health or ammo yet (heat, above): what does sets
   `status.changed`, and row 1 is drawn again. The jobs (#9) fill row 2.
 - Title screen, game-over and victory pictures.
 

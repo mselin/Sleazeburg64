@@ -23,8 +23,11 @@
 ; characters scrolls left after a second and stops at its end. The design scrolls 70 pixels a second; here it
 ; is a character every 6 frames, 67. Otherwise ELECTION FUND: $ and the money / $25000, in dark grey.
 ;
-; Nothing in the game changes the money, heat, health or ammo yet. What does will set `changed`, and row 1 is
-; drawn again in the next frame that has the time.
+; Heat (add_heat): points, kept in halves (the design has 0.5 and 1.5), at most 230; its level, the stars, from
+; them: 1 from 8, 2 from 25, 3 from 60, 4 from 110, 5 from 180. A new level says so in row 3. With no police
+; yet, nothing keeps it up: it drops a level every 9 seconds (COOL_FRAMES), its points to that level's start, the
+; time counted afresh with every crime. Nothing changes the money, health or ammo yet. What does will set
+; `changed`, and row 1 is drawn again in the next frame that has the time.
 ;
 ; It runs from EXTRA_CODE ($e000), with its variables that have values (the rest are full with sixteen cars).
 ;
@@ -53,7 +56,9 @@ SCROLL_FRAMES   = 6                     ; ... then moves a character every 6 fra
 
                 .section status         ; (the variables are full in a build with sixteen cars)
 money           .fill 3                 ; binary-coded decimal, the lowest two digits first
-heat            .byte ?                 ; 0-5
+heat            .byte ?                 ; the level, 0-5
+points          .word ?                 ; heat in half points, at most 2 * 230
+cool            .word ?                 ; frames before it drops a level
 hp              .byte ?                 ; the player's health, 0-100
 car_hp          .byte ?                 ; the car's, 0-100
 ammo            .byte ?                 ; binary-coded decimal, 0-99
@@ -83,13 +88,15 @@ ink             = sum + 1
 lead            = sum                   ; printing the money (whose byte is in value): 0 while its digits are leading zeros
 
                 .section status
-; The start of a game: nothing, full health, 12 bullets; and the first message.
+; The start of a game: nothing, full health, no ammo (no gun yet); and the first message.
 init            lda #0
                 ldx #2
 -               sta money,x
                 dex
                 bpl -
                 sta heat
+                sta points
+                sta points + 1
                 sta knife
                 sta flash
                 sta changed
@@ -162,6 +169,9 @@ update          lda left
                 lda #1
                 sta redraw3
 timed
+                lda heat
+                beq +
+                jsr cooling
                 lda heat
                 beq +
                 dec flash_wait
@@ -307,6 +317,73 @@ draw_car        lda #0
                 ldx #CAR_BAR
                 ldy #3
                 jmp bar
+
+; Heat for a crime, A half points (people, foot): at most 230 points; a level higher says so.
+add_heat        clc
+                adc points
+                sta points
+                bcc +
+                inc points + 1
++               lda points + 1          ; no more than 2 * 230
+                cmp #>(2 * 230)
+                bcc ++
+                bne +
+                lda points
+                cmp #<(2 * 230) + 1
+                bcc ++
++               lda #<(2 * 230)
+                sta points
+                lda #>(2 * 230)
+                sta points + 1
++               lda #<COOL_FRAMES              ; the time to cool counted afresh
+                sta cool
+                lda #>COOL_FRAMES
+                sta cool + 1
+                ldx #5                  ; the level the points reach
+-               lda points
+                cmp level_lo,x
+                lda points + 1
+                sbc level_hi,x
+                bcs +
+                dex
+                bne -
++               cpx heat
+                beq +
+                bcc +
+                stx heat
+                lda #1
+                sta stars_shown
+                txa                     ; and says so
+                clc
+                adc #MSG_HEAT - 1
+                tax
+                jmp say
++               rts
+; Once a frame with heat: a level less every COOL_FRAMES frames, the points down to its start.
+cooling         lda cool
+                bne +
+                dec cool + 1
++               dec cool
+                lda cool
+                ora cool + 1
+                bne +
+                lda #<COOL_FRAMES
+                sta cool
+                lda #>COOL_FRAMES
+                sta cool + 1
+                dec heat
+                ldx heat
+                lda level_lo,x
+                sta points
+                lda level_hi,x
+                sta points + 1
+                lda #1
+                sta stars_shown
++               rts
+COOL_FRAMES     = 9 * 50
+LEVELS          = (0, 8, 25, 60, 110, 180)      ; where each level starts, in points
+level_lo        .byte 0, <(2 * LEVELS[1]), <(2 * LEVELS[2]), <(2 * LEVELS[3]), <(2 * LEVELS[4]), <(2 * LEVELS[5])
+level_hi        .byte 0, >(2 * LEVELS[1]), >(2 * LEVELS[2]), >(2 * LEVELS[3]), >(2 * LEVELS[4]), >(2 * LEVELS[5])
 
 ; The stars: one for each level of heat, flashing; the rest dark grey.
 colour_stars    lda #0
@@ -483,21 +560,32 @@ goal_text       .text " / $25000"
 MSG_CAR         = 0
 MSG_FOOT        = 1
 MSG_SUNK        = 2
-MESSAGES        = ("fire: handbrake. standing still: get out", "stand by a car and press fire to get in", "the car is gone. swim for it. the warranty does not cover this.")
+MSG_HEAT        = 3                     ; and on, for heat levels 1-5
+MESSAGES        = ("fire: handbrake. standing still: get out", "stand by a car and press fire to get in", "the car is gone. swim for it. the warranty does not cover this.", "a stern letter is being drafted", "police dispatched. eventually.", "shoot first, paperwork never", "overtime has been approved", "the homeowners association has been notified")
 msg_texts       .block
 m0              .text format("%-40s", MESSAGES[0])
 m1              .text format("%-40s", MESSAGES[1])
 m2              .text format("%-40s", MESSAGES[2])
                 .bend
-MSG_AT          = (msg_texts.m0, msg_texts.m1, msg_texts.m2)
+                .section status_high    ; (where there is room: waiting.asm)
+heat_texts      .block
+m3              .text format("%-40s", MESSAGES[3])
+m4              .text format("%-40s", MESSAGES[4])
+m5              .text format("%-40s", MESSAGES[5])
+m6              .text format("%-40s", MESSAGES[6])
+m7              .text format("%-40s", MESSAGES[7])
+                .bend
+                .send
+MSG_AT          = (msg_texts.m0, msg_texts.m1, msg_texts.m2, heat_texts.m3, heat_texts.m4, heat_texts.m5, heat_texts.m6, heat_texts.m7)
 msg_lo          .byte <MSG_AT
 msg_hi          .byte >MSG_AT
 most_of         .function m
                 .endf len(m) > 40 ? len(m) - 40 : 0
 frames_of       .function m             ; 50 * max(4, 0.14 * its length + 1.5), and 1 for the frame it is said
                 .endf (len(m) * 7 + 75 > 200 ? len(m) * 7 + 75 : 200) + 1     ; in, which counts it down too
-msg_most        .byte most_of(MESSAGES[0]), most_of(MESSAGES[1]), most_of(MESSAGES[2])
-MSG_FRAMES      = (frames_of(MESSAGES[0]), frames_of(MESSAGES[1]), frames_of(MESSAGES[2]))
+msg_most        .byte most_of(MESSAGES[0]), most_of(MESSAGES[1]), most_of(MESSAGES[2]), most_of(MESSAGES[3])
+                .byte most_of(MESSAGES[4]), most_of(MESSAGES[5]), most_of(MESSAGES[6]), most_of(MESSAGES[7])
+MSG_FRAMES      = (frames_of(MESSAGES[0]), frames_of(MESSAGES[1]), frames_of(MESSAGES[2]), frames_of(MESSAGES[3]), frames_of(MESSAGES[4]), frames_of(MESSAGES[5]), frames_of(MESSAGES[6]), frames_of(MESSAGES[7]))
 msg_left_lo     .byte <MSG_FRAMES
 msg_left_hi     .byte >MSG_FRAMES
                 .enc "none"
