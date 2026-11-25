@@ -51,7 +51,8 @@ on NTSC.
 - **In the car:** up accelerates, down brakes and then reverses, left and right steer, and fire is the
   handbrake. Standing still or nearly, with the stick centred, a press of fire gets you out.
 - **On foot:** the stick walks you eight ways. Standing by a car, with the stick centred, a press of fire gets
-  you in.
+  you in; anywhere else, a press of fire is a punch (there is no gun yet, so you start with no ammo, and the
+  panel says FIST). Someone you punch lies four seconds, then gets up and runs, as does anyone near them.
 
 In [VICE](https://vice-emu.sourceforge.io/), if it is installed with C64 ROMs:
 

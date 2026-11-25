@@ -44,13 +44,16 @@ export class Player {
     return this.on ? this.y >> 8 : this.car.py;
   }
   /** One pass of the main loop with the joystick held as given (JOY bits). */
-  step(bits, traffic, busy = false) {
+  step(bits, traffic, busy = false, people = null) {
     const fire = bits & 16 ? 1 : 0;
-    const use = fire && !this.fireWas && !(bits & 15); // just pressed, with the stick centred
+    const press = fire && !this.fireWas; // just pressed
+    const use = press && !(bits & 15); // with the stick centred
     this.fireWas = fire;
     if (this.on) {
       this.walk(bits);
       if (use) this.enter(traffic);
+      // Else fire is a punch (people-model.mjs): no ammo, no knife, and nobody fights in the water.
+      if (this.on && press && !this.swim) people?.punch(this);
     } else {
       this.car.step(bits, traffic, busy);
       if (use) this.leave(traffic);

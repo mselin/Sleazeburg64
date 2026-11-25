@@ -144,7 +144,7 @@ test('with the game itself, which has no tune: the title says so, and fire start
     assert.ok(P['status.say'] >= 0xe000 && P['status.update'] > P['status.say'], 'the panel runs from $e000');
     const say = plain.unpacked.subarray(at('status.say'), at('status.update')); // (packed in the file itself)
     assert.ok((await vice.read(P['status.say'], say.length)).equals(say), 'its code at $e000, copied up');
-    assert.equal((await readPanel(vice))[0], '$000000 HEAT ***** HP????? CAR??? AMMO12', 'and the game runs it');
+    assert.equal((await readPanel(vice))[0], '$000000 HEAT ***** HP????? CAR???   FIST', 'and the game runs it');
   });
 });
 

@@ -51,10 +51,10 @@ async function set(vice, w, values, what) {
   await pass(vice, L, w, 0, what);
 }
 
-test('at the start: no money, no heat, full health, the car, 12 bullets; no job; and what fire does', () =>
+test('at the start: no money, no heat, full health, the car, no ammo yet (fists); no job; and what fire does', () =>
   run(async (vice, w) => {
     const [one, two, three] = await readPanel(vice);
-    assert.equal(one, '$000000 HEAT ***** HP????? CAR??? AMMO12');
+    assert.equal(one, '$000000 HEAT ***** HP????? CAR???   FIST');
     assert.equal(two, NO_JOB);
     assert.equal(three, MESSAGE.CAR);
     const [r1, r2, r3] = await readRows(vice);
@@ -66,7 +66,7 @@ test('at the start: no money, no heat, full health, the car, 12 bullets; no job;
     assert.deepEqual(columns(r1, 21, 25), { codes: Array(5).fill(BAR), colours: Array(5).fill(GREEN) }, 'a full health bar');
     assert.deepEqual(ink(27, 29), Array(3).fill(LIGHT_GREY), 'CAR');
     assert.deepEqual(columns(r1, 30, 32), { codes: Array(3).fill(BAR), colours: Array(3).fill(CYAN) }, 'a full car bar');
-    assert.deepEqual(ink(34, 39), Array(6).fill(YELLOW), 'the ammo');
+    assert.deepEqual(ink(36, 39), Array(4).fill(LIGHT_RED), 'fists: no ammo until there is a gun');
     assert.deepEqual(r2.colours.slice(0, NO_JOB.length), Array(NO_JOB.length).fill(GREY), 'no job, in grey');
     assert.deepEqual(r3.colours, Array(40).fill(WHITE), 'the message in white');
     await assertPicture(vice, L, w, 'with the panel');
@@ -79,7 +79,7 @@ test('a message stays for its time, then the election fund shows; getting out hi
     await pass(vice, L, w, JOY.FIRE, 'out of the car');
     assert.equal(w.player.on, 1);
     let [one, , three] = await readPanel(vice);
-    assert.equal(one, '$000000 HEAT ***** HP?????        AMMO12', 'no car, so no CAR and no bar');
+    assert.equal(one, '$000000 HEAT ***** HP?????          FIST', 'no car, so no CAR and no bar');
     assert.equal(three, MESSAGE.FOOT);
     let shown = 0; // passes it was up in, the one it was said in included
     while ((await readPanel(vice))[2] === MESSAGE.FOOT) {
@@ -95,7 +95,7 @@ test('a message stays for its time, then the election fund shows; getting out hi
     await pass(vice, L, w, JOY.FIRE, 'back in');
     assert.equal(w.player.on, 0);
     [one, , three] = await readPanel(vice);
-    assert.equal(one, '$000000 HEAT ***** HP????? CAR??? AMMO12', 'the car\'s part again');
+    assert.equal(one, '$000000 HEAT ***** HP????? CAR???   FIST', 'the car\'s part again');
     assert.equal(three, MESSAGE.CAR);
     // White again from the next frame with the time (the window moves to the car first, which can take one).
     for (let i = 1; i <= 4 && (await readRows(vice))[2].colours[0] !== WHITE; i++) await pass(vice, L, w, 0, `in the car, ${i}`);

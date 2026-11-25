@@ -8,7 +8,7 @@ import { LOWEST } from './traffic-model.mjs';
 export const P = {
   CROWD: 4, REACH: 9, TREAD: 4, ARRIVE_GAP: 16, FAR: 0x180, BACK_ODDS: 205, SPRITE: 0x2000 / 64,
   RUN_OVER: 154, HIT: 9, NOSE: 8, DOWN_TIME: 200, DOWN_FRAME: 20, JAY_ODDS: 26,
-  HALT: 10, TURN_AFTER: 75, CAR_LONG: 13, CAR_SHORT: 8, CAR_SQUARE: 10,
+  HALT: 10, TURN_AFTER: 75, PUNCH_WAIT: 18, PUNCH_REACH: 7, PUNCH_LIM: 7, SCARE: 60, FLEE_TURNS: 50, CAR_LONG: 13, CAR_SHORT: 8, CAR_SQUARE: 10,
   SHIRTS: [4, 8, 3, 2, 10, 9, 5, 1], // purple, orange, cyan, red, light red, brown, green, white
 };
 export const ROADWAY = 0, WALL = 1, GRASS = 2, PAVEMENT = 4; // a tile's kind (tools/assets.mjs)
@@ -24,7 +24,7 @@ export class Person {
     // jay: 1 when ready to cross a road.
     // A car in the way: stuck, frames left before they turn another way; stall, frames left standing; aside,
     // the way they step round it + 1.
-    Object.assign(this, { on: 0, x: 0, y: 0, way: 0, spd: 0, col: 0, wait: 0, ph: 0, down: 0, jay: 0, stuck: 0, stall: 0, aside: 0, road: 0 }, fields);
+    Object.assign(this, { on: 0, x: 0, y: 0, way: 0, spd: 0, col: 0, wait: 0, ph: 0, down: 0, jay: 0, stuck: 0, stall: 0, aside: 0, road: 0, ko: 0, flee: 0 }, fields);
   }
   get px() {
     return (this.x >> 8) & 0xffff;
@@ -57,7 +57,7 @@ export class People {
   constructor({ arrive = true, crowd = P.CROWD } = {}) {
     this.arrive = arrive;
     this.people = Array.from({ length: crowd }, () => new Person());
-    Object.assign(this, { seed: 0x5d, lull: 1, crossing: 0, half: 0 });
+    Object.assign(this, { seed: 0x5d, lull: 1, crossing: 0, half: 0, punchLeft: 0 });
   }
   rnd() {
     let a = this.seed << 1;
@@ -122,8 +122,7 @@ export class People {
   }
   /** people.steps: two frames' worth, and whether that leaves them on a road. */
   static steps(p, way) {
-    People.stride(p, way);
-    People.stride(p, way);
+    for (let n = p.flee ? 4 : 2; n; n--) People.stride(p, way); // running: twice as far
     p.road = People.kind(p.px, p.py) === ROADWAY ? 1 : 0;
   }
   /** A car in the way, its middle b: true if they stand (or turn another way) this frame, with no step. */
@@ -153,8 +152,11 @@ export class People {
       p.on = 0;
       return;
     }
-    p.wait = (p.wait - 1) & 255;
-    if (p.wait === 0 || !People.likes(People.ahead(p, p.way, P.REACH), p)) this.pick(p);
+    if (p.flee) People.fleeWay(p, at);
+    else {
+      p.wait = (p.wait - 1) & 255;
+      if (p.wait === 0 || !People.likes(People.ahead(p, p.way, P.REACH), p)) this.pick(p);
+    }
     if (People.ahead(p, p.way, P.TREAD) !== WALL) {
       const b = People.carInWay(People.point(p, p.way, P.TREAD), p, traffic, car);
       if (!b) {
@@ -163,7 +165,43 @@ export class People {
       } else if (this.heldUp(p, b, traffic, car)) return;
     }
     const v = (p.spd - ((p.spd >> 3) + (p.spd >> 2))) & 255;
-    p.ph = (p.ph + 2 * v) & 0xffff;
+    p.ph = (p.ph + (p.flee ? 4 : 2) * v) & 0xffff;
+  }
+  /**
+   * people.flee_way: a turn of running away from the player at `at`, along the axis they are further from
+   * them on (across if neither; the other if that way is a wall), ready to cross roads, without stopping
+   * before a car.
+   */
+  static fleeWay(p, at) {
+    p.flee--;
+    p.jay = 1;
+    p.stall = 0;
+    const dx = w16(p.px - at[0]), dy = w16(p.py - at[1]);
+    const fx = dx & 0x8000 ? 2 : 0, fy = dy & 0x8000 ? 3 : 1;
+    const ax = dx & 0x8000 ? w16(-dx) : dx, ay = dy & 0x8000 ? w16(-dy) : dy;
+    const [first, other] = ax >= ay ? [fx, fy] : [fy, fx];
+    p.way = first;
+    if (People.ahead(p, first, P.TREAD) === WALL && People.ahead(p, other, P.TREAD) !== WALL) p.way = other;
+  }
+  /**
+   * people.punch, from the player `player` (foot-model.mjs) pressing fire on foot: unless the last punch was
+   * under PUNCH_WAIT frames ago, the first passer-by within PUNCH_LIM of the point PUNCH_REACH ahead of them is
+   * knocked down, and anyone within SCARE of them runs.
+   */
+  punch(player) {
+    if (this.punchLeft) return;
+    this.punchLeft = P.PUNCH_WAIT;
+    const R = [[7, 0], [5, 5], [0, 7], [-5, 5], [-7, 0], [-5, -5], [0, -7], [5, -5]][player.face];
+    const pt = [w16(player.px + R[0]), w16(player.py + R[1])];
+    const near = (q, [x, y], lim) => w16(q.px - x + lim) <= 2 * lim && w16(q.py - y + lim) <= 2 * lim;
+    for (let i = this.people.length - 1; i >= 0; i--) {
+      const p = this.people[i];
+      if (!p.on || p.down || !near(p, pt, P.PUNCH_LIM)) continue;
+      p.down = P.DOWN_TIME;
+      p.ko = 1;
+      for (const q of this.people) if (q.on && !q.down && near(q, [p.px, p.py], P.SCARE)) q.flee = P.FLEE_TURNS;
+      return;
+    }
   }
   /** people.arrive: someone new in the highest free place, if the point picked is out of sight on a pavement. */
   arriveOne(at, cam) {
@@ -201,6 +239,7 @@ export class People {
    * over by the player's car `car` (car-model.mjs) if it is going fast enough and on them.
    */
   tick(cam, car) {
+    if (this.punchLeft) this.punchLeft--;
     const fast = Math.abs(car.vx) >= P.RUN_OVER || Math.abs(car.vy) >= P.RUN_OVER;
     const [ax, ay] = AXIS[direction16(car.angle)];
     const points = [[car.px, car.py, P.HIT], [w16(car.px + ax), w16(car.py + ay), P.NOSE]];
@@ -209,7 +248,11 @@ export class People {
       const p = this.people[i];
       if (!p.on) continue;
       if (p.down && --p.down === 0) {
-        p.on = 0;
+        if (!p.ko) {
+          p.on = 0; // run over: gone
+          continue;
+        }
+        [p.ko, p.flee] = [0, P.FLEE_TURNS]; // knocked down by a punch: up, and running
         continue;
       }
       if (p.down || !fast) continue; // (anyone the car can run over is in sight)
@@ -230,8 +273,8 @@ export class People {
   /** Everyone's state as the tests compare it. */
   get state() {
     return {
-      seed: this.seed, lull: this.lull, half: this.half,
-      people: this.people.map((p) => (p.on ? { on: 1, x: p.x, y: p.y, way: p.way, spd: p.spd, col: p.col, wait: p.wait, ph: p.ph, down: p.down, jay: p.jay, stuck: p.stuck, stall: p.stall, aside: p.aside, road: p.road } : { on: 0 })),
+      seed: this.seed, lull: this.lull, half: this.half, punchLeft: this.punchLeft,
+      people: this.people.map((p) => (p.on ? { on: 1, x: p.x, y: p.y, way: p.way, spd: p.spd, col: p.col, wait: p.wait, ph: p.ph, down: p.down, jay: p.jay, stuck: p.stuck, stall: p.stall, aside: p.aside, road: p.road, ko: p.ko, flee: p.flee } : { on: 0 })),
     };
   }
 }
@@ -239,13 +282,13 @@ export class People {
 /** The same, read from the program. */
 export async function readPeople(vice, L, crowd = P.CROWD) {
   const get = async (name, n = crowd) => [...(await vice.read(L[`people.${name}`], n))];
-  const [on, xf, xl, xh, yf, yl, yh, way, spd, col, wait, phl, phh, down, jay, stuck, stall, aside, road] = await Promise.all(
-    ['on', 'xf', 'xl', 'xh', 'yf', 'yl', 'yh', 'way', 'spd', 'col', 'wait', 'phl', 'phh', 'down', 'jay', 'stuck', 'stall', 'aside', 'road'].map((n) => get(n)));
-  const [seed] = await get('seed', 1), [lull] = await get('lull', 1), [half] = await get('half', 1);
+  const [on, xf, xl, xh, yf, yl, yh, way, spd, col, wait, phl, phh, down, jay, stuck, stall, aside, road, ko, flee] = await Promise.all(
+    ['on', 'xf', 'xl', 'xh', 'yf', 'yl', 'yh', 'way', 'spd', 'col', 'wait', 'phl', 'phh', 'down', 'jay', 'stuck', 'stall', 'aside', 'road', 'ko', 'flee'].map((n) => get(n)));
+  const [seed] = await get('seed', 1), [lull] = await get('lull', 1), [half] = await get('half', 1), [punchLeft] = await get('punch_left', 1);
   return {
-    seed, lull, half,
+    seed, lull, half, punchLeft,
     people: on.map((o, i) => (o ? {
-      on: 1, x: xf[i] | (xl[i] << 8) | (xh[i] << 16), y: yf[i] | (yl[i] << 8) | (yh[i] << 16), way: way[i], spd: spd[i], col: col[i], wait: wait[i], ph: phl[i] | (phh[i] << 8), down: down[i], jay: jay[i], stuck: stuck[i], stall: stall[i], aside: aside[i], road: road[i],
+      on: 1, x: xf[i] | (xl[i] << 8) | (xh[i] << 16), y: yf[i] | (yl[i] << 8) | (yh[i] << 16), way: way[i], spd: spd[i], col: col[i], wait: wait[i], ph: phl[i] | (phh[i] << 8), down: down[i], jay: jay[i], stuck: stuck[i], stall: stall[i], aside: aside[i], road: road[i], ko: ko[i], flee: flee[i],
     } : { on: 0 })),
   };
 }
@@ -254,7 +297,7 @@ export async function readPeople(vice, L, crowd = P.CROWD) {
 export async function putPerson(vice, L, people, i, { x, y, way = 0, spd = 90, col = 2, wait = 100, ph = 0, jay = 0 }) {
   const p = new Person({ on: 1, x: x << 8, y: y << 8, way, spd, col, wait, ph, jay });
   people.people[i] = p;
-  for (const [name, value] of Object.entries({ on: 1, xf: 0, xl: x & 255, xh: x >> 8, yf: 0, yl: y & 255, yh: y >> 8, way, spd, col, wait, phl: ph & 255, phh: ph >> 8, down: 0, jay, stuck: 0, stall: 0, aside: 0, road: 0 }))
+  for (const [name, value] of Object.entries({ on: 1, xf: 0, xl: x & 255, xh: x >> 8, yf: 0, yl: y & 255, yh: y >> 8, way, spd, col, wait, phl: ph & 255, phh: ph >> 8, down: 0, jay, stuck: 0, stall: 0, aside: 0, road: 0, ko: 0, flee: 0 }))
     await vice.write(L[`people.${name}`] + i, [value]);
   return p;
 }
