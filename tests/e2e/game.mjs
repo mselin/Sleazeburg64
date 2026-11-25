@@ -48,6 +48,8 @@ assets.car = readFileSync(join(ROOT, 'build/car.bin'));
 assets.player = readFileSync(join(ROOT, 'build/player-all.bin')); // all 42 frames, as the program should make them
 assets.people = readFileSync(join(ROOT, 'build/people.bin')); // the passers-by's 20 frames
 assets.punch = readFileSync(join(ROOT, 'build/punch.bin')); // the player punching, 8 frames
+assets.pickups = readFileSync(join(ROOT, 'build/pickups.bin')); // the five pickups
+export const PICKUP_SPRITE = 0x0c40 / 64;
 export const PUNCH_SPRITE = 0x0200 / 64;
 export const PEOPLE_SPRITE = 0x2000 / 64;
 
@@ -56,6 +58,7 @@ export function spriteData(pointer) {
   if (pointer >= HONK_SPRITE) return assets.chars.subarray(pointer * 64 - CHARSET, pointer * 64 - CHARSET + 63);
   if (pointer >= PLAYER_SPRITE) return assets.player.subarray((pointer - PLAYER_SPRITE) * 64, (pointer - PLAYER_SPRITE) * 64 + 63);
   if (pointer >= PEOPLE_SPRITE) return assets.people.subarray((pointer - PEOPLE_SPRITE) * 64, (pointer - PEOPLE_SPRITE) * 64 + 63);
+  if (pointer >= PICKUP_SPRITE) return assets.pickups.subarray((pointer - PICKUP_SPRITE) * 64, (pointer - PICKUP_SPRITE) * 64 + 63);
   if (pointer >= CAR_SPRITE) return assets.car.subarray((pointer - CAR_SPRITE) * 64, (pointer - CAR_SPRITE) * 64 + 63);
   return assets.punch.subarray((pointer - PUNCH_SPRITE) * 64, (pointer - PUNCH_SPRITE) * 64 + 63);
 }

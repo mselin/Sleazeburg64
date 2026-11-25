@@ -13,9 +13,9 @@ import {
   screenMismatches, withProgram,
 } from './game.mjs';
 
-// No traffic and no Big Honk: these tests are about the car (traffic.test.mjs has the traffic and him, the car
+// No traffic, no Big Honk and no pickups: these tests are about the car (traffic.test.mjs has the traffic and him, the car
 // with them included).
-const game = assemble('car', { defs: { SPAWN: 0, HONK: 0 } });
+const game = assemble('car', { defs: { SPAWN: 0, HONK: 0, ITEMS: 0 } });
 const L = game.labels;
 const START = [9 * 16, 8 * 16]; // the window's top left corner; the car is in its middle
 const RED = 2;
@@ -87,8 +87,10 @@ async function putCar(vice, m, x, y, angle = 0) {
 
 test('the sine table, the car\'s axis, the steering limit and the multiplication tables are the ones the model uses', () =>
   run(async (vice) => {
-    const lo = await vice.read(L['car.sin_lo'], 256), hi = await vice.read(L['car.sin_hi'], 256);
-    assert.deepEqual([...lo].map((l, a) => signed(l, hi[a])), SIN);
+    // The program keeps the low bytes; car.sine makes the high byte: 1 within two directions of a quarter turn
+    // (256, rounded), $ff past half a turn.
+    const lo = await vice.read(L['car.sin_lo'], 256), hi = (a) => (a >= 129 ? 0xff : a >= 62 && a <= 66 ? 1 : 0);
+    assert.deepEqual([...lo].map((l, a) => signed(l, hi(a))), SIN);
     assert.deepEqual([...(await vice.read(L['car.most_turn'], 65))], MOST_TURN, 'the most turn for each speed');
     const squares = await vice.read(0xc000, 1024);
     for (let n = 0; n < 512; n++) assert.equal(squares[n & 255 | (n & 256)] | (squares[512 + (n & 255) + (n & 256)] << 8), (n * n) >> 2, `quarter square of ${n}`);

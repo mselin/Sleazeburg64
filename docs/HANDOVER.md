@@ -97,7 +97,9 @@ A briefing for whoever picks this project up next, person or assistant. Written 
     screen: row 3 about 8 lines, 16 when its colour changes, and row 1 whole about 25, which also waits for a
     frame with no colour memory. The city viewer keeps the old readout (`src/panel.asm`, `src/digits.asm`).
 - Room is short everywhere, and where things are is decided by what the video chip must see:
-  - Below the screens (`$0c40`-`$257f`) there are about 170 bytes of code left. From `$2580` to the screens
+  - Below the screens (`$0d80`-`$1fff`, after the car's and the pickups' sprites) there are about 130 bytes of
+    code left (the car's wall test moved to `MORE_CODE` for the pickups, and the car's sine table keeps only
+    its low bytes: `car.sine` makes the high one). From `$2580` to the screens
     are the player on foot's 42 sprite frames, made at start.
   - Four blocks of code are copied up at start. `EXTRA_CODE` (`$e000`-`$f2ff`, under the KERNAL ROM, which is
     switched out) took the status panel and the steering limit on 21 November 2026, when the owner chose to

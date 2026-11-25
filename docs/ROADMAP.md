@@ -176,6 +176,15 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
 - Jobs, starting with deliveries and the cult of 6-7.
 - Pickups, money, getting arrested, the hospital. Pickups include the knife (a **K**, also dropped now and then
   by someone the player kills), and ammo stops at 99 so the panel always shows two digits.
+  - **Pickups on the C64** (started, `src/pickups.asm`): twelve at once rather than the design's 34, the
+    owner's choice for the frame time (34 made frames late on the long drive with traffic); each in the middle
+    of a pavement, plaza or grass tile, never within 2 tiles of where the player starts (there is no hospital
+    or police station yet), in the design's shares; taken within 11 pixels on foot or in the car, back 40 to
+    70 seconds later somewhere else. Drawn as multicolour sprites through the multiplexer, bobbing a pixel: a
+    12-pixel square in the kind's colour with a black edge and its letter in yellow or black, the shared
+    sprite colours (the design's letter colours otherwise: a sprite has three). What each does is the design's;
+    ammo only counts until there is a gun. Still to come: cash and knives dropped by people the player kills,
+    stabbing with the knife, and the gun.
   - **Never where the player appears.** No pickup lies within 32 pixels of the hospital or the police station,
     where the player starts and comes back. Both sit between two tile middles, 8 pixels from each, and the
     browser game used to let a pickup land there and be taken the moment the player appeared, in about 1 game

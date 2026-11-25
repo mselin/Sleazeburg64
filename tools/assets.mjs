@@ -340,6 +340,35 @@ export function playerPixels(d, p, punch = false) {
   ring(px, 2);
   return px;
 }
+// ---------- pickups: a square in the kind's colour with a black edge and its letter ----------
+// The design's pickups (specs/design.md there, "Pickups"): ammo A, cash $, donut O, bandage +, knife K. A
+// multicolour sprite each: the square is the sprite's own colour (set when it is listed), the edge black (the
+// shared colour every multicolour sprite has) and the letter yellow or black, the two shared colours. 12 screen
+// pixels across, 6 pixel pairs by 12 lines, its middle where a car's is (screen pixel 12, line 10), so that a
+// letter of 4 pixel pairs by 8 lines fits inside the edge.
+export const PICKUP_KINDS = ['A', '$', 'O', '+', 'K'];
+export const PICKUP_LETTER = [3, 3, 3, 1, 1]; // yellow on orange, green and light red; black on white and grey
+const PICKUP_GLYPHS = {
+  A: ['.##.', '#..#', '#..#', '####', '#..#', '#..#', '#..#', '....'],
+  $: ['.##.', '###.', '#.#.', '.##.', '.#.#', '.###', '.##.', '....'],
+  O: ['.##.', '#..#', '#..#', '#..#', '#..#', '#..#', '.##.', '....'],
+  '+': ['....', '.##.', '.##.', '####', '####', '.##.', '.##.', '....'],
+  K: ['#..#', '#.#.', '##..', '#...', '##..', '#.#.', '#..#', '....'],
+};
+export function pickupPixels(k) {
+  const px = new Array(12 * 21).fill(0);
+  for (let j = 0; j < 12; j++)
+    for (let m = 0; m < 6; m++) {
+      const edge = j === 0 || j === 11 || m === 0 || m === 5;
+      const g = !edge && j >= 2 && j < 10 ? PICKUP_GLYPHS[PICKUP_KINDS[k]][j - 2][m - 1] : '.';
+      px[(j + 4) * 12 + m + 3] = edge ? 1 : g === '#' ? PICKUP_LETTER[k] : 2;
+    }
+  return px;
+}
+export function pickupFrames() {
+  return PICKUP_KINDS.map((_, k) => spriteBytes(pickupPixels(k)));
+}
+
 /** The player punching, facing each of the eight ways: standing, the right arm out. Copied to $0200 at start. */
 export function punchFrames() {
   const frames = [];
@@ -458,6 +487,7 @@ for (let d = 0; d < PEOPLE_DIRS; d++) for (let p = 0; p < PLAYER_POSES; p++) peo
 people.push(spriteBytes(downPixels()));
 writeFileSync(join(dir, 'people.bin'), Buffer.concat(people));
 writeFileSync(join(dir, 'punch.bin'), Buffer.concat(punchFrames()));
+writeFileSync(join(dir, 'pickups.bin'), Buffer.concat(pickupFrames()));
 writeFileSync(join(dir, 'player.bin'), Buffer.concat(player.stored)); // what the program file holds
 writeFileSync(join(dir, 'player-made.bin'), Uint8Array.from(player.made)); // and how it makes the rest
 writeFileSync(join(dir, 'player-all.bin'), Buffer.concat(player.all)); // what it should end up with: for the tests

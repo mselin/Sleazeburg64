@@ -361,14 +361,17 @@ trig            ldx angle + 1
 +               stx trig_dir
                 lda #1
                 sta trig_set
-                lda sin_lo + 64,x
+                txa                     ; cos = sin a quarter turn on
+                clc
+                adc #64
+                tax
+                jsr sine
                 sta cs
-                lda sin_hi + 64,x
-                sta cs + 1
-                lda sin_lo,x
+                sty cs + 1
+                ldx trig_dir
+                jsr sine
                 sta sn
-                lda sin_hi,x
-                sta sn + 1
+                sty sn + 1
                 ldx #2
 -               lda cs + 1,x            ; sign: $00 or $ff
                 sta sign_of,x
@@ -853,6 +856,7 @@ high            lda #0
                 sta pos_x + 2,x
                 rts
 
+                .section car_more       ; (from here to kind_at: where there is room, MORE_CODE)
 ; C set if moving along one axis, from where the car is to nx, runs it into a wall. Where it is now is
 ; known to be clear, so only the tiles that the leading edge of each of its three boxes moves into need
 ; looking at: a box is narrower than a tile, so that is at most one new column (or row) of two tiles for
@@ -1333,6 +1337,8 @@ kind_at         lda py
                 lda tile_kind,x
                 rts
 
+                .send
+
 ; mr = mv * s / 256, rounded towards 0, for s = cs (mul_c) or sn (mul_s), as trig left them. With quarter
 ; squares (see init): the tables' addresses are moved along by |s| (the low bytes of p1, p3, p5, p7) and by
 ; 255 - |s| (p2, p4, p6, p8) by trig, which leaves a * |s| = p1[a] - p2[a] as 16 bits.
@@ -1422,14 +1428,25 @@ show            sec                     ; x: 31 is the window's left edge, the c
                 rts
                 .send
 
-; sin(direction) * 256, rounded, for 256 directions and 64 more so that cos = sin + 64.
+; A (low byte), Y (high) = sin(direction X) * 256, rounded: from the table of low bytes, the high byte being 1
+; within 2 directions of a quarter turn (256, rounded), $ff past half a turn (negative) and 0 otherwise.
+sine            lda sin_lo,x
+                ldy #0
+                cpx #129
+                bcc +
+                dey                     ; negative
+                rts
++               cpx #62
+                bcc +
+                cpx #67
+                bcs +
+                iny                     ; 256
++               rts
 sin_lo
-                .for i := 0, i < 320, i += 1
+                .for i := 0, i < 256, i += 1
                 .byte <(int(round(256 * sin(i * pi / 128))) + $10000)
-                .next
-sin_hi
-                .for i := 0, i < 320, i += 1
-                .byte >(int(round(256 * sin(i * pi / 128))) + $10000)
+                .cerror (i >= 62 && i <= 66 ? 1 : 0) != (int(round(256 * sin(i * pi / 128))) > 255 ? 1 : 0), "sine: 256 at 62-66 only"
+                .cerror (i > 128 ? 1 : 0) != (int(round(256 * sin(i * pi / 128))) < 0 ? 1 : 0), "sine: negative past 128 only"
                 .next
 ; 6 pixels along the car in each of the 16 sprite directions: where the front and back points are.
 axis_x

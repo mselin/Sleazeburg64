@@ -13,6 +13,7 @@ import { modelTraffic, readTraffic } from './play.mjs';
 import { Player } from './foot-model.mjs';
 import { waterStep } from './water-model.mjs';
 import { P as PEOPLE, People, ROADWAY, putPerson, readPeople } from './people-model.mjs';
+import { Pickups, readPickups } from './pickups-model.mjs';
 
 const START = [9 * 16, 8 * 16];
 const RED = 2;
@@ -32,7 +33,8 @@ function models(traffic) {
   // Passers-by come by themselves only in a build whose traffic does (SPAWN).
   const people = new People({ arrive: traffic.spawn });
   traffic.people = people; // (which traffic stops for)
-  return { car, player: new Player(car), cam: new Camera(...START), traffic, honk: new Honk(), people, list: [] };
+  const cam = new Camera(...START);
+  return { car, player: new Player(car), cam, traffic, honk: new Honk(), people, pickups: new Pickups(cam), list: [] };
 }
 
 /** One pass of the main loop in the models, with the joystick held as given. */
@@ -46,8 +48,10 @@ function step(m, bits) {
   m.honk.step(m.car, m.traffic, m.cam, cell);
   const moves = ((m.cam.x >> 3) ^ cell[0]) & 31 || ((m.cam.y >> 3) ^ cell[1]) & 31;
   m.people.step(!moves && !busy, [m.car.px, m.car.py], m.cam, m.traffic, m.car);
+  m.pickups.step(m.cam, !moves && !busy);
   m.people.tick(m.cam, m.car);
-  m.list = [...m.traffic.show(m.cam), ...m.honk.show(m.cam), ...m.people.show(m.cam)].slice(0, 16); // the multiplexer lists sixteen
+  m.list = [...m.traffic.show(m.cam), ...m.honk.show(m.cam), ...m.people.show(m.cam), ...m.pickups.show(m.cam, [m.car.px, m.car.py], busy)]
+    .slice(0, 16); // the multiplexer lists sixteen
 }
 
 const signed = (lo, hi) => ((hi << 8) | lo) << 16 >> 16;
@@ -67,6 +71,7 @@ async function pass(vice, L, m, bits, what) {
   assert.deepEqual(await readTraffic(vice, L, m.traffic.n), modelTraffic(m.traffic), `the traffic ${what}`);
   assert.deepEqual(await readHonk(vice, L), m.honk.state, `Big Honk ${what}`);
   assert.deepEqual(await readPeople(vice, L), m.people.state, `the passers-by ${what}`);
+  assert.deepEqual(await readPickups(vice, L), m.pickups.state, `the pickups ${what}`);
 }
 
 /** At the top of a pass: the whole picture of the frame being shown, every sprite included. */

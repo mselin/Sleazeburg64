@@ -10,6 +10,7 @@ import { Honk, readHonk } from './honk-model.mjs';
 import { F, Player, readPlayer } from './foot-model.mjs';
 import { waterStep } from './water-model.mjs';
 import { People, readPeople } from './people-model.mjs';
+import { Pickups, readPickups } from './pickups-model.mjs';
 
 export const START = [9 * 16, 8 * 16]; // the window's top left corner at start; the car is in its middle
 const TRAFFIC_FIELDS = ['dir', 'sp', 'cruise', 'face', 'col', 'turn', 'held', 'ghost', 'blocked', 'entered', 'wreck', 'sink'];
@@ -64,10 +65,11 @@ export const carState = (c) => ({ x: c.x, y: c.y, vx: c.vx, vy: c.vy, angle: c.a
 
 /**
  * The models of everything that moves, starting as the program does. `honk` false leaves Big Honk out (a
- * build with HONK=0); `traffic` are the traffic model's options; nobody walks by in a build with SPAWN=0.
+ * build with HONK=0); `traffic` are the traffic model's options; nobody walks by in a build with SPAWN=0;
+ * `pickups` false leaves the pickups out (a build with ITEMS=0).
  */
 export class World {
-  constructor({ honk = true, traffic = {} } = {}) {
+  constructor({ honk = true, traffic = {}, pickups = true } = {}) {
     this.people = new People({ arrive: traffic.spawn !== false });
     this.car = new Car(START[0] + CENTRE_X, START[1] + CENTRE_Y);
     this.player = new Player(this.car);
@@ -75,6 +77,7 @@ export class World {
     this.traffic = new Traffic(traffic);
     this.traffic.people = this.people; // (which traffic stops for)
     this.honk = honk ? new Honk() : null;
+    this.pickups = pickups ? new Pickups(this.cam) : null;
     this.list = [];
   }
   /** One pass of the main loop with the joystick held as given. */
@@ -88,8 +91,10 @@ export class World {
     if (this.honk) this.honk.step(this.car, this.traffic, this.cam, cell);
     const moves = ((this.cam.x >> 3) ^ cell[0]) & 31 || ((this.cam.y >> 3) ^ cell[1]) & 31;
     this.people.step(!moves && !busy, [this.player.px, this.player.py], this.cam, this.traffic, this.player.on ? null : this.car);
+    this.pickups?.step(this.cam, !moves && !busy);
     this.people.tick(this.cam, this.car);
-    this.list = [...this.traffic.show(this.cam), ...(this.honk ? this.honk.show(this.cam) : []), ...this.people.show(this.cam)].slice(0, 16); // the multiplexer lists sixteen
+    this.list = [...this.traffic.show(this.cam), ...(this.honk ? this.honk.show(this.cam) : []), ...this.people.show(this.cam),
+      ...(this.pickups ? this.pickups.show(this.cam, [this.player.px, this.player.py], busy) : [])].slice(0, 16); // the multiplexer lists sixteen
   }
   /** Every sprite that should be on screen, the one in front first: sprite 0, then sprites 1-7 as shared out. */
   sprites() {
@@ -112,6 +117,7 @@ export async function pass(vice, L, w, bits, what) {
   assert.deepEqual(await readTraffic(vice, L, w.traffic.n), modelTraffic(w.traffic), `the traffic ${what}`);
   if (w.honk) assert.deepEqual(await readHonk(vice, L), w.honk.state, `Big Honk ${what}`);
   assert.deepEqual(await readPeople(vice, L), w.people.state, `the passers-by ${what}`);
+  if (w.pickups) assert.deepEqual(await readPickups(vice, L), w.pickups.state, `the pickups ${what}`);
 }
 
 /**
