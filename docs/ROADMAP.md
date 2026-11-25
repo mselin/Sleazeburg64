@@ -134,13 +134,26 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
     - In a frame that works out colour memory, which has the least time to spare, it can keep the last frame's
       answer, as the car already does for turning its picture. `EMERGENCY BRAKING ENGAGED` is 25 characters;
       three quick beeps go with it once there is sound.
-  - **Anti-theft and its alarm.** 10 to 25 seconds after the player takes the car, it stops it for good
-    (`ANTI-THEFT ENGAGED: ENGINE IMMOBILISED`, 38 characters, inside row 3's 40; getting back in, `THE
-    IMMOBILISER SAYS NO`). Then the alarm sounds for 20 seconds: a high note and a low one in turn, 12 or 13
-    frames each, quieter the further away the player is. It takes a SID voice that long, so it waits for sound
-    (milestone 4). The browser game flashes four hazard lights at the car's corners with the high note. Here,
-    lit corners on the car's picture would double its frames in every direction. Flashing the car's own sprite
-    colour yellow (7) instead costs no frames.
+  - **Anti-theft devices.** After 10 to 25 seconds with the player at the wheel, it stops the car for good. Never
+    in a police car, once there are police.
+    - **The time** counts only while the player drives the car, and does not start again when they get back in.
+      In steps of 8 frames it is 63 to 156, so it fits a byte.
+    - **Stopped for good:** the throttle does nothing, and down is held for the player until the car is under
+      `BRAKING` (26). The stick still steers while it rolls. Once there is sound, the engine note stops too.
+    - **The messages:** `ANTI-THEFT ENGAGED: ENGINE IMMOBILISED` (38 characters, inside row 3's 40). Getting back
+      in, `THE IMMOBILISER SAYS NO`, and it still will not go.
+    - **What travels with the car.** A car the player takes leaves the traffic's tables with its place, picture,
+      speed and colour (`src/foot.asm`). Its assist bits go with those, as do a fourth bit for "stopped for good"
+      and the byte of time left, and they go back into the tables when the player gets out. A stopped car stays
+      in the place the tables keep for the player's last car, however far they go, as any car they leave does,
+      until they leave another.
+    - **The alarm** sounds for 20 seconds after it stops the car: a high note and a low one in turn, 12 or 13
+      frames each, quieter the further away the player is. It takes a SID voice that long, so it waits for sound
+      (milestone 4). With one voice there is one alarm: a second car stopped while the first still sounds takes
+      it over.
+    - **The lights.** The browser game flashes four hazard lights at the car's corners with the high note. Here,
+      lit corners on the car's picture would double its frames in every direction. Flashing the car's own sprite
+      colour yellow (7) instead costs no frames.
 - Jobs, starting with deliveries and the cult of 6-7.
 - Pickups, money, getting arrested, the hospital. Pickups include the knife (a **K**, also dropped now and then
   by someone the player kills), and ammo stops at 99 so the panel always shows two digits.
@@ -208,6 +221,13 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
     - the turn-your-phone notice when held upright (FR-17).
 
     Steering by finger does not carry over: the game reads a joystick, and the page only stands in for one.
+  - **Publishing it.** The play page goes up from the `pages` job in `.github/workflows/build.yml`, which gives
+    the deploy three tries, as the browser game's does. When GitHub Pages fails all three, as in GitHub's outage
+    of 25 November 2026, the deploy step says to re-run it later. A re-run used to upload the page a second time
+    under the same name and then stop: "Multiple artifacts named github-pages were unexpectedly found"
+    (mselin/gta-c64#44). The upload is now named after the run's attempt, here as in the browser game, so
+    re-running the failed job works. Running the workflow afresh on main (Actions, Build and test, Run
+    workflow) works too.
 
 ## What will not carry over from the browser game
 
