@@ -116,6 +116,12 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
     the siren sounds: the police near, in play. It never flashes with nobody about, on the busted screen or
     while paused. The browser game got this wrong and kept flashing as long as there was any heat
     (mselin/gta-c64#18), so it is worth getting right from the start. See the design's "The siren".
+  - **GAGGLE cameras** (mselin/gta-c64#53). The browser game now has surveillance cameras on poles at 17
+    crossings. A crime one sees counts half again and brings the next police car at once. They also report
+    speeding and fast driving on the pavement, and while one sees the player with heat, the heat does not cool.
+    Ramming or shooting one sets off its alarm, which reports the tampering; then it goes dark until the city
+    puts it back up. Each of these has its own status lines. See "GAGGLE cameras" under the design's
+    [Heat and the police](https://github.com/mselin/gta-c64/blob/main/specs/design.md#heat-and-the-police).
 - Fighting on foot, by the design's
   [Fighting on foot](https://github.com/mselin/gta-c64/blob/main/specs/design.md#fighting-on-foot): fire uses
   the gun while there is ammo, then the knife if the player has one, otherwise fists. A punch knocks someone
@@ -173,6 +179,9 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
     - **The lights.** The browser game flashes four hazard lights at the car's corners with the high note. Here,
       lit corners on the car's picture would double its frames in every direction. Flashing the car's own sprite
       colour yellow (7) instead costs no frames.
+  - **Changed in the browser game since:** the car alarm now has a status line, 7 seconds in, picked at random
+    (mselin/gta-c64#50). See the design's
+    [Cursed driver assistance](https://github.com/mselin/gta-c64/blob/main/specs/design.md#cursed-driver-assistance).
 - Jobs, starting with deliveries and the cult of 6-7.
 - Pickups, money, getting arrested, the hospital. Pickups include the knife (a **K**, also dropped now and then
   by someone the player kills), and ammo stops at 99 so the panel always shows two digits.
@@ -253,7 +262,7 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
     the deploy three tries, as the browser game's does. When GitHub Pages fails all three, as in GitHub's outage
     of 25 November 2026, the deploy step says to re-run it later. A re-run used to upload the page a second time
     under the same name and then stop: "Multiple artifacts named github-pages were unexpectedly found"
-    (mselin/gta-c64#44). The upload is now named after the run's attempt, here as in the browser game, so
+    (mselin/gta-c64#44, fixed in mselin/gta-c64#45). The upload is now named after the run's attempt, here as in the browser game, so
     re-running the failed job works. Running the workflow afresh on main (Actions, Build and test, Run
     workflow) works too.
 
