@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 # Runs the program in VICE without a display and saves a screenshot of what it draws.
 #
-#   tools/emulator-test.sh            builds and runs the normal program and an autopilot build
+#   tools/emulator-test.sh            builds and runs the normal program, an autopilot build and the title page
 set -euo pipefail
 cd "$(dirname "$0")/.."
 . tools/vice-lib.sh
@@ -17,3 +17,4 @@ shot() {
 
 shot start 40000000
 shot autopilot 60000000 -D AUTOPILOT=1
+shot title 20000000 -D TITLE=1

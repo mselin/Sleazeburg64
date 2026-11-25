@@ -20,6 +20,7 @@ PRG       = build/sleazeburg64.prg
 MUSIC_PRG = build/sleazeburg64-music.prg
 INGAME_PRG = build/sleazeburg64-ingame.prg
 ASSETS    = build/chars.bin build/tiles.bin build/map.bin
+TITLE_PIC = build/title.bin
 SOURCES   = $(wildcard src/*.asm src/*.inc)
 ASMFLAGS  = --cbm-prg --ascii --quiet -Wall -Wno-implied-reg -I src -I build
 # Extra -D options, for example: make DEFS="-D START_X=40 -D START_Y=60"
@@ -30,8 +31,13 @@ all: $(PRG)
 $(ASSETS) &: tools/assets.mjs tools/city.mjs tools/font.mjs
 	$(NODE) tools/assets.mjs build
 
-$(PRG): $(SOURCES) $(ASSETS) tools/pack.mjs tools/build-game.sh
-	tools/build-game.sh $@ build/labels.txt $(DEFS)
+# The title page's picture (src/title-page.asm): the browser game's, made a C64 multicolour bitmap, packed.
+$(TITLE_PIC): assets/title-sunset.png tools/picture.mjs tools/pack.mjs tools/font.mjs
+	$(NODE) tools/picture.mjs $< $@
+
+# The game as it is shipped starts with the title page.
+$(PRG): $(SOURCES) $(ASSETS) $(TITLE_PIC) tools/pack.mjs tools/build-game.sh
+	tools/build-game.sh $@ build/labels.txt -D TITLE=1 $(DEFS)
 	@ls -l $@
 
 build/tune-%.bin build/tune-%.inc &: tools/sid.mjs tools/font.mjs music/tunes.json
@@ -57,7 +63,7 @@ run: $(PRG)
 e2e: $(ASSETS)
 	$(NODE) --test --test-concurrency=1 "tests/e2e/*.test.mjs"
 
-test: $(ASSETS)
+test: $(ASSETS) $(TITLE_PIC)
 	$(NODE) --test "tools/*.test.mjs"
 	$(MAKE) e2e
 	tools/emulator-test.sh
