@@ -260,7 +260,7 @@ shift           lda drow                ; which way: (drow + 1) * 3 + dcol + 1
                 clc
                 adc #4
                 jsr way_of
-                ldx front               ; and which screen to which: nine for each
+                ldx front               ; and which screen to which (part)
                 beq +
                 clc
                 adc #9
@@ -309,14 +309,29 @@ way_of          tax
                 txa
                 rts
 
-; Run copy X (of the 18) for its columns from Y down, stopping when the next would be column A.
+; Run copy X (way + 9 * front) for its columns from Y down, stopping when the next would be column A. There
+; are only nine copies, one for each way, each made from SCREEN_A to SCREEN_B (write_copies): one used the
+; other way round has the high bytes of its addresses turned round first (swap_pair).
 part            sty start_col
                 sta stop_col
+                lda #0                  ; which way round: from the screen shown, 0 or 1
+                cpx #9
+                bcc +
+                txa
+                sbc #9                  ; (C is set)
+                tax
+                lda #1
++               sta pair
                 lda copy_lo,x
                 sta ptr
                 lda copy_hi,x
                 sta ptr + 1
-                ldy #1                  ; ldx #start
+                lda pair
+                cmp copy_for,x
+                beq +
+                sta copy_for,x
+                jsr swap_pair
++               ldy #1                  ; ldx #start
                 lda start_col
                 sta (ptr),y
                 lda k_rows              ; cpx #stop: after the start, the rows and dex
@@ -328,6 +343,42 @@ part            sty start_col
                 lda stop_col
                 sta (ptr),y
                 jmp (ptr)
+
+; The copy at ptr, of k_rows rows, turned round to the other pair of screens (A = 1: from B to A, 0: from A to
+; B): the high byte of each row's lda (from) and sta (to) moved 4 pages, the screens' distance, either way.
+; About 950 cycles, in a frame that moves the screen a character.
+swap_pair       ldy #>(SCREEN_B - SCREEN_A)
+                ldx #<-(>(SCREEN_B - SCREEN_A))
+                lsr
+                bcs +
+                ldy #<-(>(SCREEN_B - SCREEN_A))
+                ldx #>(SCREEN_B - SCREEN_A)
++               sty d_from
+                stx d_to
+                ldx k_rows
+                ldy #4                  ; the first row's lda's high byte: after ldx #n, at 2 + 2
+-               lda (ptr),y
+                clc
+                adc d_from
+                sta (ptr),y
+                iny                     ; its sta's, 3 on
+                iny
+                iny
+                lda (ptr),y
+                clc
+                adc d_to
+                sta (ptr),y
+                iny                     ; the next row's lda's
+                iny
+                iny
+                dex
+                bne -
+                rts
+                .cerror (SCREEN_B - SCREEN_A) & $ff != 0, "swap_pair expects the screens a whole number of pages apart"
+pair            .byte 0
+d_from          .byte 0
+d_to            .byte 0
+copy_for        .fill 9, 0              ; which way round each copy is now: 0 from SCREEN_A, 1 from SCREEN_B
                 .send
 
 ; In the time a frame has left once it has been published: if the window, moving on as far as it just did,
@@ -578,17 +629,18 @@ row_count       .byte ROWS - 1, ROWS - 1, ROWS - 1, ROWS, ROWS, ROWS, ROWS - 1, 
 ;       lda from + 40 * row + delta,x   4 or 5 cycles
 ;       sta to + 40 * row,x             5
 ; for each row, in a loop over the 40 columns. What it copies from outside the old screen's city rows lands
-; on the edges, which are drawn afresh after it. There are 18 (two screens, nine ways), made at start.
+; on the edges, which are drawn afresh after it. There are nine, one for each way, made at start from
+; SCREEN_A to SCREEN_B; one wanted the other way round is turned round first (swap_pair).
 COPIES          = $c400
 COPY_SIZE       = 2 + ROWS * 6 + 1 + 2 + 2 + 3 + 1      ; ldx #39, the rows, dex, cpx #stop, beq, jmp, rts
-                .cerror COPIES + 18 * COPY_SIZE > $d000, "the copies run into the I/O area"
+                .cerror COPIES + 9 * COPY_SIZE > $d000, "the copies run into the I/O area"
                 .cerror COPIES < SQUARES + 1024, "the copies run into the multiplication tables"
-copy_lo         .byte <(COPIES + range(18) * COPY_SIZE)
-copy_hi         .byte >(COPIES + range(18) * COPY_SIZE)
+copy_lo         .byte <(COPIES + range(9) * COPY_SIZE)
+copy_hi         .byte >(COPIES + range(9) * COPY_SIZE)
 delta_lo        .byte <(DELTAS + $10000)
 delta_hi        .byte >(DELTAS + $10000)
 
-; Write the 18 copies at COPIES.
+; Write the nine copies at COPIES, each from SCREEN_A to SCREEN_B (part turns them round when it has to).
 write_copies    lda #<COPIES
                 sta ptr
                 lda #>COPIES
@@ -682,10 +734,15 @@ next_way        lda j                   ; each in its own place
                 jmp next_way
 +               inc j
                 lda j
-                cmp #2
+                cmp #1
                 beq +
                 jmp next_pair
-+               rts
++               lda #0                  ; all from SCREEN_A
+                ldx #8
+-               sta copy_for,x
+                dex
+                bpl -
+                rts
 
 ; Draw every row of the screen at target from the map.
 draw_all        lda #$ff                ; (no copy made ahead is any good after this)
