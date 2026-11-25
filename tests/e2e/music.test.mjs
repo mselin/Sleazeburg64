@@ -136,6 +136,8 @@ test('with the game itself, which has no tune: the title says so, and fire start
     await vice.joystick(0);
     const codeSize = P.code_end - 0x080d;
     assert.ok((await vice.read(0x080d, codeSize)).equals(plain.bytes.subarray(2 + 12, 2 + 12 + codeSize)), 'code');
+    const lowAt = 2 + P.PLAYER_FRAMES - 0x0801, lowSize = P.low_end - P.PLAYER_FRAMES;
+    assert.ok((await vice.read(P.PLAYER_FRAMES, lowSize)).equals(plain.bytes.subarray(lowAt, lowAt + lowSize)), 'the player\'s frames and the code after them');
     const dataAt = 2 + P.charset - 0x0801;
     assert.ok((await vice.read(P.charset, P.file_end - P.charset)).equals(plain.bytes.subarray(dataAt)), 'data, the waiting part packed');
     await vice.runTo(P.ready);

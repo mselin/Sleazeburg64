@@ -23,8 +23,8 @@
 ;
 ; The picture: sprite 0, as the car is, but a multicolour one (tools/assets.mjs draws it): eight directions
 ; in five walking poses, which follow the browser game's cycle at its nine steps a second, and two pictures
-; swimming. The program file holds twelve of the 42 and the rest are their mirror images, made at start
-; (frames.asm).
+; swimming. The program file holds twelve of the 42 and the rest are their mirror images, made when the
+; picture changes to one (frames.asm).
 ;
 ; The south edge. The video chip cannot cut a sprite off part way down, and a sprite reaching the black band
 ; under the city would upset the split (irq.asm). With the window as far south as it goes that happens 11
@@ -38,7 +38,7 @@
 ;
 ; tests/e2e/foot-model.mjs does the same in JavaScript, and the tests hold the two to each other exactly.
 
-PLAYER_SPRITE   = PLAYER_FRAMES / 64    ; direction * 5 + pose, then the two swimming
+PLAYER_SPRITE   = PLAYER_FRAMES / 64    ; the twelve frames the rest are made from (frames.asm)
 PUNCH_SPRITE    = PUNCH_FRAMES / 64     ; punching, by direction
 ARM_OUT         = 10                    ; the arm stays out 0.2 seconds
 PLAYER_COLOUR   = WHITE | $80           ; $80: a multicolour sprite
@@ -125,11 +125,13 @@ fire_down       lda #1
 fire_up         sta fire_was
                 lda on
                 bne walking
-                lda joy
+                lda use                 ; getting out, if the car is slow enough: then it stays where it is
+                beq +                   ; this frame (and the car's frame is not worked out, which leaves
+                jsr leave               ; time for the player's picture in what may be a busy frame)
+                lda on
+                bne where
++               lda joy
                 jsr car.update
-                lda use
-                beq where
-                jsr leave
                 jmp where
 walking         jsr walk
                 lda use
@@ -658,15 +660,14 @@ show            lda on
                 lsr
                 lsr
                 and #1
-                clc
-                adc #PLAYER_SPRITE + 40
+                ora #40
                 bne +++
 +               lda arm                 ; a punch: the arm out, facing the way they face
                 beq +
                 lda face
                 clc
                 adc #PUNCH_SPRITE
-                bne ++
+                bne +++
 +               lda phase + 1           ; walking: the pose its cycle has reached, for the way they face
                 and #7
                 tax
@@ -675,7 +676,7 @@ show            lda on
                 asl
                 adc face                ; (the carry is clear)
                 adc cycle,x
-                adc #PLAYER_SPRITE
++               jsr frames.point        ; the frame: one of the twelve, or one made from them
 +               sta frame.next_sp
                 lda #PLAYER_COLOUR
                 sta frame.next_sc
