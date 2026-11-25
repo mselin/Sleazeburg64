@@ -214,3 +214,30 @@ test('punches come no faster than one every 0.35 seconds, and none in the water'
     await pass(vice, L, w, JOY.FIRE, 'fire in the water');
     assert.equal(c.down, 0, 'nobody fights in the water');
   }));
+
+test('with a knife, fire is a stab: it kills, from further ahead, even someone knocked down already, for 6 heat', () =>
+  run(async (vice, w) => {
+    await putOnFoot(vice, L, w, 40, 150, 6);
+    await hold(vice, w, 0, 3, 'put on the pavement');
+    // A punch first, with no knife: knocked down.
+    const p = await putPerson(vice, L, w.people, 3, { x: 40, y: 150 - P.PUNCH_REACH, way: 1, spd: 0, col: 3, wait: 255 });
+    await pass(vice, L, w, JOY.FIRE, 'a punch');
+    assert.equal(p.ko, 1, 'knocked down');
+    // Then a knife (as a pickup gives it): someone knocked down already is killed by a stab.
+    await vice.write(L['status.knife'], [1]);
+    w.pickups.knife = 1;
+    await hold(vice, w, 0, P.PUNCH_WAIT, 'waiting');
+    await pass(vice, L, w, JOY.FIRE, 'a stab');
+    assert.equal(p.ko, 0, 'killed: they will not get up');
+    assert.equal(p.down, P.DOWN_TIME - 1);
+    const [lo] = await vice.read(L['status.points'], 1);
+    assert.equal(lo, 2 * (3 + 6), 'heat: 3 for the punch, 6 for the kill');
+    // From further ahead: someone 10 pixels in front, beyond a punch's reach, and a stab only 0.28 seconds on.
+    await hold(vice, w, 0, P.STAB_WAIT - 1, 'waiting less');
+    const q = await putPerson(vice, L, w.people, 2, { x: 41, y: 150 - P.STAB_REACH, way: 1, spd: 0, col: 5, wait: 255 });
+    await pass(vice, L, w, JOY.FIRE, 'a second stab');
+    assert.equal(q.down, P.DOWN_TIME - 1, 'killed too');
+    // They lie their time, then are gone.
+    await hold(vice, w, 0, P.DOWN_TIME, 'lying there');
+    assert.equal(w.people.people[2].on, 0, 'gone');
+  }));

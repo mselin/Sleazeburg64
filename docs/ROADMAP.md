@@ -192,8 +192,10 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
     70 seconds later somewhere else. Drawn as multicolour sprites through the multiplexer, bobbing a pixel: a
     12-pixel square in the kind's colour with a black edge and its letter in yellow or black, the shared
     sprite colours (the design's letter colours otherwise: a sprite has three). What each does is the design's;
-    ammo only counts until there is a gun. Still to come: cash and knives dropped by people the player kills,
-    stabbing with the knife, and the gun.
+    ammo only counts until there is a gun. With a knife, fire on foot is a stab, by the design's knife: the
+    point 10 pixels ahead, one every 0.28 seconds, killing even someone already down, 6 heat (the arm goes out
+    as for a punch: the blade's eight frames want sprite room there is not yet). Still to come: cash and
+    knives dropped by people the player kills, and the gun.
   - **Never where the player appears.** No pickup lies within 32 pixels of the hospital or the police station,
     where the player starts and comes back. Both sit between two tile middles, 8 pixels from each, and the
     browser game used to let a pickup land there and be taken the moment the player appeared, in about 1 game

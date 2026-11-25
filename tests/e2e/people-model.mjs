@@ -8,7 +8,7 @@ import { LOWEST } from './traffic-model.mjs';
 export const P = {
   CROWD: 4, REACH: 9, TREAD: 4, ARRIVE_GAP: 16, FAR: 0x180, BACK_ODDS: 205, SPRITE: 0x2000 / 64,
   RUN_OVER: 154, HIT: 9, NOSE: 8, DOWN_TIME: 200, DOWN_FRAME: 20, JAY_ODDS: 26,
-  HALT: 10, TURN_AFTER: 75, PUNCH_WAIT: 18, ARM_OUT: 10, PUNCH_REACH: 7, PUNCH_LIM: 7, SCARE: 60, FLEE_TURNS: 50, CAR_LONG: 13, CAR_SHORT: 8, CAR_SQUARE: 10,
+  HALT: 10, TURN_AFTER: 75, PUNCH_WAIT: 18, STAB_WAIT: 14, STAB_REACH: 10, ARM_OUT: 10, PUNCH_REACH: 7, PUNCH_LIM: 7, SCARE: 60, FLEE_TURNS: 50, CAR_LONG: 13, CAR_SHORT: 8, CAR_SQUARE: 10,
   SHIRTS: [4, 8, 3, 2, 10, 9, 5, 1], // purple, orange, cyan, red, light red, brown, green, white
 };
 export const ROADWAY = 0, WALL = 1, GRASS = 2, PAVEMENT = 4; // a tile's kind (tools/assets.mjs)
@@ -57,7 +57,8 @@ export class People {
   constructor({ arrive = true, crowd = P.CROWD } = {}) {
     this.arrive = arrive;
     this.people = Array.from({ length: crowd }, () => new Person());
-    Object.assign(this, { seed: 0x5d, lull: 1, crossing: 0, half: 0, punchLeft: 0 });
+    // knife: 1 when the player has one (pickups-model.mjs's, set by whoever steps the models).
+    Object.assign(this, { seed: 0x5d, lull: 1, crossing: 0, half: 0, punchLeft: 0, knife: 0 });
   }
   rnd() {
     let a = this.seed << 1;
@@ -188,18 +189,22 @@ export class People {
    * under PUNCH_WAIT frames ago, the first passer-by within PUNCH_LIM of the point PUNCH_REACH ahead of them is
    * knocked down, and anyone within SCARE of them runs.
    */
+  /** The same with the knife: a stab, from 10 ahead, killing, even someone knocked down already. */
   punch(player) {
     if (this.punchLeft) return;
-    this.punchLeft = P.PUNCH_WAIT;
+    const knife = this.knife;
+    this.punchLeft = knife ? P.STAB_WAIT : P.PUNCH_WAIT;
     player.arm = P.ARM_OUT; // the arm goes out, whether it lands or not
-    const R = [[7, 0], [5, 5], [0, 7], [-5, 5], [-7, 0], [-5, -5], [0, -7], [5, -5]][player.face];
+    const R = knife
+      ? [[10, 0], [7, 7], [0, 10], [-7, 7], [-10, 0], [-7, -7], [0, -10], [7, -7]][player.face]
+      : [[7, 0], [5, 5], [0, 7], [-5, 5], [-7, 0], [-5, -5], [0, -7], [5, -5]][player.face];
     const pt = [w16(player.px + R[0]), w16(player.py + R[1])];
     const near = (q, [x, y], lim) => w16(q.px - x + lim) <= 2 * lim && w16(q.py - y + lim) <= 2 * lim;
     for (let i = this.people.length - 1; i >= 0; i--) {
       const p = this.people[i];
-      if (!p.on || p.down || !near(p, pt, P.PUNCH_LIM)) continue;
+      if (!p.on || (p.down && !(knife && p.ko)) || !near(p, pt, P.PUNCH_LIM)) continue;
       p.down = P.DOWN_TIME;
-      p.ko = 1;
+      p.ko = knife ? 0 : 1;
       for (const q of this.people) if (q.on && !q.down && near(q, [p.px, p.py], P.SCARE)) q.flee = P.FLEE_TURNS;
       return;
     }
