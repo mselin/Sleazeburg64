@@ -50,9 +50,10 @@ function step(m, bits) {
   m.honk.step(m.car, m.traffic, m.cam, cell);
   const moves = ((m.cam.x >> 3) ^ cell[0]) & 31 || ((m.cam.y >> 3) ^ cell[1]) & 31;
   m.people.step(!moves && !busy, [m.car.px, m.car.py], m.cam, m.traffic, m.car);
+  m.people.shoot(m.traffic);
   m.pickups.step(m.cam, !moves && !busy);
   m.people.tick(m.cam, m.car);
-  m.list = [...m.traffic.show(m.cam), ...m.honk.show(m.cam), ...m.people.show(m.cam), ...m.pickups.show(m.cam, [m.car.px, m.car.py], busy)]
+  m.list = [...m.traffic.show(m.cam), ...m.honk.show(m.cam), ...m.people.show(m.cam), ...m.pickups.show(m.cam, [m.car.px, m.car.py], busy), ...m.people.shown(m.cam)]
     .slice(0, 16); // the multiplexer lists sixteen
 }
 

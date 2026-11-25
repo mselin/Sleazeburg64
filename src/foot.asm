@@ -141,11 +141,11 @@ walking         jsr walk
                 beq where
 +
 .if CROWD != 0
-                lda press               ; else fire is a punch: no ammo yet, no knife (people.punch), and
-                beq where               ; nobody fights in the water
+                lda press               ; else fire is a shot with ammo left (gun.fire), or a stab with a
+                beq where               ; knife or a punch (people.punch); nobody fights in the water
                 lda swim
                 bne where
-                jsr people.punch
+                jsr gun.fire
 .endif
 where           lda on
                 bne +
