@@ -12,7 +12,7 @@ import { Honk, readHonk } from './honk-model.mjs';
 import { modelTraffic, readTraffic } from './play.mjs';
 import { Player } from './foot-model.mjs';
 import { waterStep } from './water-model.mjs';
-import { People, ROADWAY, putPerson, readPeople } from './people-model.mjs';
+import { P as PEOPLE, People, ROADWAY, putPerson, readPeople } from './people-model.mjs';
 
 const START = [9 * 16, 8 * 16];
 const RED = 2;
@@ -45,7 +45,7 @@ function step(m, bits) {
   waterStep(m, cell);
   m.honk.step(m.car, m.traffic, m.cam, cell);
   const moves = ((m.cam.x >> 3) ^ cell[0]) & 31 || ((m.cam.y >> 3) ^ cell[1]) & 31;
-  m.people.step(!moves && !busy, [m.car.px, m.car.py], m.cam);
+  m.people.step(!moves && !busy, [m.car.px, m.car.py], m.cam, m.traffic, m.car);
   m.people.tick(m.cam, m.car);
   m.list = [...m.traffic.show(m.cam), ...m.honk.show(m.cam), ...m.people.show(m.cam)].slice(0, 16); // the multiplexer lists sixteen
 }
@@ -211,6 +211,34 @@ test('a car stops for someone standing in the road ahead of it in its lane, and 
     await vice.write(P['people.on'] + 3, [0]);
     for (let frame = 1; frame <= 120 && c.px < at + 20; frame++) await pass(vice, P, m, 0, `after they went, ${frame} frames`);
     assert.ok(c.px >= at + 20, 'and drove on past where they stood');
+  }));
+
+test('a car is solid for a passer-by: they stop short of it, wait, step round its nearer end and carry on', () =>
+  withProgram(placed.prg, async (vice) => {
+    await vice.runTo(P.ready);
+    const m = models(new Traffic({ spawn: false }));
+    await pass(vice, P, m, 0, 'first');
+    // A car left standing in the eastbound lane, and someone walking east along the lane towards it.
+    const x0 = m.car.px - 80, y0 = 192 + LANE[0];
+    await putTraffic(vice, m, [{ x: x0, y: y0, dir: 0, cruise: 0, wreck: 1 }]);
+    const p = await putPerson(vice, P, m.people, 1, { x: x0 - 30, y: y0, way: 0, spd: 100, wait: 255, jay: 1 });
+    const inside = () => Math.abs(p.px - x0) <= PEOPLE.CAR_LONG - 3 && Math.abs(p.py - y0) <= PEOPLE.CAR_SHORT - 3;
+    let stood = 0, aside = 0, stoppedAt = null;
+    for (let frame = 1; frame <= 400 && p.px < x0 + 20; frame++) {
+      const was = p.x;
+      await pass(vice, P, m, 0, `after ${frame} frames`);
+      assert.ok(!inside(), `never inside the car, after ${frame} frames`);
+      if (p.stall) stood++;
+      if (p.aside) aside = p.aside;
+      if (p.stuck && stoppedAt === null) stoppedAt = x0 - p.px;
+      if (frame === 60) await assertPicture(vice, P, m, 'with them waiting by the car');
+      assert.ok(p.x >= was, 'never back the way they came');
+    }
+    assert.ok(stoppedAt !== null && stoppedAt <= PEOPLE.CAR_LONG + PEOPLE.TREAD + 1, `they stopped ${stoppedAt} pixels short of its middle`);
+    assert.ok(stood >= PEOPLE.HALT - 1, `and stood (${stood} of their turns)`);
+    assert.equal(aside, 1 + 1, 'then stepped round it, to the south: they were no higher than its middle');
+    assert.ok(p.px >= x0 + 20, 'and carried on east past it');
+    assert.equal(p.way, 0);
   }));
 
 test('someone ready to cross a road walks over it, as the model says', () =>

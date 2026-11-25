@@ -55,15 +55,17 @@ test('someone put on a pavement walks it, at their pace, choosing ways as the mo
     const p = await putPerson(vice, L, w.people, 3, { x: 40, y: 100, way: 3, spd: 90, col: 3 });
     const poses = new Set(), ways = new Set();
     const [x0, y0] = [p.px, p.py];
+    let furthest = 0;
     for (let i = 1; i <= 300; i++) {
       await pass(vice, L, w, 0, `walking, ${i} frames`);
       poses.add(p.pointer - PEOPLE_SPRITE - p.way * 5);
       ways.add(p.way);
       assert.notEqual(People.kind(p.px, p.py), WALL, 'never in a wall');
+      furthest = Math.max(furthest, Math.abs(p.px - x0) + Math.abs(p.py - y0));
       if (i === 60) await assertPicture(vice, L, w, 'someone walking, the player standing by');
     }
     assert.deepEqual([...poses].sort(), [0, 1, 2, 3, 4], 'all five poses');
-    assert.ok(Math.abs(p.px - x0) + Math.abs(p.py - y0) > 30, 'they got somewhere');
+    assert.ok(furthest > 30, `they got somewhere (${furthest} pixels from where they started, at most)`);
     assert.equal(await missed(vice, L) - before, 0, 'no frame was late');
   }));
 
