@@ -31,7 +31,9 @@
 ; people keep off the roads.
 ;
 ; Time. They move, and new ones appear, only in a frame that neither moves the screen nor works out colour
-; memory, which have no time to spare; in those they stand still for a frame. Listing them for the multiplexer
+; memory, which have no time to spare; in those they stand still for a frame. And only half of them walk in
+; such a frame, by turns, two frames' worth at once: a step with the look ahead and the test for a car in the
+; way costs about 25 raster lines. Listing them for the multiplexer
 ; (about 300 cycles a frame for someone in sight) happens every frame, as it must.
 ;
 ; This code runs from EXTRA_CODE (main.asm), with its tables. Its random numbers are its own.
@@ -53,6 +55,11 @@ ARRIVE_GAP       = 16                    ; frames with time to spare between loo
 FAR             = $180                  ; 384: further than this from the player, they go
 BACK_ODDS       = 205                   ; the way back is left for last when a random byte is below this: 0.8
 JAY_ODDS        = 26                    ; ready to cross a road when a random byte is below this: 0.1
+HALT            = 10                    ; a car in the way: they stand this many of their turns (0.4 seconds) ...
+TURN_AFTER      = 75                    ; ... then step round it, and turn another way after 3 seconds in all
+CAR_LONG        = 13                    ; a traffic car's body, as traffic.bump has it, and their 3 pixels: along
+CAR_SHORT       = 8                     ; its way, and across
+CAR_SQUARE      = 10                    ; the player's car, which turns any way: this far either way
 ROADWAY         = 0                     ; a tile's kind: a road or a car park (tools/assets.mjs)
 
 
@@ -90,9 +97,16 @@ quiet
                 jsr arrive
 +
 .endif
+                lda half                ; half of them in each such frame, by turns, two frames' worth at once
+                eor #1
+                sta half
                 ldx #CROWD - 1
 -               lda on,x
                 beq +
+                txa
+                and #1
+                cmp half
+                bne +
                 stx who
                 jsr walk
                 ldx who
@@ -101,17 +115,12 @@ quiet
                 lda #0                  ; how many are on a road, for the traffic, which looks for them only then
                 sta crossing
                 ldx #CROWD - 1
--               stx who
-                lda on,x
+-               lda on,x
                 beq +
-                lda way,x
-                ldy #0
-                jsr ahead
-                cmp #ROADWAY
-                bne +
+                lda road,x
+                beq +
                 inc crossing
-+               ldx who
-                dex
++               dex
                 bpl -
                 rts
 
@@ -138,10 +147,16 @@ walk            lda down,x              ; lying: no more walking
                 ldy #TREAD
                 jsr ahead
                 cmp #WALL
-                beq +
-                ldx who
-                jsr stride
-+               ldx who                 ; phase += spd * 5/8, a pose every 1.6 pixels
+                beq phase
+                jsr car_in_way          ; a car's body there (not one they are under already)?
+                bcs held_up
+                ldx who                 ; no: on, and no longer held up
+                lda #0
+                sta stuck,x
+                sta stall,x
+                sta aside,x
+                jsr steps
+phase           ldx who                 ; phase += spd * 5/8, a pose every 1.6 pixels, for each of the two frames
                 lda spd,x
                 lsr
                 lsr
@@ -152,12 +167,93 @@ walk            lda down,x              ; lying: no more walking
                 eor #$ff                ; spd - that
                 sec
                 adc spd,x
-                clc
+                sta try
+                ldy #2
+-               clc
+                lda try
                 adc phl,x
                 sta phl,x
                 bcc +
                 inc phh,x
-+               rts
++               dey
+                bne -
+                rts
+
+; Two frames' steps for person who the way X has, and whether that leaves them on a road.
+steps           jsr stride
+                ldx who
+                jsr stride
+                lda #0
+                ldy #0
+                jsr ahead
+                ldx who
+                ldy #0
+                cmp #ROADWAY
+                bne +
+                iny
++               tya
+                sta road,x
+                rts
+
+; A car in the way: they stand HALT frames, then step to the side away from its middle, so round its nearer
+; end, until their way is clear; with no way round, or after TURN_AFTER frames, they turn another way.
+held_up         ldx who
+                lda stuck,x
+                bne +
+                lda #TURN_AFTER         ; just come up to it
+                sta stuck,x
+                lda #HALT
+                sta stall,x
++               dec stuck,x
+                beq give_up
+                lda stall,x
+                beq +
+                dec stall,x             ; standing
+                rts
++               lda aside,x              ; which way round: decided once
+                bne ++
+                lda way,x
+                and #1
+                bne +
+                sec                     ; going across: down if they are no higher than its middle, else up
+                lda yl,x
+                sbc by
+                lda yh,x
+                sbc by + 1
+                lda #1 + 1
+                bcs side_set
+                lda #3 + 1
+                bne side_set
++               sec                     ; going up or down: right if they are no further left, else left
+                lda xl,x
+                sbc bx
+                lda xh,x
+                sbc bx + 1
+                lda #0 + 1
+                bcs side_set
+                lda #2 + 1
+side_set        sta aside,x
++               sec
+                sbc #1
+                ldy #TREAD
+                jsr ahead
+                cmp #WALL
+                beq give_up             ; no way round
+                jsr car_in_way
+                bcs give_up
+                ldx who                 ; a step that way
+                lda way,x
+                pha
+                lda aside,x
+                sec
+                sbc #1
+                sta way,x
+                jsr steps
+                ldx who
+                pla
+                sta way,x
+                jmp phase
+give_up         jmp pick                ; (which starts them afresh)
 
 ; C set if person X is further than FAR from the player on either axis.
 far_off         sec
@@ -296,9 +392,14 @@ chosen          ldx who
                 lda try
                 sta way,x
 +               jsr rnd
-                ora #32                 ; 32-255 frames: 0.6 to 5.1 seconds
+                lsr                     ; 16-127 of their turns, every other frame: 0.6 to 5.1 seconds
+                ora #16
                 ldx who
                 sta wait,x
+                lda #0                  ; and not held up by a car
+                sta stuck,x
+                sta stall,x
+                sta aside,x
                 rts
 
 ; C clear if person who likes ground of kind A: a pavement, a plaza or grass, or a road when ready to cross one.
@@ -438,6 +539,7 @@ arrive           ldx #CROWD - 1
                 sta way,x
                 lda #0
                 sta jay,x
+                sta road,x
                 lda #1                  ; and they pick a way at once
                 sta wait,x
                 sta on,x
@@ -701,6 +803,152 @@ within          sta d + 1
 far_from        sec
                 rts
 
+                .section people_high    ; (where there is room: waiting.asm)
+; C set if a car's body takes in the point nx, ny (as ahead leaves it), unless person who is under that car
+; already (then they can walk out); bx, by its middle. A car that flooded is out of the way.
+car_in_way      lda nx
+                sta qx
+                lda nx + 1
+                sta qx + 1
+                lda ny
+                sta qy
+                lda ny + 1
+                sta qy + 1
+                ldx #SLOTS - 1
+next_car        stx car_no
+                lda traffic.on,x
+                beq no_car
+                lda traffic.sink,x
+                bne no_car
+                sec                     ; (most are far: more than CAR_LONG away either way, which is quick
+                lda qx                  ; to see)
+                sbc traffic.pl,x
+                tay
+                lda qx + 1
+                sbc traffic.ph,x
+                jsr far_car
+                bcs no_car
+                sec
+                lda qy
+                sbc traffic.pl + N1,x
+                tay
+                lda qy + 1
+                sbc traffic.ph + N1,x
+                jsr far_car
+                bcs no_car
+                lda traffic.pl,x
+                sta bx
+                lda traffic.ph,x
+                sta bx + 1
+                lda traffic.pl + N1,x
+                sta by
+                lda traffic.ph + N1,x
+                sta by + 1
+                lda #CAR_LONG           ; its body along its way
+                ldy #CAR_SHORT
+                lda traffic.dir,x
+                lsr
+                lda #CAR_LONG
+                bcc +
+                lda #CAR_SHORT
+                ldy #CAR_LONG
++               jsr in_body
+                bcc in_way
+no_car          ldx car_no
+                dex
+                bpl next_car
+                lda foot.on             ; and the player's car, while they drive it
+                bne clear_way
+                lda car.pos_x + 1
+                sta bx
+                lda car.pos_x + 2
+                sta bx + 1
+                lda car.pos_y + 1
+                sta by
+                lda car.pos_y + 2
+                sta by + 1
+                lda #CAR_SQUARE
+                tay
+                jsr in_body
+                bcs clear_way
+                jsr under
+                bcs blocked_way
+clear_way       clc
+                rts
+in_way          jsr under               ; under this one: it is not in the way
+                bcc no_car
+blocked_way     sec
+                rts
+                .send
+                .section people_more    ; (and here: waiting.asm)
+; C set if the difference A (high), Y (low) is more than CAR_LONG either way.
+far_car         sta body_x              ; (spare)
+                tya
+                clc
+                adc #CAR_LONG
+                tay
+                lda body_x
+                adc #0
+                bne +
+                cpy #2 * CAR_LONG + 1
+                rts
++               sec
+                rts
+; C set if person who is not within the same body as the point was (limits in body_x, body_y).
+under           ldx who
+                lda xl,x
+                sta qx
+                lda xh,x
+                sta qx + 1
+                lda yl,x
+                sta qy
+                lda yh,x
+                sta qy + 1
+                lda body_x
+                ldy body_y
+                jsr in_body
+                php                     ; and the point back, for the next car
+                lda nx
+                sta qx
+                lda nx + 1
+                sta qx + 1
+                lda ny
+                sta qy
+                lda ny + 1
+                sta qy + 1
+                plp
+                rts
+; C clear if qx, qy is within A across and Y down of bx, by.
+in_body         sta body_x
+                sty body_y
+                sta lim
+                sec
+                lda qx
+                sbc bx
+                sta d
+                lda qx + 1
+                sbc bx + 1
+                jsr within
+                bcs +
+                lda body_y
+                sta lim
+                sec
+                lda qy
+                sbc by
+                sta d
+                lda qy + 1
+                sbc by + 1
+                jmp within
++               rts
+qx              .word 0
+qy              .word 0
+bx              .word 0
+by              .word 0
+body_x          .byte 0
+body_y          .byte 0
+car_no          .byte 0
+                .send
+
 ; Its variables, here with the code (the panel screen's room for them is full with sixteen cars).
 on              .fill CROWD, 0            ; 1 for someone walking, or lying
 down            .fill CROWD, 0          ; frames left lying, once run over; 0 walking
@@ -711,7 +959,12 @@ yf              .fill CROWD, 0            ; y the same
 yl              .fill CROWD, 0
 yh              .fill CROWD, 0
 way             .fill CROWD, 0            ; 0 east, 1 south, 2 west, 3 north
+stuck           .fill CROWD, 0          ; a car in the way: frames left before they turn another way, or 0
+stall           .fill CROWD, 0          ; frames left standing before they step round it
+aside           .fill CROWD, 0          ; the way they step round it, + 1, or 0
 jay             .fill CROWD, 0          ; 1: ready to cross a road
+road            .fill CROWD, 0          ; 1: on a road, as of their last step
+half            .byte 0                 ; which half of them walks this frame: those with this as bit 0
 crossing        .byte 0                 ; how many are on a road (update)
 spd             .fill CROWD, 0            ; 1/256 pixel a frame
 col             .fill CROWD, 0            ; shirt

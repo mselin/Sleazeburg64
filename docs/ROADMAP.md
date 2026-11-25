@@ -57,8 +57,9 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
   pavements and plazas, walk the pavements, plazas and grass, go once far off, and move only in a frame with
   time to spare (`src/people.asm`). The player's car going 30 pixels a second or more runs someone over: they lie
   flat in the design's knocked-down picture for four seconds, then are gone (no stain, which the city's characters
-  cannot show, and no heat yet). Still to come: crossing roads, traffic stopping for them, punches and getting up
-  again, scooter riders and the police. The design draws people about 12 pixels across in
+  cannot show, and no heat yet). They cross roads now and then (one time in ten when they pick a way), traffic stops
+  for anyone on the road ahead of it, and cars are solid for them (below). Still to come: punches and getting up
+  again, fleeing, scooter riders and the police. The design draws people about 12 pixels across in
   chunky 2 × 2 pixels with a black outline, more than one character, and police officers in light blue with a
   white cap; passers-by never look like the player or the police. Walkers have five walking poses, arms and feet
   swinging opposite ways, a pose with the arm held out for a shot, a punch or a stab, and one lying knocked
@@ -70,7 +71,8 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
   - **Memory is the limit.** A figure has nine poses in each direction it keeps: five walking, the arm out with
     a gun, a fist or a knife, and knocked down. Mirror images save some, as they do for the player. The handover
     notes say more sprite frames mean moving code out of the way, or keeping fewer frames.
-  - **Cars are solid for people on foot** (mselin/gta-c64#38). The browser game let people walk through a
+  - **Cars are solid for people on foot** (mselin/gta-c64#38; done for passers-by: the player and the police
+    to come). The browser game let people walk through a
     stopped car and scooter riders ride through one. Now a car's body, its length and width turned with it,
     stops anyone on foot. A passer-by stops just short of it, waits 0.4 seconds, then steps sideways round its
     nearer end and carries on; with no way round, or after 3 seconds, they turn another way. The police and
@@ -78,7 +80,9 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
     on can walk out from under it, but never into another car or a wall. See "Cars are solid for anyone on
     foot" in the design's
     [People on foot](https://github.com/mselin/gta-c64/blob/main/specs/design.md#people-on-foot). With five
-    cars and four people here, that is at most twenty boxes to test a frame.
+    cars and four people here, that is at most twenty boxes to test a frame. On the C64 the passers-by test the
+    traffic's boxes (traffic.bump's, 3 pixels larger for their feet) and a square round the player's car, and
+    each walks every other frame, two frames' worth at a time, to keep within the frame time.
 - Water: cars flood and sink, people swim (done, not yet tried on real hardware). The player's car wades,
   slower the deeper it is, floods once it is wholly in, and sinks in three colours, leaving the player swimming.
   It stops where it floods rather than drifting on, and it is out of the way from the moment it floods rather
