@@ -49,6 +49,12 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
   (people), being hurt by cars (health), and something for fire to do away from a car (fists and weapons).
   The player's frames come from the design's figure (`tools/assets.mjs`), so fighting adds four more poses to
   them: the arm out with a gun, a fist or a knife, and lying knocked down.
+  - **Changed in the browser game: the driver of a car that is taken** (mselin/gta-c64#66) is thrown out at the
+    door onto the ground, facing away from the car, and lies there as anyone knocked down does, 4 seconds, before
+    getting up. A passer-by then runs from the player. The driver of a police car is a police officer, who
+    carries on as the police do. The crime is the taking of the car, not a knock-down as well. See "Taking a car
+    from its driver" under the design's
+    [Cars](https://github.com/mselin/gta-c64/blob/main/specs/design.md#cars).
 - Traffic: a few cars following the lanes, drawn with a sprite multiplexer (done, not yet tried on real
   hardware: five cars, which is what the frame time allows beside the passers-by (six before them, the owner's
   choice); the multiplexer shares sprites 1-7 and the tests try it with sixteen). The player's car bounces off traffic, and wrecks a car it hits hard. By the design's
