@@ -50,6 +50,9 @@ HIT             = 9                     ; in 1/256 pixel a frame (30 pixels a se
 NOSE            = 8                     ; HIT of theirs on both axes, or the point ahead of it within NOSE
 DOWN_TIME       = 200                   ; frames they lie, 4 seconds, then gone
 DOWN_FRAME      = 20                    ; their picture lying (tools/assets.mjs)
+SCOOTER_SPRITE  = SCOOTER_FRAMES / 64   ; a scooter rider's, the way they go; then lying
+SCOOT_ODDS      = 36                    ; a random byte below this: someone new rides a scooter (14 %)
+SCOOT_SPEED     = 255                   ; 50 pixels a second (the design's 52 is more than a byte holds)
 TREAD            = 4                     ; and to take a step
 ARRIVE_GAP       = 16                    ; frames with time to spare between looking for a place for someone
 FAR             = $180                  ; 384: further than this from the player, they go
@@ -559,6 +562,14 @@ arrive           ldx #CROWD - 1
                 jsr rnd
                 and #3
                 sta way,x
+                jsr rnd                 ; one time in seven or so, a scooter rider: light green, and the
+                cmp #SCOOT_ODDS         ; scooter's speed
+                bcs +
+                lda #LIGHT_GREEN
+                sta col,x
+                lda #SCOOT_SPEED
+                sta spd,x
++
                 lda #0
                 sta jay,x
                 sta road,x
@@ -691,7 +702,18 @@ listed          sec                     ; down: 0 to LOWEST - 1 from cy
                 sta sprites.sx
                 bcc +
                 inc sprites.sx + 1
-+               lda down,x
++               lda col,x               ; a scooter rider: standing on the deck, the way they go; or lying
+                cmp #LIGHT_GREEN
+                bne walker
+                lda down,x
+                beq +
+                lda #SCOOTER_SPRITE + 4
+                bne picture
++               lda way,x
+                clc
+                adc #SCOOTER_SPRITE
+                bne picture
+walker          lda down,x
                 beq walking
                 lda #PEOPLE_SPRITE + DOWN_FRAME
                 bne picture

@@ -97,7 +97,9 @@ A briefing for whoever picks this project up next, person or assistant. Written 
     screen: row 3 about 8 lines, 16 when its colour changes, and row 1 whole about 25, which also waits for a
     frame with no colour memory. The city viewer keeps the old readout (`src/panel.asm`, `src/digits.asm`).
 - Room is short everywhere, and where things are is decided by what the video chip must see:
-  - Below the screens (`$0d80`-`$1fff`, after the car's and the pickups' sprites) there are about 460 bytes of
+  - Below the screens (`$0ec0`-`$1fff`, after the car's, the pickups' and the scooter riders' sprites) there
+    are about 150 bytes of code left (the scooter riders' five frames took 320 at `$0d80`, 25 November 2026).
+    There were about 460 bytes of
     code left since what start runs once moved out (25 November 2026: `boot`, the title page, the unpacker and
     the copying up are in the program file at `$3000`, where the screens will be, and run from there before
     `video.init` draws the screens over them; `start` keeps only what comes after `video.init`). Before that,

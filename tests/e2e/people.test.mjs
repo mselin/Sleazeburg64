@@ -97,7 +97,7 @@ test('in the game, people arrive by themselves out of sight on pavements, walk, 
     const before = await missed(vice, F);
     let most = 0;
     const arrivals = [];
-    for (let i = 1; i <= 400; i++) {
+    for (let i = 1; i <= 600; i++) {
       const on = w.people.people.map((p) => p.on);
       await pass(vice, F, w, 0, `standing, ${i} frames`);
       w.people.people.forEach((p, k) => {

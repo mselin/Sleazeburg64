@@ -78,7 +78,7 @@ export class World {
     this.traffic.people = this.people; // (which traffic stops for)
     this.honk = honk ? new Honk() : null;
     this.pickups = pickups ? new Pickups(this.cam) : null;
-    if (this.pickups) this.people.onKill = (p) => this.pickups.drop(p.px, p.py);
+    if (this.pickups) this.people.onKill = (p) => p.rider || this.pickups.drop(p.px, p.py); // (a rider: nothing)
     this.people.items = this.pickups; // (the ammo, for the gun)
     this.list = [];
   }
