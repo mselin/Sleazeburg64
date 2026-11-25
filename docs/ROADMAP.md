@@ -262,6 +262,10 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
       slow, so "hold the stick for half a second" is not the same distance everywhere.
     - WebKit's phone mode cannot go full screen, like an iPhone, and Firefox has no phone mode at all.
     - Real phones need a device cloud on top.
+    - Later, in the browser game: tests that waited a fixed time for something to happen failed on slow
+      runners, and now wait until it has (mselin/gta-c64#60). The handbrake test, driving down a street while
+      random traffic appeared, failed now and then until it kept the street clear while it ran
+      (mselin/gta-c64#64).
   - **An on-screen joystick of its own.** Once the emulator runs on our own page, phones need a joystick and a
     fire button on it. These parts of the browser game's touch spec apply as they stand:
     - targets at least 44 CSS pixels (FR-11);
