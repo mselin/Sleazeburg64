@@ -133,7 +133,7 @@ game started directly, and that both tunes produce sound. It cannot judge how th
 | `src/honk.asm` | Big Honk: where he goes, what happens when a car runs into him, and his sprite. |
 | `src/foot.asm` | The player on foot: walking, swimming, and getting in and out of cars. |
 | `src/water.asm` | Water: what it does to the player's car, flooding, and a flooded car sinking. |
-| `src/frames.asm` | Makes the player on foot's 42 sprite frames from the twelve in the program file, at start. |
+| `src/frames.asm` | The player on foot's sprite frames: the twelve in the program file, and the rest made from them as they are shown. |
 | `src/waiting.asm` | What waits after the tiles, packed: the map, the code copied up at start, the player's frames. |
 | `src/digits.asm` | Tables for the city viewer's readout. |
 | `src/irq.asm` | The raster interrupts: the split under the city, and putting each frame in place. |
@@ -142,10 +142,12 @@ game started directly, and that both tunes produce sound. It cannot judge how th
 | `src/panel.asm` | The city viewer's panel: where the view is. |
 | `src/input.asm` | The joystick. |
 | `src/music.asm` | Music test builds: the tune that plays in the game, and its credits in the panel. |
+| `src/title-page.asm` | The title page: the sunset picture, until fire. |
 | `src/title.asm` | Music test builds: the title screen, its tune, and starting the game from it. |
 | `src/c64.inc` | Hardware addresses and colour names. |
 | `tools/city.mjs` | The city generator, identical to the browser game's. |
 | `tools/assets.mjs` | Builds the character set, tile definitions, map and the sprites: the car, the player and Big Honk. |
+| `tools/picture.mjs` | Makes the title page's picture (`assets/title-sunset.png`, the browser game's) a C64 multicolour bitmap, packed. |
 | `tools/pack.mjs`, `tools/build-game.sh` | Packs what waits after the tiles, and builds the game around it. |
 | `tools/sid.mjs` | Fetches and checks a tune for a music test build, and writes its addresses and credits. |
 | `tools/emulator-test.sh` | Runs the program in VICE and takes screenshots. |
