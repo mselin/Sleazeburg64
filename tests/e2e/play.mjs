@@ -79,6 +79,7 @@ export class World {
     this.honk = honk ? new Honk() : null;
     this.pickups = pickups ? new Pickups(this.cam) : null;
     if (this.pickups) this.people.onKill = (p) => this.pickups.drop(p.px, p.py);
+    this.people.items = this.pickups; // (the ammo, for the gun)
     this.list = [];
   }
   /** One pass of the main loop with the joystick held as given. */
@@ -93,12 +94,13 @@ export class World {
     if (this.honk) this.honk.step(this.car, this.traffic, this.cam, cell);
     const moves = ((this.cam.x >> 3) ^ cell[0]) & 31 || ((this.cam.y >> 3) ^ cell[1]) & 31;
     this.people.step(!moves && !busy, [this.player.px, this.player.py], this.cam, this.traffic, this.player.on ? null : this.car);
+    this.people.shoot(this.traffic);
     this.pickups?.step(this.cam, !moves && !busy);
     if (this.player.on) this.player.draw(this.traffic.tick, !moves && !busy);
     else this.player.drawn = null;
     this.people.tick(this.cam, this.car);
     this.list = [...this.traffic.show(this.cam), ...(this.honk ? this.honk.show(this.cam) : []), ...this.people.show(this.cam),
-      ...(this.pickups ? this.pickups.show(this.cam, [this.player.px, this.player.py], busy) : [])].slice(0, 16); // the multiplexer lists sixteen
+      ...(this.pickups ? this.pickups.show(this.cam, [this.player.px, this.player.py], busy) : []), ...this.people.shown(this.cam)].slice(0, 16); // the multiplexer lists sixteen
   }
   /** Every sprite that should be on screen, the one in front first: sprite 0, then sprites 1-7 as shared out. */
   sprites() {

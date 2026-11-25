@@ -58,7 +58,7 @@ export class Player {
       this.walk(bits);
       if (use) this.enter(traffic);
       // Else fire is a punch (people-model.mjs): no ammo, no knife, and nobody fights in the water.
-      if (this.on && press && !this.swim) people?.punch(this);
+      if (this.on && press && !this.swim) people?.fire(this);
     } else {
       // Out first if they can be, the car left where it is; else its frame.
       if (use) this.leave(traffic);

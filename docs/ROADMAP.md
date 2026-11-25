@@ -74,7 +74,7 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
   then gets up and runs from the player for two seconds at twice their pace, as does anyone within 60. The player's
   arm goes out for 0.2 seconds with each punch, in eight frames drawn from the same figure, at `$0200` (the
   KERNAL's pages, unused once it is switched out). Punches, running people over and taking a car
-  from its driver add heat (below). Still to come: the gun and knife, scooter
+  from its driver add heat (below). The knife and the gun are in (Pickups, below). Still to come: scooter
   riders and the police. The design draws people about 12 pixels across in
   chunky 2 × 2 pixels with a black outline, more than one character, and police officers in light blue with a
   white cap; passers-by never look like the player or the police. Walkers have five walking poses, arms and feet
@@ -217,7 +217,12 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
     run over or stabbed, drops cash 40 % of the time ($10 to $90) or a knife 8 % if the player has none,
     where they fell, for 20 seconds, blinking in the last 4: up to three at once (one more, with none free,
     is not dropped). A stab's reach is inside the pickup reach, so cash from a stab is in the player's
-    pocket at once. Still to come: the gun.
+    pocket at once. With ammo, fire on foot is a shot, by the design's gun (`src/gun.asm`): one every 0.22
+    seconds, a round less, 1.5 heat, and anyone within 110 runs for 4 seconds. The bullet, a 2 x 2 yellow
+    sprite through the multiplexer, starts 5 pixels ahead and flies 4.8 pixels a frame for 0.55 seconds, three
+    at most at once; it kills a passer-by within 3 pixels either way (6 heat, and what they drop), and is spent
+    on a wall (not water) or on a car within 8 (1 heat). Out of ammo, fire is the knife or fists again. Not yet:
+    the gun's frames (the arm goes out as for a punch), sparks, and a shot car's driver losing control.
   - **Never where the player appears.** No pickup lies within 32 pixels of the hospital or the police station,
     where the player starts and comes back. Both sit between two tile middles, 8 pixels from each, and the
     browser game used to let a pickup land there and be taken the moment the player appeared, in about 1 game

@@ -66,6 +66,8 @@ PEOPLE_FRAMES   = $2000                 ; the passers-by's sprite, copied there 
 PUNCH_FRAMES    = $0200                 ; the player punching, 8 frames, copied there at start (the KERNAL's
                                         ; pages, which it does not use once it is switched out)
 PLAYER_BUFFERS  = $2540                 ; the player on foot's flipped frames, made when needed: two (frames.asm)
+BULLET_FRAME    = PLAYER_BUFFERS + 2 * 64 ; a bullet's sprite (gun.asm), made at start after the passers-by's
+                                        ; frames are copied up (the page they come in reaches it)
 PLAYER_FRAMES   = $2600                 ; the twelve the others are made from, in the program file, then the code
                                         ; that makes them, and more code, up to the screens
 
@@ -174,6 +176,9 @@ start           sei
                 jsr foot.init
 .if ITEMS != 0
                 jsr pickups.init        ; after video.init: the window is where it starts
+.if CROWD != 0
+                jsr gun.init            ; (after the passers-by's frames are copied up)
+.endif
 .endif
 .endif
 .if VIEWER != 0
@@ -207,6 +212,7 @@ ready           jsr input.read          ; A = which directions are held
                 jsr status.update       ; ... and the status panel
 .if CROWD != 0
                 jsr people.update       ; (and the passers-by, in a frame with time to spare)
+                jsr gun.update          ; the bullets, after them
 .endif
 .if ITEMS != 0
                 jsr pickups.update
@@ -221,6 +227,9 @@ ready           jsr input.read          ; A = which directions are held
 .endif
 .if ITEMS != 0
                 jsr pickups.show        ; and the pickups
+.if CROWD != 0
+                jsr gun.show            ; and the bullets
+.endif
 .endif
                 jsr sprites.plan
 .else
@@ -559,6 +568,9 @@ char_of         lda cam_hi,x
 .if VIEWER == 0
                 .include "car.asm"
                 .include "pickups.asm"
+.if CROWD != 0
+                .include "gun.asm"
+.endif
 .if TITLE != 0
                 .include "title-page.asm"
 .endif

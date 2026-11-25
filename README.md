@@ -57,9 +57,9 @@ on NTSC.
 - **In the car:** up accelerates, down brakes and then reverses, left and right steer, and fire is the
   handbrake. Standing still or nearly, with the stick centred, a press of fire gets you out.
 - **On foot:** the stick walks you eight ways. Standing by a car, with the stick centred, a press of fire gets
-  you in; anywhere else, a press of fire is a punch (there is no gun yet, so you start with no ammo, and the
-  panel says FIST): your arm goes out, and someone you punch lies four seconds, then gets up and runs, as does
-  anyone near them.
+  you in; anywhere else, a press of fire is a shot while you have ammo (from the A pickups), a stab with a
+  knife, or else a punch: you start with no ammo and no knife, and the panel says FIST. Someone you punch lies
+  four seconds, then gets up and runs, as does anyone near them; a shot or a stab kills.
 
 In [VICE](https://vice-emu.sourceforge.io/), if it is installed with C64 ROMs:
 
@@ -146,6 +146,7 @@ game started directly, and that both tunes produce sound. It cannot judge how th
 | `src/panel.asm` | The city viewer's panel: where the view is. |
 | `src/input.asm` | The joystick. |
 | `src/music.asm` | Music test builds: the tune that plays in the game, and its credits in the panel. |
+| `src/gun.asm` | The gun: shots, and the bullets in flight. |
 | `src/title-page.asm` | The title page: the sunset picture, until fire. |
 | `src/loader.asm` | The disk's loader: the picture saying LOADING while it loads the game. |
 | `src/title.asm` | Music test builds: the title screen, its tune, and starting the game from it. |
@@ -292,8 +293,8 @@ screen of its own, which the split switches to for its three rows.
 | `$0c40` | The pickups' sprite in five kinds |
 | `$0d80` | Code |
 | `$2000` | Copied at start: the passers-by's sprite, 20 frames |
-| `$2540` | The player on foot's sprite: two frames, made from the twelve below when the picture turns to one of them |
-| `$2600` | The player on foot's sprite: the twelve frames the other 30 are mirror images of, then the code that makes those, then more code (what people drop), with about 850 bytes free |
+| `$2540` | The player on foot's sprite: two frames, made from the twelve below when the picture turns to one of them; then a bullet's, made at start |
+| `$2600` | The player on foot's sprite: the twelve frames the other 30 are mirror images of, then the code that makes those, then more code (what people drop, the title page, the gun), with about 15 bytes free |
 | `$3000` | Screen A: the city in rows 0–20 |
 | `$3400` | Screen B, the same |
 | `$3800` | Character set: font in 0–63, tile characters after, then Big Honk's sprite from `$3dc0`, then the panel's bars |

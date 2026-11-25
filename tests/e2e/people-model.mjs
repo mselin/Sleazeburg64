@@ -12,6 +12,13 @@ export const P = {
   SHIRTS: [4, 8, 3, 2, 10, 9, 5, 1], // purple, orange, cyan, red, light red, brown, green, white
 };
 export const ROADWAY = 0, WALL = 1, GRASS = 2, PAVEMENT = 4; // a tile's kind (tools/assets.mjs)
+/** The gun (src/gun.asm). */
+export const G = {
+  BULLETS: 3, WAIT: 11, LIFE: 27, STRAIGHT: 1229, DIAGONAL: 869, HIT_PERSON: 3, HIT_CAR: 8, SCARE: 110, FLEE: 100,
+  SPRITE: (0x2540 + 2 * 64) / 64, COLOUR: 7,
+  FROM: [[5, 0], [4, 4], [0, 5], [-4, 4], [-5, 0], [-4, -4], [0, -5], [4, -4]],
+};
+G.VELOCITY = ((s, d) => [[s, 0], [d, d], [0, s], [-d, d], [-s, 0], [-d, -d], [0, -s], [d, -d]])(G.STRAIGHT, G.DIAGONAL);
 const CYCLE = [2, 3, 4, 3, 2, 1, 0, 1];
 const DX = [1, 0, -1, 0], DY = [0, 1, 0, -1];
 const w16 = (v) => v & 0xffff;
@@ -59,6 +66,10 @@ export class People {
     this.people = Array.from({ length: crowd }, () => new Person());
     // knife: 1 when the player has one (pickups-model.mjs's, set by whoever steps the models).
     Object.assign(this, { seed: 0x5d, lull: 1, crossing: 0, half: 0, punchLeft: 0, knife: 0 });
+    // The gun's bullets (ticks: frames left, 0 none; positions and speeds in 1/256 pixel), and the pickups model,
+    // which keeps the ammo (set by whoever steps the models; none: no ammo).
+    this.bullets = Array.from({ length: G.BULLETS }, () => ({ ticks: 0, x: 0, y: 0, vx: 0, vy: 0 }));
+    this.items = null;
   }
   rnd() {
     let a = this.seed << 1;
@@ -210,6 +221,68 @@ export class People {
       return;
     }
   }
+  /**
+   * gun.fire: fire on foot out of the water. With ammo left, a shot, unless the last was under WAIT frames ago:
+   * a round less, a bullet from just ahead of the player the way they face, and anyone within SCARE of them
+   * runs. With none, punch().
+   */
+  fire(player) {
+    if (!this.items?.ammo) return this.punch(player);
+    if (this.punchLeft) return;
+    this.punchLeft = G.WAIT;
+    player.arm = P.ARM_OUT;
+    this.items.ammo--;
+    const i = this.bullets.map((b) => b.ticks).lastIndexOf(0);
+    if (i >= 0) {
+      const [fx, fy] = G.FROM[player.face], [vx, vy] = G.VELOCITY[player.face];
+      this.bullets[i] = { ticks: G.LIFE, x: ((w16(player.px + fx) << 8) | 0x80), y: ((w16(player.py + fy) << 8) | 0x80), vx, vy };
+    }
+    const near = (q, lim) => w16(q.px - player.px + lim) <= 2 * lim && w16(q.py - player.py + lim) <= 2 * lim;
+    for (const q of this.people) if (q.on && !q.down && near(q, G.SCARE)) q.flee = G.FLEE;
+  }
+  /** gun.update: once a frame, after step(): each bullet flies on, and is spent on a wall, a passer-by or a car. */
+  shoot(traffic) {
+    const near = (x, y, px, py, lim) => w16(x - px + lim) <= 2 * lim && w16(y - py + lim) <= 2 * lim;
+    for (let i = G.BULLETS - 1; i >= 0; i--) {
+      const b = this.bullets[i];
+      if (!b.ticks || --b.ticks === 0) continue;
+      b.x = (b.x + b.vx) & 0xffffff;
+      b.y = (b.y + b.vy) & 0xffffff;
+      const x = (b.x >> 8) & 0xffff, y = (b.y >> 8) & 0xffff;
+      if (People.kind(x, y) === WALL) {
+        b.ticks = 0;
+        continue;
+      }
+      const p = [...this.people.keys()].reverse().map((k) => this.people[k])
+        .find((q) => q.on && (!q.down || q.ko) && near(q.px, q.py, x, y, G.HIT_PERSON));
+      if (p) {
+        p.down = P.DOWN_TIME;
+        p.ko = 0;
+        this.onKill?.(p);
+        b.ticks = 0;
+        continue;
+      }
+      for (let k = (traffic?.n ?? 0) - 1; k >= 0; k--) {
+        const c = traffic.cars[k];
+        if (c.on && near(c.px, c.py, x, y, G.HIT_CAR)) {
+          b.ticks = 0;
+          break;
+        }
+      }
+    }
+  }
+  /** gun.show: the bullets in sight of the window `cam`, for the multiplexer, after the pickups. */
+  shown(cam) {
+    const list = [];
+    for (let i = G.BULLETS - 1; i >= 0; i--) {
+      const b = this.bullets[i];
+      if (!b.ticks) continue;
+      const t = w16(((b.y >> 8) & 0xffff) - (cam.y - 10)), u = w16(((b.x >> 8) & 0xffff) - (cam.x - 11));
+      if (t >= LOWEST || u > 326) continue;
+      list.push({ y: t + 34, x: u + 8, pointer: G.SPRITE, colour: G.COLOUR });
+    }
+    return list;
+  }
   /** people.arrive: someone new in the highest free place, if the point picked is out of sight on a pavement. */
   arriveOne(at, cam) {
     const i = this.people.map((p) => p.on).lastIndexOf(0);
@@ -284,6 +357,7 @@ export class People {
   get state() {
     return {
       seed: this.seed, lull: this.lull, half: this.half, punchLeft: this.punchLeft,
+      bullets: this.bullets.map((b) => (b.ticks ? { ...b } : { ticks: 0 })),
       people: this.people.map((p) => (p.on ? { on: 1, x: p.x, y: p.y, way: p.way, spd: p.spd, col: p.col, wait: p.wait, ph: p.ph, down: p.down, jay: p.jay, stuck: p.stuck, stall: p.stall, aside: p.aside, road: p.road, ko: p.ko, flee: p.flee } : { on: 0 })),
     };
   }
@@ -295,8 +369,12 @@ export async function readPeople(vice, L, crowd = P.CROWD) {
   const [on, xf, xl, xh, yf, yl, yh, way, spd, col, wait, phl, phh, down, jay, stuck, stall, aside, road, ko, flee] = await Promise.all(
     ['on', 'xf', 'xl', 'xh', 'yf', 'yl', 'yh', 'way', 'spd', 'col', 'wait', 'phl', 'phh', 'down', 'jay', 'stuck', 'stall', 'aside', 'road', 'ko', 'flee'].map((n) => get(n)));
   const [seed] = await get('seed', 1), [lull] = await get('lull', 1), [half] = await get('half', 1), [punchLeft] = await get('punch_left', 1);
+  const gun = async (name) => [...(await vice.read(L[`gun.${name}`], G.BULLETS))];
+  const [ticks, bxf, bxl, bxh, byf, byl, byh, vxl, vxh, vyl, vyh] = await Promise.all(['ticks', 'xf', 'xl', 'xh', 'yf', 'yl', 'yh', 'vxl', 'vxh', 'vyl', 'vyh'].map(gun));
+  const s16 = (lo, hi) => ((lo | (hi << 8)) << 16) >> 16;
   return {
     seed, lull, half, punchLeft,
+    bullets: ticks.map((t, i) => (t ? { ticks: t, x: bxf[i] | (bxl[i] << 8) | (bxh[i] << 16), y: byf[i] | (byl[i] << 8) | (byh[i] << 16), vx: s16(vxl[i], vxh[i]), vy: s16(vyl[i], vyh[i]) } : { ticks: 0 })),
     people: on.map((o, i) => (o ? {
       on: 1, x: xf[i] | (xl[i] << 8) | (xh[i] << 16), y: yf[i] | (yl[i] << 8) | (yh[i] << 16), way: way[i], spd: spd[i], col: col[i], wait: wait[i], ph: phl[i] | (phh[i] << 8), down: down[i], jay: jay[i], stuck: stuck[i], stall: stall[i], aside: aside[i], road: road[i], ko: ko[i], flee: flee[i],
     } : { on: 0 })),

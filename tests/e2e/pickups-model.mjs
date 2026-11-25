@@ -30,6 +30,7 @@ export class Pickups {
     /** What picking them up did, for the tests: kinds in the order taken; and whether the player has a knife. */
     this.taken = [];
     this.knife = 0;
+    this.ammo = 0; // (the gun takes it: people-model.mjs)
     /** Dropped: kind 1-9 (cash, that many tens of dollars), DROP_KNIFE, or AWAY; where, in pixels; frames left. */
     this.drops = Array.from({ length: K.DROPS }, () => ({ kind: K.AWAY, x: 0, y: 0, life: 0 }));
   }
@@ -121,6 +122,7 @@ export class Pickups {
     this.taken.push(p.kind);
     const kind = p.kind;
     if (kind === KNIFE) this.knife = 1; // (a spare one is pawned)
+    if (kind === AMMO) this.ammo = Math.min(99, this.ammo + 12);
     p.kind = K.AWAY;
     p.back = (this.rnd() % K.BACK_SPREAD) + K.BACK_MIN;
     if (kind === CASH) this.lastCash = 50 * ((this.rnd() % 6) + 1);
