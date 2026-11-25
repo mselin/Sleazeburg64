@@ -58,6 +58,8 @@ JAY_ODDS        = 26                    ; ready to cross a road when a random by
 PUNCH_WAIT      = 18                    ; frames between punches (0.35 seconds)
 PUNCH_REACH     = 7                     ; a punch: the first passer-by within PUNCH_LIM of the point this far
 PUNCH_LIM       = 7                     ; ahead of the player is knocked down
+STAB_REACH      = 10                    ; a stab: the same, from the point this far ahead ...
+STAB_WAIT       = 14                    ; ... and 0.28 seconds between
 SCARE           = 60                    ; and anyone this near them runs
 FLEE_TURNS      = 50                    ; for 2 seconds (in their turns, every other frame), twice as fast
 HALT            = 10                    ; a car in the way: they stand this many of their turns (0.4 seconds) ...
@@ -977,28 +979,42 @@ car_no          .byte 0
                 .send
 
                 .section people_high
-; Fire on foot with no ammo and no knife (foot.update): a punch, unless the last was under PUNCH_WAIT frames
-; ago. It knocks down the first passer-by within PUNCH_LIM of the point PUNCH_REACH ahead of the player:
-; they lie DOWN_TIME frames, then get up and run (got_up), and anyone within SCARE of them runs now.
+; Fire on foot with no ammo (foot.update): a punch, or with a knife a stab, unless the last was under PUNCH_WAIT
+; frames ago (STAB_WAIT with the knife). A punch knocks down the first passer-by within PUNCH_LIM of the point
+; PUNCH_REACH ahead of the player: they lie DOWN_TIME frames, then get up and run (got_up). A stab, at the point
+; STAB_REACH ahead, kills, even someone knocked down already: they lie, then are gone, as when run over. Anyone
+; within SCARE of them runs now.
 punch           lda punch_left
                 bne +
-                lda #PUNCH_WAIT
+                ldy status.knife        ; (Y: 0 fists, 1 the knife)
+                lda wait_of,y
                 sta punch_left
                 lda #ARM_OUT            ; the arm goes out, whether it lands or not
                 sta foot.arm
-                ldx foot.face           ; the point
-                ldy #0
-                lda reach_x,x
-                jsr nudge_point
-                ldy #2
+                tya                     ; the point
+                asl
+                asl
+                asl
+                adc foot.face           ; (the carry is clear)
+                tax
                 lda reach_y,x
+                sta try
+                lda reach_x,x
+                ldy #0
+                jsr nudge_point
+                lda try
+                ldy #2
                 jsr nudge_point
                 ldx #CROWD - 1
 -               lda on,x
                 beq next_one
                 lda down,x
-                bne next_one
-                lda #PUNCH_LIM
+                beq +
+                lda status.knife        ; down already: only the knife, and not someone already dead
+                beq next_one
+                lda ko,x
+                beq next_one
++               lda #PUNCH_LIM
                 ldy #0
                 jsr beside
                 bcc knock
@@ -1007,7 +1023,8 @@ next_one        dex
 +               rts
 knock           lda #DOWN_TIME
                 sta down,x
-                lda #1
+                ldy status.knife
+                lda ko_of,y             ; knocked down by a punch; killed by the knife
                 sta ko,x
                 lda xl,x                ; who is near them runs
                 sta cx
@@ -1030,11 +1047,14 @@ knock           lda #DOWN_TIME
                 sta flee,x
 +               dex
                 bpl -
-                lda #2 * 3              ; heat: 3, half a kill
+                ldy status.knife        ; heat: 3, half a kill, for a punch; 6, a kill, for a stab
+                lda heat_of,y
                 jmp status.add_heat
+wait_of         .byte PUNCH_WAIT, STAB_WAIT
+ko_of           .byte 1, 0
+heat_of         .byte 2 * 3, 2 * 6
 ; cx (Y = 0) or cy (Y = 2) = the player's position on that axis + A, a signed byte.
 nudge_point     sta d
-                ldx foot.face
                 and #$80
                 beq +
                 lda #$ff
@@ -1051,10 +1071,11 @@ nudge_point     sta d
                 lda foot.pos + 2,x
                 adc d + 1
                 sta cx + 1,y
-                ldx foot.face
                 rts
 reach_x         .char PUNCH_REACH, 5, 0, -5, -PUNCH_REACH, -5, 0, 5             ; by the way they face: east first,
-reach_y         .char 0, 5, PUNCH_REACH, 5, 0, -5, -PUNCH_REACH, -5             ; clockwise
+                .char STAB_REACH, 7, 0, -7, -STAB_REACH, -7, 0, 7               ; clockwise; then for a stab
+reach_y         .char 0, 5, PUNCH_REACH, 5, 0, -5, -PUNCH_REACH, -5
+                .char 0, 7, STAB_REACH, 7, 0, -7, -STAB_REACH, -7
                 .cerror cy - cx != 2, "punch expects cy two bytes after cx"
 
 ; Person X has been run over, a kill: heat 6. X kept.

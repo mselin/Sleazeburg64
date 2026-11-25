@@ -84,6 +84,7 @@ export class World {
   step(bits) {
     const cell = [...this.cam.cell]; // the character the window is in before it moves
     const busy = this.cam.busy; // this pass works out colour memory if the last one swapped the screens
+    this.people.knife = this.pickups?.knife ?? 0;
     this.player.step(bits, this.traffic, busy, this.people);
     this.cam.follow(this.player.px, this.player.py);
     this.traffic.step(this.player.px, this.player.py, this.cam, busy);

@@ -24,8 +24,9 @@ export class Pickups {
     for (let i = K.COUNT - 1; i >= 0; i--) this.place(i);
     [this.lastCol, this.lastRow] = Pickups.tileOf(cam);
     this.allNear();
-    /** What picking them up did, for the tests: kinds in the order taken. */
+    /** What picking them up did, for the tests: kinds in the order taken; and whether the player has a knife. */
     this.taken = [];
+    this.knife = 0;
   }
   /** A 16-bit shift register (x^16 + x^5 + x^3 + x^2 + 1): its low byte. */
   rnd() {
@@ -100,6 +101,7 @@ export class Pickups {
     const p = this.items[i];
     this.taken.push(p.kind);
     const kind = p.kind;
+    if (kind === KNIFE) this.knife = 1; // (a spare one is pawned)
     p.kind = K.AWAY;
     p.back = (this.rnd() % K.BACK_SPREAD) + K.BACK_MIN;
     if (kind === CASH) this.lastCash = 50 * ((this.rnd() % 6) + 1);
