@@ -35,7 +35,7 @@ function models(traffic) {
   traffic.people = people; // (which traffic stops for)
   const cam = new Camera(...START);
   const pickups = new Pickups(cam);
-  people.onKill = (p) => pickups.drop(p.px, p.py); // (what someone killed drops)
+  people.onKill = (p) => p.rider || pickups.drop(p.px, p.py); // (what someone killed drops: a rider, nothing)
   return { car, player: new Player(car), cam, traffic, honk: new Honk(), people, pickups, list: [] };
 }
 

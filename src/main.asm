@@ -56,6 +56,7 @@ CENTRE_Y        = VIEW_H / 2
 CAR_FRAMES      = $0840                 ; the car's sprite in 16 directions, 64 bytes each
 CAR_SPRITE      = CAR_FRAMES / 64       ; sprite pointer of the first
 PICKUP_FRAMES   = CAR_FRAMES + 16 * 64  ; the pickups' sprite in five kinds, after the car's
+SCOOTER_FRAMES  = PICKUP_FRAMES + 5 * 64 ; scooter riders' (people.asm): four ways, then lying, after those
 SQUARES         = $bf00                 ; quarter squares for multiplying (see car.init), made at start: the
 SQUARES_HI      = $c200                 ; low and high bytes of n * n / 4 for n = -255..511, at each + n
 SQUARES_START   = SQUARES - 255         ; (1.5K, from here up to the screen copies)
@@ -101,6 +102,10 @@ tmp             .byte ?
 .if VIEWER == 0
                 .cerror * != PICKUP_FRAMES, "the pickups' frames follow the car's"
                 .binary "pickups.bin"
+.if CROWD != 0
+                .cerror * != SCOOTER_FRAMES, "the scooter riders' frames follow the pickups'"
+                .binary "scooters.bin"
+.endif
 .endif
 
 start           sei

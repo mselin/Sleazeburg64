@@ -74,8 +74,13 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
   then gets up and runs from the player for two seconds at twice their pace, as does anyone within 60. The player's
   arm goes out for 0.2 seconds with each punch, in eight frames drawn from the same figure, at `$0200` (the
   KERNAL's pages, unused once it is switched out). Punches, running people over and taking a car
-  from its driver add heat (below). The knife and the gun are in (Pickups, below). Still to come: scooter
-  riders and the police. The design draws people about 12 pixels across in
+  from its driver add heat (below). The knife and the gun are in (Pickups, below). Scooter riders are in:
+  about one in seven of those who arrive (a random byte below 36), in light green, which no passer-by wears,
+  at the scooter's speed (255/256 of a pixel a frame, 50 pixels a second, as near the design's 52 as a byte
+  holds), standing on the deck the way they go in four frames of their own, and lying beside the scooter when
+  knocked down; killed, they drop nothing (the design: they pay $0). The scooter is black, the design's grey
+  being no colour a multicolour sprite has besides its own. Not yet: the design's "+$0 (PUBLIC SERVICE)",
+  which the browser game floats over them. Still to come: the police. The design draws people about 12 pixels across in
   chunky 2 × 2 pixels with a black outline, more than one character, and police officers in light blue with a
   white cap; passers-by never look like the player or the police. Walkers have five walking poses, arms and feet
   swinging opposite ways, a pose with the arm held out for a shot, a punch or a stab, and one lying knocked

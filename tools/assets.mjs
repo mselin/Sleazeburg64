@@ -482,12 +482,59 @@ export function downPixels() {
   ring(px, 1);
   return px;
 }
+/**
+ * A scooter rider, by the design: standing on the deck behind the handlebar, hands on it, facing direction d
+ * (east, south, west, north), not walking. The design's scooter is grey, which a multicolour sprite does not
+ * have (its own colour is the rider's shirt): here it is black, as the outline. Then, lying, frame 4: someone
+ * knocked down, with the scooter on its side beside them.
+ */
+export const SCOOTER_FRAME_COUNT = 5;
+function scooterAt(x, y) {
+  const box = (x0, x1, y0, y1) => x >= x0 && x <= x1 && y >= y0 && y <= y1;
+  const disc = (cx, cy, r) => (x - cx) ** 2 + (y - cy) ** 2 <= r * r;
+  const nearLine = (ax, ay, bx, by, r) => {
+    const vx = bx - ax, vy = by - ay;
+    const t = Math.max(0, Math.min(1, ((x - ax) * vx + (y - ay) * vy) / (vx * vx + vy * vy)));
+    return (x - ax - t * vx) ** 2 + (y - ay - t * vy) ** 2 <= r * r;
+  };
+  let c = 0;
+  if (box(-7, 4, -1.2, 1.2) || disc(-7, 0, 1.4) || disc(4.6, 0, 1.4) || box(3, 4.2, -4.8, 4.8)) c = 1; // the scooter
+  if (Math.abs(x) <= 2.4 && Math.abs(y) <= 4.6 && Math.abs(x) / 2.4 + Math.abs(y) / 4.6 <= 1.6) c = 2; // shoulders
+  for (const side of [-1, 1]) {
+    if (nearLine(0, side * 4, 3.6 * 0.6, side * 4.6, 1.1)) c = 2; // arms, to the handlebar
+    if (disc(3.6, side * 4.6, 1.3)) c = 3;
+  }
+  if (disc(0.6, 0, 2.7)) c = x > 1.5 ? 3 : 1; // the head: hair, the face to the front
+  return c;
+}
+export function scooterPixels(d) {
+  const a = (d * Math.PI) / 2, cs = Math.round(Math.cos(a)), sn = Math.round(Math.sin(a));
+  const px = new Array(12 * 21).fill(0);
+  for (let br = 0; br < 10; br++)
+    for (let m = 0; m < 12; m++) {
+      const dx = 2 * m + 1 - 12, dy = 2 * br + 1 - 10;
+      px[2 * br * 12 + m] = px[(2 * br + 1) * 12 + m] = scooterAt(cs * dx + sn * dy, -sn * dx + cs * dy);
+    }
+  ring(px, 1);
+  return px;
+}
+export function scooterDownPixels() {
+  const px = downPixels();
+  // The scooter on its side to their right, along them: a black bar with a wheel at each end.
+  for (let j = 2; j < 19; j++) px[j * 12 + 10] = px[j * 12 + 10] || 1;
+  for (const j of [2, 3, 17, 18]) px[j * 12 + 11] = 1;
+  return px;
+}
+export function scooterFrames() {
+  return [0, 1, 2, 3].map((d) => spriteBytes(scooterPixels(d))).concat([spriteBytes(scooterDownPixels())]);
+}
 const people = [];
 for (let d = 0; d < PEOPLE_DIRS; d++) for (let p = 0; p < PLAYER_POSES; p++) people.push(spriteBytes(personPixels(d, p)));
 people.push(spriteBytes(downPixels()));
 writeFileSync(join(dir, 'people.bin'), Buffer.concat(people));
 writeFileSync(join(dir, 'punch.bin'), Buffer.concat(punchFrames()));
 writeFileSync(join(dir, 'pickups.bin'), Buffer.concat(pickupFrames()));
+writeFileSync(join(dir, 'scooters.bin'), Buffer.concat(scooterFrames()));
 writeFileSync(join(dir, 'player.bin'), Buffer.concat(player.stored)); // what the program file holds
 writeFileSync(join(dir, 'player-made.bin'), Uint8Array.from(player.made)); // and how it makes the rest
 writeFileSync(join(dir, 'player-all.bin'), Buffer.concat(player.all)); // what it should end up with: for the tests

@@ -612,7 +612,10 @@ DROP_KNIFE_ODDS = 123                   ; ... else below this, a knife: 8 %
 
                 .section low_more       ; (where there is room: main.asm)
 ; Person X (people.asm), killed by the player: what they drop, if anything. X kept.
-drop            jsr rnd
+drop            lda people.col,x        ; a scooter rider: nothing (the design: they pay $0)
+                cmp #LIGHT_GREEN
+                beq no_drop
+                jsr rnd
                 cmp #DROP_CASH_ODDS
                 bcc drop_cash
                 cmp #DROP_KNIFE_ODDS

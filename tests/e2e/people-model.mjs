@@ -10,6 +10,8 @@ export const P = {
   RUN_OVER: 154, HIT: 9, NOSE: 8, DOWN_TIME: 200, DOWN_FRAME: 20, JAY_ODDS: 26,
   HALT: 10, TURN_AFTER: 75, PUNCH_WAIT: 18, STAB_WAIT: 14, STAB_REACH: 10, ARM_OUT: 10, PUNCH_REACH: 7, PUNCH_LIM: 7, SCARE: 60, FLEE_TURNS: 50, CAR_LONG: 13, CAR_SHORT: 8, CAR_SQUARE: 10,
   SHIRTS: [4, 8, 3, 2, 10, 9, 5, 1], // purple, orange, cyan, red, light red, brown, green, white
+  // Scooter riders: light green (no passer-by's shirt), the scooter's speed, one time in seven or so.
+  SCOOTER: 13, SCOOT_ODDS: 36, SCOOT_SPEED: 255, SCOOTER_SPRITE: 0x0d80 / 64,
 };
 export const ROADWAY = 0, WALL = 1, GRASS = 2, PAVEMENT = 4; // a tile's kind (tools/assets.mjs)
 /** The gun (src/gun.asm). */
@@ -39,7 +41,12 @@ export class Person {
   get py() {
     return (this.y >> 8) & 0xffff;
   }
+  /** A scooter rider (shirt light green). */
+  get rider() {
+    return this.col === P.SCOOTER;
+  }
   get pointer() {
+    if (this.rider) return P.SCOOTER_SPRITE + (this.down ? 4 : this.way);
     if (this.down) return P.SPRITE + P.DOWN_FRAME;
     return P.SPRITE + this.way * 5 + CYCLE[(this.ph >> 8) & 7];
   }
@@ -290,7 +297,9 @@ export class People {
     const nx = w16(at[0] + 2 * (this.rnd() - 128)), ny = w16(at[1] + 2 * (this.rnd() - 128));
     if (inSight(w16(nx - cam.x), false) && inSight(w16(ny - cam.y), true)) return;
     if (People.kind(nx, ny) !== PAVEMENT) return;
-    const spd = 77 + (this.rnd() & 31), col = P.SHIRTS[this.rnd() & 7], way = this.rnd() & 3;
+    let spd = 77 + (this.rnd() & 31), col = P.SHIRTS[this.rnd() & 7];
+    const way = this.rnd() & 3;
+    if (this.rnd() < P.SCOOT_ODDS) [col, spd] = [P.SCOOTER, P.SCOOT_SPEED];
     this.people[i] = new Person({ on: 1, x: ((nx & 0xfff0) | 8) << 8, y: ((ny & 0xfff0) | 8) << 8, spd, col, way, wait: 1, ph: 0, jay: 0 });
   }
   /**

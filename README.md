@@ -291,7 +291,8 @@ screen of its own, which the split switches to for its three rows.
 | `$0801` | BASIC line that starts the program |
 | `$0840` | The car's sprite in 16 directions |
 | `$0c40` | The pickups' sprite in five kinds |
-| `$0d80` | Code |
+| `$0d80` | Scooter riders' sprite: four ways, then lying |
+| `$0ec0` | Code |
 | `$2000` | Copied at start: the passers-by's sprite, 20 frames |
 | `$2540` | The player on foot's sprite: two frames, made from the twelve below when the picture turns to one of them; then a bullet's, made at start |
 | `$2600` | The player on foot's sprite: the twelve frames the other 30 are mirror images of, then the code that makes those, then more code (what people drop, the gun), with about 170 bytes free |
