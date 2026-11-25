@@ -119,6 +119,21 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
     assist rather than the stick, so the swerve is held to the grip like any steering: flat out it is a sharp
     wiggle, not a spin. `CURSED LANE ASSIST TOOK OVER` is 28 characters, and a chime goes with it once there is
     sound.
+  - **Emergency braking.** It looks out only from 154 (30 px/s), the speed `people.RUN_OVER` runs someone over
+    at, so below it nobody can be hurt and there is nothing to look for. It looks as far ahead as the car needs
+    to stop braking half as hard again as its own brakes (60 where `BRAKE` is 40), with 3 frames to notice and 4
+    pixels to spare: flat out, at 4 pixels a frame, about 50 pixels. That is a table by speed, not a sum.
+    - **What it looks at:** the few people about, each within the run-over distance (and a pixel) of the line
+      the car drives along, which is two multiplications each with `cs`, the car's cosine and sine; the other
+      cars' bodies; and walls, a character at a time, as walls are whole characters.
+    - **What it sees:** people and cars on the move every time, and things standing still (parked cars and
+      wrecks, someone lying down) only 35 % of the time: a random byte under 90, decided once for each thing.
+      It keeps the slot it decided for until nothing has been ahead for 50 frames.
+    - **Seen:** the car brakes at 60, whatever the stick says, until the way has been clear for 15 frames or it
+      is down to 26, where down stops meaning brake (`BRAKING`).
+    - In a frame that works out colour memory, which has the least time to spare, it can keep the last frame's
+      answer, as the car already does for turning its picture. `EMERGENCY BRAKING ENGAGED` is 25 characters;
+      three quick beeps go with it once there is sound.
   - **Anti-theft and its alarm.** 10 to 25 seconds after the player takes the car, it stops it for good
     (`ANTI-THEFT ENGAGED: ENGINE IMMOBILISED`, 38 characters, inside row 3's 40; getting back in, `THE
     IMMOBILISER SAYS NO`). Then the alarm sounds for 20 seconds: a high note and a low one in turn, 12 or 13
