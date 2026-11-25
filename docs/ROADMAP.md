@@ -65,9 +65,10 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
   cannot show, and no heat yet). They cross roads now and then (one time in ten when they pick a way), traffic stops
   for anyone on the road ahead of it, and cars are solid for them (below). Punches are in: with no gun yet the game starts
   with no ammo, fire on foot knocks down the passer-by in front (7 pixels ahead, within 7), who lies four seconds,
-  then gets up and runs from the player for two seconds at twice their pace, as does anyone within 60. Still to
-  come: the player's arm-out picture for a punch (sprite room), heat for it, the gun and knife, scooter riders
-  and the police. The design draws people about 12 pixels across in
+  then gets up and runs from the player for two seconds at twice their pace, as does anyone within 60. The player's
+  arm goes out for 0.2 seconds with each punch, in eight frames drawn from the same figure, at `$0200` (the
+  KERNAL's pages, unused once it is switched out). Still to come: heat for a punch, the gun and knife, scooter
+  riders and the police. The design draws people about 12 pixels across in
   chunky 2 × 2 pixels with a black outline, more than one character, and police officers in light blue with a
   white cap; passers-by never look like the player or the police. Walkers have five walking poses, arms and feet
   swinging opposite ways, a pose with the arm held out for a shot, a punch or a stab, and one lying knocked

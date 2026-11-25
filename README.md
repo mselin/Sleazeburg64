@@ -52,7 +52,8 @@ on NTSC.
   handbrake. Standing still or nearly, with the stick centred, a press of fire gets you out.
 - **On foot:** the stick walks you eight ways. Standing by a car, with the stick centred, a press of fire gets
   you in; anywhere else, a press of fire is a punch (there is no gun yet, so you start with no ammo, and the
-  panel says FIST). Someone you punch lies four seconds, then gets up and runs, as does anyone near them.
+  panel says FIST): your arm goes out, and someone you punch lies four seconds, then gets up and runs, as does
+  anyone near them.
 
 In [VICE](https://vice-emu.sourceforge.io/), if it is installed with C64 ROMs:
 
@@ -275,6 +276,7 @@ screen of its own, which the split switches to for its three rows.
 
 | Address | Contents |
 |---|---|
+| `$0200` | Copied at start: the player punching, 8 frames (the KERNAL's pages, which it does not use switched out) |
 | `$0400` | The panel's screen: rows 21–23. Rows 0–20, never shown, hold the sprite lists and traffic tables |
 | `$0801` | BASIC line that starts the program |
 | `$0840` | The car's sprite in 16 directions |

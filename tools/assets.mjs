@@ -285,8 +285,11 @@ writeFileSync(join(dir, 'car.bin'), car);
 // and south-east in all five.
 export const PLAYER_DIRS = 8, PLAYER_POSES = 5;
 const STRIDES = [-1, -0.5, 0, 0.5, 1];
-/** A person facing +x with +y on their right: 0 nothing, 1 black, 2 white, 3 yellow. */
-function personAt(pose, x, y) {
+/**
+ * A person facing +x with +y on their right: 0 nothing, 1 black, 2 white, 3 yellow. `punch`: the right arm
+ * straight out in front, the design's punch, with a bigger fist about 7 pixels ahead of the middle.
+ */
+function personAt(pose, x, y, punch = false) {
   const s = STRIDES[pose];
   const box = (x0, x1, y0, y1) => x >= x0 && x <= x1 && y >= y0 && y <= y1;
   const disc = (cx, cy, r) => (x - cx) ** 2 + (y - cy) ** 2 <= r * r;
@@ -302,6 +305,11 @@ function personAt(pose, x, y) {
   }
   if (Math.abs(x) <= 2.4 && Math.abs(y) <= 4.6 && Math.abs(x) / 2.4 + Math.abs(y) / 4.6 <= 1.6) c = 3; // shoulders
   for (const side of [-1, 1]) {
+    if (punch && side === 1) {
+      if (nearLine(0, 4, 6, 3, 1.1)) c = 3; // the right arm out, the fist at its end
+      if (disc(7, 3, 1.7)) c = 2;
+      continue;
+    }
     const hx = side * s * 2.2, hy = side * 5; // arms: a sleeve and a hand, swinging opposite to the feet
     if (nearLine(0, side * 4, hx * 0.6, hy, 1.1)) c = 3;
     if (disc(hx, hy, 1.3)) c = 2;
@@ -318,19 +326,26 @@ function ring(px, c) {
   for (const i of add) px[i] = c;
 }
 /** The player facing direction `d` in pose `p`, as 12 x 21 pixel pairs (0-3), outlines included. */
-export function playerPixels(d, p) {
+export function playerPixels(d, p, punch = false) {
   // Rounded, so that mirror images come out exactly alike.
   const a = (d * Math.PI) / 4, cs = Math.round(Math.cos(a) * 1e9) / 1e9, sn = Math.round(Math.sin(a) * 1e9) / 1e9;
   const px = new Array(12 * 21).fill(0);
   for (let br = 0; br < 10; br++)
     for (let m = 0; m < 12; m++) {
       const dx = 2 * m + 1 - 12, dy = 2 * br + 1 - 10; // the middle of the block
-      const c = personAt(p, cs * dx + sn * dy, -sn * dx + cs * dy);
+      const c = personAt(p, cs * dx + sn * dy, -sn * dx + cs * dy, punch);
       px[2 * br * 12 + m] = px[(2 * br + 1) * 12 + m] = c;
     }
   ring(px, 1);
   ring(px, 2);
   return px;
+}
+/** The player punching, facing each of the eight ways: standing, the right arm out. Copied to $0200 at start. */
+export function punchFrames() {
+  const frames = [];
+  for (let d = 0; d < PLAYER_DIRS; d++) frames.push(spriteBytes(playerPixels(d, 2, true)));
+  for (const frame of frames) if (frame.subarray(60).some((b) => b)) throw new Error('a punching frame uses line 20');
+  return frames;
 }
 /**
  * The player swimming: a head above the water, black hair behind a white face, in its two outlines; one arm
@@ -442,6 +457,7 @@ const people = [];
 for (let d = 0; d < PEOPLE_DIRS; d++) for (let p = 0; p < PLAYER_POSES; p++) people.push(spriteBytes(personPixels(d, p)));
 people.push(spriteBytes(downPixels()));
 writeFileSync(join(dir, 'people.bin'), Buffer.concat(people));
+writeFileSync(join(dir, 'punch.bin'), Buffer.concat(punchFrames()));
 writeFileSync(join(dir, 'player.bin'), Buffer.concat(player.stored)); // what the program file holds
 writeFileSync(join(dir, 'player-made.bin'), Uint8Array.from(player.made)); // and how it makes the rest
 writeFileSync(join(dir, 'player-all.bin'), Buffer.concat(player.all)); // what it should end up with: for the tests

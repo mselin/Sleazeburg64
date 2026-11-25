@@ -1382,6 +1382,7 @@ p8              sbc SQUARES2 + 512,x
 mul_c           #times 0
 mul_s           #times 2
 
+                .section car_extra      ; (where there is room)
 ; The sprite registers for the next frame, from where the car and the window will be.
 show            sec                     ; x: 31 is the window's left edge, the car's centre is sprite pixel 12
                 lda pos_x + 1
@@ -1419,6 +1420,7 @@ show            sec                     ; x: 31 is the window's left edge, the c
                 lda #1
                 sta frame.next_d015
                 rts
+                .send
 
 ; sin(direction) * 256, rounded, for 256 directions and 64 more so that cos = sin + 64.
 sin_lo

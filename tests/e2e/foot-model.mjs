@@ -2,7 +2,7 @@
 // A model of the player on foot and of getting in and out of cars (src/foot.asm), worked out again here so
 // the tests can hold the program to it frame by frame. The rules are the program's: see the comments there
 // for why they are what they are.
-import { MAP_PIXELS, MAP_SIZE, PLAYER_SPRITE, assets } from './game.mjs';
+import { MAP_PIXELS, MAP_SIZE, PLAYER_SPRITE, PUNCH_SPRITE, assets } from './game.mjs';
 import { direction16 } from './car-model.mjs';
 import { TrafficCar } from './traffic-model.mjs';
 
@@ -34,7 +34,8 @@ export class Player {
   /** The player starts in `car` (car-model.mjs), with fire counted as held. */
   constructor(car) {
     // On foot: positions in 1/256 pixel, 24 bits, as the program keeps them.
-    Object.assign(this, { car, on: 0, x: 0, y: 0, face: 0, phase: 0, swim: 0, fireWas: 1 });
+    // arm: frames left with the arm out after a punch (people-model.mjs sets it).
+    Object.assign(this, { car, on: 0, x: 0, y: 0, face: 0, phase: 0, swim: 0, fireWas: 1, arm: 0 });
   }
   /** Where the player is, in pixels: on foot, or their car. */
   get px() {
@@ -45,6 +46,7 @@ export class Player {
   }
   /** One pass of the main loop with the joystick held as given (JOY bits). */
   step(bits, traffic, busy = false, people = null) {
+    if (this.arm) this.arm--;
     const fire = bits & 16 ? 1 : 0;
     const press = fire && !this.fireWas; // just pressed
     const use = press && !(bits & 15); // with the stick centred
@@ -142,12 +144,13 @@ export class Player {
   /** The pointer of the frame the player on foot is drawn with: `tick` is the traffic's, after its step. */
   pointer(tick) {
     if (this.swim) return PLAYER_SPRITE + 40 + ((tick >> 4) & 1);
+    if (this.arm) return PUNCH_SPRITE + this.face;
     return PLAYER_SPRITE + this.face * 5 + CYCLE[(this.phase >> 8) & 7];
   }
   /** Their state as the tests compare it. In a car, where they are on foot means nothing. */
   get state() {
     if (!this.on) return { on: 0, fireWas: this.fireWas };
-    return { on: 1, x: this.x, y: this.y, face: this.face, phase: this.phase, swim: this.swim, fireWas: this.fireWas };
+    return { on: 1, x: this.x, y: this.y, face: this.face, phase: this.phase, swim: this.swim, fireWas: this.fireWas, arm: this.arm };
   }
 }
 
@@ -156,5 +159,6 @@ export async function readPlayer(vice, L) {
   if (L['foot.fire_was'] - L['foot.on'] !== 11) throw new Error('readPlayer expects on, pos, face, phase, swim and fire_was in a row');
   const b = await vice.read(L['foot.on'], 12);
   if (!b[0]) return { on: 0, fireWas: b[11] };
-  return { on: b[0], x: b[1] | (b[2] << 8) | (b[3] << 16), y: b[4] | (b[5] << 8) | (b[6] << 16), face: b[7], phase: b[8] | (b[9] << 8), swim: b[10], fireWas: b[11] };
+  const [arm] = await vice.read(L['foot.arm'], 1);
+  return { on: b[0], x: b[1] | (b[2] << 8) | (b[3] << 16), y: b[4] | (b[5] << 8) | (b[6] << 16), face: b[7], phase: b[8] | (b[9] << 8), swim: b[10], fireWas: b[11], arm };
 }
