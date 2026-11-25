@@ -64,7 +64,9 @@ EXTRA_CODE      = $e000                 ; and from under the KERNAL ROM, which i
 PEOPLE_FRAMES   = $2000                 ; the passers-by's sprite, copied there at start: 20 frames
 PUNCH_FRAMES    = $0200                 ; the player punching, 8 frames, copied there at start (the KERNAL's
                                         ; pages, which it does not use once it is switched out)
-PLAYER_FRAMES   = $2580                 ; the player on foot's sprite, made at start: 42 frames, up to the screens
+PLAYER_BUFFERS  = $2540                 ; the player on foot's flipped frames, made when needed: two (frames.asm)
+PLAYER_FRAMES   = $2600                 ; the twelve the others are made from, in the program file, then the code
+                                        ; that makes them, and more code, up to the screens
 
 ; ---------- zero page ----------
                 * = $02
@@ -146,8 +148,7 @@ start           sei
                 sty car.sum
                 ldy #<(START_Y * 16 + CENTRE_Y)
                 jsr car.place
-                jsr frames.make         ; the player's frames, before a colour routine is written over what
-                                        ; they are made from
+                jsr frames.init         ; none of the player's flipped frames made yet
 .endif
 .if MUSIC != 0
                 jsr tune.copy           ; out of the way of a colour routine (video.asm) before it is written
@@ -155,6 +156,7 @@ start           sei
                 jsr video.init          ; draws the first picture and sets up the raster interrupts
 .if VIEWER == 0
                 jsr traffic.init        ; after video.init clears the panel's screen, where its tables are
+                jsr frames.init         ; and where the player's flipped frames are kept track of
 .endif
 .if WITH_HONK
                 jsr honk.init           ; the same
@@ -556,7 +558,12 @@ char_of         lda cam_hi,x
 code_end
 .if VIEWER == 0
                 .cerror * > PEOPLE_FRAMES, "code has run into the passers-by's frames"
-                .cerror PLAYER_FRAMES + PLAYER_FRAME_COUNT * 64 > SCREEN_A, "the player's frames reach the screens"
+
+; The player's twelve frames, and the code that makes the rest, then more code: up to the screens.
+                * = PLAYER_FRAMES
+                .include "frames.asm"
+                .dsection low_more
+                .cerror * > SCREEN_A, "the code after the player's frames has run into the screens"
 .else
                 .cerror * > SCREEN_A, "code has run into the screens"
 .endif
@@ -580,7 +587,7 @@ tile_br         .binary "tiles.bin", 768, 256
 char_colour     .binary "tiles.bin", 1024, 256  ; ... the colour of each character
 tile_kind       .binary "tiles.bin", 1280, 256  ; ... what each tile is to a car ...
 tile_colour     .binary "tiles.bin", 1536, 256  ; ... and its colour, for colour memory
-; What waits after the tiles: the map, and the code start copies up and the frames it makes, which video.init
+; What waits after the tiles: the map, and the code start copies up and the code it runs once, which video.init
 ; later writes the colour routines over. A packed build (PACKED, tools/pack.mjs) carries it packed in the
 ; program file, here, and start unpacks it in place before anything else.
 .if PACKED == 0

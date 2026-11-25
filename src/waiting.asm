@@ -1,6 +1,6 @@
 ; SPDX-License-Identifier: GPL-2.0-or-later
 ; What waits after the tiles in the program file (main.asm): the city map, then the code start copies up and
-; the player's frames, which video.init later writes the colour routines over. Included once, either as it is
+; the code it runs once, which video.init later writes the colour routines over. Included once, either as it is
 ; or, in a packed build, only for where everything will be.
 
 city_map        .binary "map.bin"               ; one tile number per tile, row by row
@@ -58,7 +58,8 @@ extra_end
 people_image    .binary "people.bin"    ; the passers-by's frames, copied to PEOPLE_FRAMES at start
 punch_image     .binary "punch.bin"     ; the player punching, copied to PUNCH_FRAMES at start
                 .cerror size(punch_image) != 2 * 256, "the punching frames are two pages"
-                .cerror PEOPLE_FRAMES + size(people_image) > PLAYER_FRAMES, "the passers-by's frames reach the player's"
+                .cerror PEOPLE_FRAMES + size(people_image) > PLAYER_BUFFERS, "the passers-by's frames reach the player's"
+                .cerror PEOPLE_FRAMES + (size(people_image) + 255) / 256 * 256 > PLAYER_FRAMES, "copying them up reaches the player's"
 HIGH_PAGES      = (high_end - HIGH_CODE + 255) / 256
 MORE_PAGES      = (more_end - MORE_CODE + 255) / 256
 TOP_PAGES       = (top_end - TOP_CODE + 255) / 256
@@ -71,7 +72,6 @@ EXTRA_PAGES     = (extra_end - EXTRA_CODE + 255) / 256
                 .cerror more_end > $d000, "the code at MORE_CODE runs into the I/O area"
                 .cerror EXTRA_CODE + EXTRA_PAGES * 256 > TOP_CODE, "the code at EXTRA_CODE runs into TOP_CODE"
                 .cerror * > HIGH_CODE, "what waits after the map reaches where it is copied to"
-                .include "frames.asm"   ; runs once, from here
-                .dsection once          ; and so does car.init, before video.init writes over this
+                .dsection once          ; car.init runs once, from here, before video.init writes over this
 .endif
 program_end

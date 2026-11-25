@@ -99,8 +99,13 @@ A briefing for whoever picks this project up next, person or assistant. Written 
 - Room is short everywhere, and where things are is decided by what the video chip must see:
   - Below the screens (`$0d80`-`$1fff`, after the car's and the pickups' sprites) there are about 130 bytes of
     code left (the car's wall test moved to `MORE_CODE` for the pickups, and the car's sine table keeps only
-    its low bytes: `car.sine` makes the high one). From `$2580` to the screens
-    are the player on foot's 42 sprite frames, made at start.
+    its low bytes: `car.sine` makes the high one). From `$2540` to the screens
+    are the player on foot's sprite (`src/frames.asm`): two buffers, then from `$2600` the twelve frames the
+    program file holds, the tables and code that make the other 30 (mirror images) into a buffer when the
+    picture turns to one, and then about 1.1K free for code (the section `low_more`). Making one costs about
+    30 raster lines, so it is done only in a frame with no colour memory and no screen copy; in another the
+    picture stays as it was a frame longer. To leave time for that in the busiest pass, getting out of the car
+    no longer works out the car's frame first (25 November 2026).
   - Four blocks of code are copied up at start. `EXTRA_CODE` (`$e000`-`$f2ff`, under the KERNAL ROM, which is
     switched out) took the status panel and the steering limit on 21 November 2026, when the owner chose to
     give the game the room the in-game test tune had, then drawing the city (`src/video.asm`, which left room

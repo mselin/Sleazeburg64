@@ -26,8 +26,9 @@ export const CENTRE_Y = VIEW_H >> 1;
 export const CAR_SPRITE = 0x0840 / 64;
 export const CHARSET = 0x3800;
 export const HONK_SPRITE = (CHARSET + 184 * 8) / 64; // Big Honk's frames, in the character set's last characters
-export const PLAYER_FRAMES = 0x2580; // the player on foot's frames, which the program makes when it starts
+export const PLAYER_FRAMES = 0x2600; // the twelve frames of the player on foot the program file holds (the rest are made)
 export const PLAYER_SPRITE = PLAYER_FRAMES / 64;
+export const PLAYER_BUFFERS = 0x2540; // and the two it makes the others in
 export const PLAYER_FRAME_COUNT = 42;
 export const OUT = 'build/e2e';
 
@@ -45,7 +46,8 @@ export const assets = {
   map: readFileSync(join(ROOT, 'build/map.bin')),
 };
 assets.car = readFileSync(join(ROOT, 'build/car.bin'));
-assets.player = readFileSync(join(ROOT, 'build/player-all.bin')); // all 42 frames, as the program should make them
+assets.player = readFileSync(join(ROOT, 'build/player-all.bin')); // all 42 frames, as the program should show them
+assets.playerMade = readFileSync(join(ROOT, 'build/player-made.bin')); // for each, the stored frame * 4 + how it is flipped
 assets.people = readFileSync(join(ROOT, 'build/people.bin')); // the passers-by's 20 frames
 assets.punch = readFileSync(join(ROOT, 'build/punch.bin')); // the player punching, 8 frames
 assets.pickups = readFileSync(join(ROOT, 'build/pickups.bin')); // the five pickups
@@ -53,10 +55,9 @@ export const PICKUP_SPRITE = 0x0c40 / 64;
 export const PUNCH_SPRITE = 0x0200 / 64;
 export const PEOPLE_SPRITE = 0x2000 / 64;
 
-/** The 63 bytes of the sprite a pointer names: one of the car's frames, the passers-by's, the player's or Big Honk's. */
+/** The 63 bytes of the sprite a pointer names: one of the car's frames, the pickups', the passers-by's, the punching or Big Honk's. */
 export function spriteData(pointer) {
   if (pointer >= HONK_SPRITE) return assets.chars.subarray(pointer * 64 - CHARSET, pointer * 64 - CHARSET + 63);
-  if (pointer >= PLAYER_SPRITE) return assets.player.subarray((pointer - PLAYER_SPRITE) * 64, (pointer - PLAYER_SPRITE) * 64 + 63);
   if (pointer >= PEOPLE_SPRITE) return assets.people.subarray((pointer - PEOPLE_SPRITE) * 64, (pointer - PEOPLE_SPRITE) * 64 + 63);
   if (pointer >= PICKUP_SPRITE) return assets.pickups.subarray((pointer - PICKUP_SPRITE) * 64, (pointer - PICKUP_SPRITE) * 64 + 63);
   if (pointer >= CAR_SPRITE) return assets.car.subarray((pointer - CAR_SPRITE) * 64, (pointer - CAR_SPRITE) * 64 + 63);

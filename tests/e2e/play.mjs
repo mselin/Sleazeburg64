@@ -93,6 +93,8 @@ export class World {
     const moves = ((this.cam.x >> 3) ^ cell[0]) & 31 || ((this.cam.y >> 3) ^ cell[1]) & 31;
     this.people.step(!moves && !busy, [this.player.px, this.player.py], this.cam, this.traffic, this.player.on ? null : this.car);
     this.pickups?.step(this.cam, !moves && !busy);
+    if (this.player.on) this.player.draw(this.traffic.tick, !moves && !busy);
+    else this.player.drawn = null;
     this.people.tick(this.cam, this.car);
     this.list = [...this.traffic.show(this.cam), ...(this.honk ? this.honk.show(this.cam) : []), ...this.people.show(this.cam),
       ...(this.pickups ? this.pickups.show(this.cam, [this.player.px, this.player.py], busy) : [])].slice(0, 16); // the multiplexer lists sixteen
@@ -101,7 +103,7 @@ export class World {
   sprites() {
     const { car, cam, player } = this;
     const zero = player.on
-      ? { x: player.px - cam.x + 31 - 12, y: player.py - cam.y + 55 - 10 - 1, colour: F.COLOUR & 15, multicolour: true, bitmap: spriteData(player.pointer(this.traffic.tick)) }
+      ? { x: player.px - cam.x + 31 - 12, y: player.py - cam.y + 55 - 10 - 1, colour: F.COLOUR & 15, multicolour: true, bitmap: player.drawn }
       : { x: car.px - cam.x + 31 - 12, y: car.py - cam.y + 55 - 10 - 1, colour: car.colour, bitmap: assets.car.subarray(direction16(car.angle) * 64, direction16(car.angle) * 64 + 63) };
     return [zero, ...plan(this.list).sort((a, b) => a.hw - b.hw).map(planned)];
   }

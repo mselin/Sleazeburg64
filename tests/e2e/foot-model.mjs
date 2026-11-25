@@ -2,7 +2,7 @@
 // A model of the player on foot and of getting in and out of cars (src/foot.asm), worked out again here so
 // the tests can hold the program to it frame by frame. The rules are the program's: see the comments there
 // for why they are what they are.
-import { MAP_PIXELS, MAP_SIZE, PLAYER_SPRITE, PUNCH_SPRITE, assets } from './game.mjs';
+import { MAP_PIXELS, MAP_SIZE, PUNCH_SPRITE, assets, spriteData } from './game.mjs';
 import { direction16 } from './car-model.mjs';
 import { TrafficCar } from './traffic-model.mjs';
 
@@ -36,6 +36,9 @@ export class Player {
     // On foot: positions in 1/256 pixel, 24 bits, as the program keeps them.
     // arm: frames left with the arm out after a punch (people-model.mjs sets it).
     Object.assign(this, { car, on: 0, x: 0, y: 0, face: 0, phase: 0, swim: 0, fireWas: 1, arm: 0 });
+    // The picture (frames.asm): the frames the two buffers hold (-1: none), the one shown from last, and the 63
+    // bytes drawn this pass (null in the car).
+    Object.assign(this, { held: [-1, -1], shown: 0, drawn: null });
   }
   /** Where the player is, in pixels: on foot, or their car. */
   get px() {
@@ -57,8 +60,9 @@ export class Player {
       // Else fire is a punch (people-model.mjs): no ammo, no knife, and nobody fights in the water.
       if (this.on && press && !this.swim) people?.punch(this);
     } else {
-      this.car.step(bits, traffic, busy);
+      // Out first if they can be, the car left where it is; else its frame.
       if (use) this.leave(traffic);
+      if (!this.on) this.car.step(bits, traffic, busy);
     }
   }
   walk(bits) {
@@ -141,11 +145,43 @@ export class Player {
     traffic.mine = slot;
     car.vx = car.vy = 0;
   }
-  /** The pointer of the frame the player on foot is drawn with: `tick` is the traffic's, after its step. */
-  pointer(tick) {
-    if (this.swim) return PLAYER_SPRITE + 40 + ((tick >> 4) & 1);
-    if (this.arm) return PUNCH_SPRITE + this.face;
-    return PLAYER_SPRITE + this.face * 5 + CYCLE[(this.phase >> 8) & 7];
+  /** Which of the 42 frames (tools/assets.mjs) the player on foot is drawn with, or -1 punching: `tick` is the traffic's, after its step. */
+  frame(tick) {
+    if (this.swim) return 40 + ((tick >> 4) & 1);
+    if (this.arm) return -1;
+    return this.face * 5 + CYCLE[(this.phase >> 8) & 7];
+  }
+  /** The picture they should be drawn with: its 63 bytes. */
+  bitmap(tick) {
+    const f = this.frame(tick);
+    return f < 0 ? spriteData(PUNCH_SPRITE + this.face) : assets.player.subarray(f * 64, f * 64 + 63);
+  }
+  /**
+   * foot.show, as frames.point picks the picture (`quiet`: a pass with no colour memory to work out and the
+   * screen not moving a character). A frame flipped from one of the twelve is made into a buffer, which takes
+   * time, so only in a quiet pass; in another the picture stays as it was, or after the car is the frame it is
+   * made from, as it is.
+   */
+  draw(tick, quiet) {
+    const f = this.frame(tick), before = this.drawn;
+    this.drawn = this.bitmap(tick);
+    if (f < 0 || !(assets.playerMade[f] & 3)) return;
+    let b = this.held.indexOf(f);
+    if (b < 0) {
+      if (!quiet) {
+        if (!before) this.drawn = Player.stored(assets.playerMade[f] >> 2);
+        else this.drawn = before;
+        return;
+      }
+      b = this.shown ^ 1;
+      this.held[b] = f;
+    }
+    this.shown = b;
+  }
+  /** One of the twelve frames the program file holds. */
+  static stored(n) {
+    const f = [...assets.playerMade].indexOf(n * 4);
+    return assets.player.subarray(f * 64, f * 64 + 63);
   }
   /** Their state as the tests compare it. In a car, where they are on foot means nothing. */
   get state() {
