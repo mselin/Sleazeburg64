@@ -634,7 +634,7 @@ row_count       .byte ROWS - 1, ROWS - 1, ROWS - 1, ROWS, ROWS, ROWS, ROWS - 1, 
 COPIES          = $c400
 COPY_SIZE       = 2 + ROWS * 6 + 1 + 2 + 2 + 3 + 1      ; ldx #39, the rows, dex, cpx #stop, beq, jmp, rts
                 .cerror COPIES + 9 * COPY_SIZE > $d000, "the copies run into the I/O area"
-                .cerror COPIES < SQUARES + 1024, "the copies run into the multiplication tables"
+                .cerror COPIES < SQUARES_HI + 512, "the copies run into the multiplication table"
 copy_lo         .byte <(COPIES + range(9) * COPY_SIZE)
 copy_hi         .byte >(COPIES + range(9) * COPY_SIZE)
 delta_lo        .byte <(DELTAS + $10000)
@@ -917,7 +917,7 @@ COLOUR_00       = COLOUR_11 + COLOUR_SIZE       ; the window starts on a tile's 
 COLOUR_10       = COLOUR_00 + COLOUR_SIZE_20    ; second column, first row
 COLOUR_01       = COLOUR_10 + COLOUR_SIZE       ; first column, second row
 COLOUR_END      = COLOUR_01 + COLOUR_SIZE_20
-                .cerror COLOUR_END > SQUARES2, "the colour routines run into multiplication tables"
+                .cerror COLOUR_END > SQUARES_START, "the colour routines run into the multiplication table"
                 .cerror map_end > COLOUR_11, "no room after the map"
                 .cerror (tile_colour & $ff) != 0, "tile_colour must start a page"
 colour_lo       .byte <COLOUR_00, <COLOUR_10, <COLOUR_01, <COLOUR_11

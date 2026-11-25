@@ -32,9 +32,15 @@ async function wrong(vice, lit) {
   }
   return out.length ? [`${out.length} pixels wrong`, ...out.slice(0, 5)] : [];
 }
-/** Run on `n` frames of the title page. */
+/**
+ * Run on `n` lines of the title page (each_frame is passed once a line), then on to the top border: there the
+ * picture VICE holds is all of the frame before, never part of two (the text blinks at line 251, after the
+ * text is drawn).
+ */
 async function frames(vice, n) {
   for (let i = 0; i < n; i++) await vice.runTo(L['title_page.each_frame']);
+  do await vice.runTo(L['title_page.each_frame']);
+  while ((await vice.registers()).LIN > 40);
 }
 
 test('the title page: the sunset picture, pixel by pixel, PRESS FIRE ... blinking under it twice a second', () =>

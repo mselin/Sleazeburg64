@@ -302,8 +302,8 @@ screen of its own, which the split switches to for its three rows.
 | `$4700` | City map |
 | `$6d00` | Made at start: the four colour memory routines, end to end |
 | `$aef2` | Copied at start: code there is no room for lower down (Big Honk, the player on foot) |
-| `$bc00` | Made at start: quarter squares moved along, the second half of a multiplication |
-| `$c000` | Made at start: quarter squares for multiplying, then the nine screen copies |
+| `$be01` | Made at start: quarter squares for multiplying, n × n / 4 for n = −255 to 511 (low bytes, then from `$c101` the high bytes) |
+| `$c400` | Made at start: the nine screen copies |
 | `$c8e0` | Copied at start: more code (the water, the screen copy's helpers) |
 | `$e000` | Copied at start: more code (drawing the city, the status panel, the passers-by), under the KERNAL ROM, which is out |
 | `$f300` | Copied at start: more code (the traffic, the car's grip and steering limit), up to the interrupt vectors |

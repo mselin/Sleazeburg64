@@ -55,6 +55,8 @@ test('the loader: the picture says LOADING while the game loads, then PRESS FIRE
     const file = readFileSync(join(ROOT, 'build/sleazeburg64.prg'));
     assert.ok((await vice.read(0x0801, file.length - 2)).equals(file.subarray(2)), 'the game loaded, byte for byte');
     for (let i = 0; i < 312 * 3; i++) await vice.runTo(G['title_page.each_frame']);
+    do await vice.runTo(G['title_page.each_frame']); // (on to the top border: the picture is all of one frame)
+    while ((await vice.registers()).LIN > 40);
     const lit = await wrong(vice, shown());
     const dark = await wrong(vice, shown(''));
     assert.ok(lit === 0 || dark === 0, `then the game's title page (${lit}, ${dark} pixels wrong)`);
