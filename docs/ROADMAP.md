@@ -108,6 +108,13 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
   (`CURSED LANE ASSIST TOOK OVER`), emergency braking that stops for people and cars on the move every time but
   for things standing still only 35 % of the time (`EMERGENCY BRAKING ENGAGED`), or anti-theft. It works only
   while the player drives. Here each is a bit a car, set from `rnd` when the car appears, and the times are frames.
+  - **Cursed lane assist.** After 6 to 14 seconds (300 to 700 frames, from `rnd`) of driving faster than 50 px/s
+    (1 pixel a frame), it takes the wheel for 0.8 seconds (40 frames): hard one way, then every 10 frames hard one
+    way or the other, changing its mind 2 times in 3 (a random byte under 171). Meanwhile the stick's left and
+    right do nothing; up, down and fire still work. In `src/car.asm` that is `update` taking `turn` from the
+    assist rather than the stick, so the swerve is held to the grip like any steering: flat out it is a sharp
+    wiggle, not a spin. `CURSED LANE ASSIST TOOK OVER` is 28 characters, and a chime goes with it once there is
+    sound.
   - **Anti-theft and its alarm.** 10 to 25 seconds after the player takes the car, it stops it for good
     (`ANTI-THEFT ENGAGED: ENGINE IMMOBILISED`, 38 characters, inside row 3's 40; getting back in, `THE
     IMMOBILISER SAYS NO`). Then the alarm sounds for 20 seconds: a high note and a low one in turn, 12 or 13
