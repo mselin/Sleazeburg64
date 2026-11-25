@@ -225,6 +225,13 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
     - the turn-your-phone notice when held upright (FR-17).
 
     Steering by finger does not carry over: the game reads a joystick, and the page only stands in for one.
+  - **Publishing it.** The play page goes up from the `pages` job in `.github/workflows/build.yml`, which gives
+    the deploy three tries, as the browser game's does. When GitHub Pages fails all three, as in GitHub's outage
+    of 25 November 2026, the deploy step says to re-run it later. A re-run used to upload the page a second time
+    under the same name and then stop: "Multiple artifacts named github-pages were unexpectedly found"
+    (mselin/gta-c64#44). The upload is now named after the run's attempt, here as in the browser game, so
+    re-running the failed job works. Running the workflow afresh on main (Actions, Build and test, Run
+    workflow) works too.
 
 ## What will not carry over from the browser game
 
