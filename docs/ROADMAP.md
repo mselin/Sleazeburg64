@@ -196,6 +196,9 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
     - Police cars never have lane assist or emergency braking, but every one has anti-theft, on the usual time,
       and a stolen police car's alarm says `CAR ALARM: WHAT DID YOU EXPECT?` (mselin/gta-c64#56). The notes
       above on which cars have what, and on emergency braking, were written before these changes.
+    - Emergency braking comes to rest about 3 pixels short of what it brakes for, rather than a car length or two:
+      it brakes no harder than it must, the faster the car the harder, measuring how far is left each frame
+      (mselin/gta-c64#72).
 
     See the design's [Cursed driver assistance](https://github.com/mselin/gta-c64/blob/main/specs/design.md#cursed-driver-assistance).
 - Jobs, starting with deliveries and the cult of 6-7.
