@@ -89,6 +89,10 @@ A briefing for whoever picks this project up next, person or assistant. Written 
     interrupt (13 to spare): a colour memory frame with the car moving by walls. Where a frame's time goes in
     the visible part of the screen, a cycle of work takes about 1.5 cycles, with the video chip's bad lines,
     the sprites' fetches and the multiplexer's interrupts.
+  - The passers-by (25 November 2026): each walks every other frame (half of them a frame, by turns), two
+    frames' worth at a time, and knows whether they are on a road from their last step, as a walk with the
+    car test came to about 25 lines each. With four of them, jaywalking and cars solid for them, the long
+    drive with traffic has no late frame and its busiest is ready 293 lines after the bottom interrupt.
   - The status panel (`src/status.asm`) writes only what changed, and only in a frame that does not move the
     screen: row 3 about 8 lines, 16 when its colour changes, and row 1 whole about 25, which also waits for a
     frame with no colour memory. The city viewer keeps the old readout (`src/panel.asm`, `src/digits.asm`).
@@ -98,11 +102,11 @@ A briefing for whoever picks this project up next, person or assistant. Written 
   - Four blocks of code are copied up at start. `EXTRA_CODE` (`$e000`-`$f2ff`, under the KERNAL ROM, which is
     switched out) took the status panel and the steering limit on 21 November 2026, when the owner chose to
     give the game the room the in-game test tune had, then drawing the city (`src/video.asm`, which left room
-    for the passers-by's frames at `$2000`) and the passers-by: about 200 bytes are left there (the
+    for the passers-by's frames at `$2000`) and the passers-by: about 40 bytes are left there (the
     steering limit and grip moved to `TOP_CODE` when jaywalking came in). `HIGH_CODE`
-    (`$b2a3`-`$bbff`, right after the third colour routine: Big Honk, the player on foot) has about 265 left;
+    (`$b2a3`-`$bbff`, right after the third colour routine: Big Honk, the player on foot, and the passers-by's test for a car in their way) has about 85 left;
     `MORE_CODE` (`$cdb0`-`$cfff`, after the screen copies: the water, and the screen copy's helpers and
-    variables) about 185; `TOP_CODE` (`$f300`-`$fff9`:
+    variables, and more of the passers-by's car test) about 35; `TOP_CODE` (`$f300`-`$fff9`:
     the traffic, the car's grip and steering limit) about 100; and below the screens, up to the passers-by's frames at `$2000`, about 220
     (`car.init`, which makes the multiplication tables, runs once from where it waits in the program file, as
     `src/frames.asm` does).

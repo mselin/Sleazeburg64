@@ -22,12 +22,18 @@ high_image
                 .include "honk.asm"
 .endif
                 .include "foot.asm"
+.if CROWD != 0
+                .dsection people_high
+.endif
 high_end
                 .endlogical
 more_image
                 .logical MORE_CODE
                 .include "water.asm"
                 .dsection video_more
+.if CROWD != 0
+                .dsection people_more
+.endif
 more_end
                 .endlogical
 top_image

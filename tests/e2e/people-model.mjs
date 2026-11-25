@@ -8,6 +8,7 @@ import { LOWEST } from './traffic-model.mjs';
 export const P = {
   CROWD: 4, REACH: 9, TREAD: 4, ARRIVE_GAP: 16, FAR: 0x180, BACK_ODDS: 205, SPRITE: 0x2000 / 64,
   RUN_OVER: 154, HIT: 9, NOSE: 8, DOWN_TIME: 200, DOWN_FRAME: 20, JAY_ODDS: 26,
+  HALT: 10, TURN_AFTER: 75, CAR_LONG: 13, CAR_SHORT: 8, CAR_SQUARE: 10,
   SHIRTS: [4, 8, 3, 2, 10, 9, 5, 1], // purple, orange, cyan, red, light red, brown, green, white
 };
 export const ROADWAY = 0, WALL = 1, GRASS = 2, PAVEMENT = 4; // a tile's kind (tools/assets.mjs)
@@ -21,7 +22,9 @@ export class Person {
     // Positions in 1/256 pixel, 24 bits, as the program keeps them.
     // down: frames left lying, once run over; 0 walking.
     // jay: 1 when ready to cross a road.
-    Object.assign(this, { on: 0, x: 0, y: 0, way: 0, spd: 0, col: 0, wait: 0, ph: 0, down: 0, jay: 0 }, fields);
+    // A car in the way: stuck, frames left before they turn another way; stall, frames left standing; aside,
+    // the way they step round it + 1.
+    Object.assign(this, { on: 0, x: 0, y: 0, way: 0, spd: 0, col: 0, wait: 0, ph: 0, down: 0, jay: 0, stuck: 0, stall: 0, aside: 0, road: 0 }, fields);
   }
   get px() {
     return (this.x >> 8) & 0xffff;
@@ -54,7 +57,7 @@ export class People {
   constructor({ arrive = true, crowd = P.CROWD } = {}) {
     this.arrive = arrive;
     this.people = Array.from({ length: crowd }, () => new Person());
-    Object.assign(this, { seed: 0x5d, lull: 1, crossing: 0 });
+    Object.assign(this, { seed: 0x5d, lull: 1, crossing: 0, half: 0 });
   }
   rnd() {
     let a = this.seed << 1;
@@ -65,8 +68,32 @@ export class People {
   static kind(x, y) {
     return x >= MAP_PIXELS || y >= MAP_PIXELS ? WALL : kindAt(x, y);
   }
+  static point(p, way, d) {
+    return [w16(p.px + DX[way] * d), w16(p.py + DY[way] * d)];
+  }
   static ahead(p, way, d) {
-    return People.kind(w16(p.px + DX[way] * d), w16(p.py + DY[way] * d));
+    return People.kind(...People.point(p, way, d));
+  }
+  /** Whether (x, y) is within lx across and ly down of (bx, by). */
+  static inBody([x, y], bx, by, lx, ly) {
+    return w16(x - bx + lx) <= 2 * lx && w16(y - by + ly) <= 2 * ly;
+  }
+  /**
+   * people.car_in_way: the middle of a car whose body takes in the point, unless p is under that car already
+   * (then they can walk out), or null. The traffic's cars (traffic-model.mjs) from the last place down, then
+   * the player's car `car` while they drive it. A car that flooded is out of the way.
+   */
+  static carInWay(pt, p, traffic, car) {
+    const bodies = [];
+    for (let i = (traffic?.cars.length ?? 0) - 1; i >= 0; i--) {
+      const c = traffic.cars[i];
+      if (!c.on || c.sink) continue;
+      bodies.push([c.px, c.py, ...(c.dir & 1 ? [P.CAR_SHORT, P.CAR_LONG] : [P.CAR_LONG, P.CAR_SHORT])]);
+    }
+    if (car) bodies.push([car.px, car.py, P.CAR_SQUARE, P.CAR_SQUARE]);
+    for (const [bx, by, lx, ly] of bodies)
+      if (People.inBody(pt, bx, by, lx, ly) && !People.inBody([p.px, p.py], bx, by, lx, ly)) return { x: bx, y: by };
+    return null;
   }
   static likes(k, p) {
     return k === PAVEMENT || k === GRASS || (k === ROADWAY && p.jay === 1);
@@ -85,9 +112,42 @@ export class People {
       if (People.ahead(p, t, P.REACH) !== WALL) chosen = t;
     }
     if (chosen !== null) p.way = chosen;
-    p.wait = this.rnd() | 32;
+    p.wait = (this.rnd() >> 1) | 16;
+    p.stuck = p.stall = p.aside = 0;
   }
-  walk(p, at) {
+  static stride(p, way) {
+    const d = way < 2 ? p.spd : -p.spd;
+    if (way & 1) p.y = (p.y + d) & 0xffffff;
+    else p.x = (p.x + d) & 0xffffff;
+  }
+  /** people.steps: two frames' worth, and whether that leaves them on a road. */
+  static steps(p, way) {
+    People.stride(p, way);
+    People.stride(p, way);
+    p.road = People.kind(p.px, p.py) === ROADWAY ? 1 : 0;
+  }
+  /** A car in the way, its middle b: true if they stand (or turn another way) this frame, with no step. */
+  heldUp(p, b, traffic, car) {
+    if (!p.stuck) [p.stuck, p.stall] = [P.TURN_AFTER, P.HALT];
+    if (--p.stuck === 0) {
+      this.pick(p);
+      return true;
+    }
+    if (p.stall) {
+      p.stall--;
+      return true;
+    }
+    // Round its nearer end: away from its middle, decided once.
+    if (!p.aside) p.aside = (p.way & 1 ? (p.px >= b.x ? 0 : 2) : (p.py >= b.y ? 1 : 3)) + 1;
+    const s = p.aside - 1;
+    if (People.ahead(p, s, P.TREAD) === WALL || People.carInWay(People.point(p, s, P.TREAD), p, traffic, car)) {
+      this.pick(p);
+      return true;
+    }
+    People.steps(p, s);
+    return false;
+  }
+  walk(p, at, traffic, car) {
     if (p.down) return; // lying: no more walking
     if (tooFar(w16(p.px - at[0])) || tooFar(w16(p.py - at[1]))) {
       p.on = 0;
@@ -96,12 +156,14 @@ export class People {
     p.wait = (p.wait - 1) & 255;
     if (p.wait === 0 || !People.likes(People.ahead(p, p.way, P.REACH), p)) this.pick(p);
     if (People.ahead(p, p.way, P.TREAD) !== WALL) {
-      const d = p.way < 2 ? p.spd : -p.spd;
-      if (p.way & 1) p.y = (p.y + d) & 0xffffff;
-      else p.x = (p.x + d) & 0xffffff;
+      const b = People.carInWay(People.point(p, p.way, P.TREAD), p, traffic, car);
+      if (!b) {
+        p.stuck = p.stall = p.aside = 0;
+        People.steps(p, p.way);
+      } else if (this.heldUp(p, b, traffic, car)) return;
     }
     const v = (p.spd - ((p.spd >> 3) + (p.spd >> 2))) & 255;
-    p.ph = (p.ph + v) & 0xffff;
+    p.ph = (p.ph + 2 * v) & 0xffff;
   }
   /** people.arrive: someone new in the highest free place, if the point picked is out of sight on a pavement. */
   arriveOne(at, cam) {
@@ -115,17 +177,20 @@ export class People {
   }
   /**
    * One pass of the main loop, after the window `cam` has moved: `quiet` if the frame neither moves the screen
-   * nor works out colour memory; `at` is where the player is, in pixels.
+   * nor works out colour memory; `at` is where the player is, in pixels; `traffic` and the player's car `car`
+   * (null when they are on foot, and it is in the traffic's tables) are what can be in their way.
    */
-  step(quiet, at, cam) {
+  step(quiet, at, cam, traffic = null, car = null) {
     if (!quiet) return;
     if (this.arrive && --this.lull === 0) {
       this.lull = P.ARRIVE_GAP;
       this.arriveOne(at, cam);
     }
-    for (let i = this.people.length - 1; i >= 0; i--) if (this.people[i].on) this.walk(this.people[i], at);
-    // How many are on a road, for the traffic (traffic-model.mjs), which looks for them only then.
-    this.crossing = this.people.filter((p) => p.on && People.kind(p.px, p.py) === ROADWAY).length;
+    // Half of them in each such frame, by turns, two frames' worth at once.
+    this.half ^= 1;
+    for (let i = this.people.length - 1; i >= 0; i--) if (this.people[i].on && (i & 1) === this.half) this.walk(this.people[i], at, traffic, car);
+    // How many are on a road as of their last step, for the traffic (traffic-model.mjs), which looks for them only then.
+    this.crossing = this.people.filter((p) => p.on && p.road).length;
   }
   /** Whether someone is in sight in the window `cam`, as show lists them. */
   static inSight(p, cam) {
@@ -165,8 +230,8 @@ export class People {
   /** Everyone's state as the tests compare it. */
   get state() {
     return {
-      seed: this.seed, lull: this.lull,
-      people: this.people.map((p) => (p.on ? { on: 1, x: p.x, y: p.y, way: p.way, spd: p.spd, col: p.col, wait: p.wait, ph: p.ph, down: p.down, jay: p.jay } : { on: 0 })),
+      seed: this.seed, lull: this.lull, half: this.half,
+      people: this.people.map((p) => (p.on ? { on: 1, x: p.x, y: p.y, way: p.way, spd: p.spd, col: p.col, wait: p.wait, ph: p.ph, down: p.down, jay: p.jay, stuck: p.stuck, stall: p.stall, aside: p.aside, road: p.road } : { on: 0 })),
     };
   }
 }
@@ -174,13 +239,13 @@ export class People {
 /** The same, read from the program. */
 export async function readPeople(vice, L, crowd = P.CROWD) {
   const get = async (name, n = crowd) => [...(await vice.read(L[`people.${name}`], n))];
-  const [on, xf, xl, xh, yf, yl, yh, way, spd, col, wait, phl, phh, down, jay] = await Promise.all(
-    ['on', 'xf', 'xl', 'xh', 'yf', 'yl', 'yh', 'way', 'spd', 'col', 'wait', 'phl', 'phh', 'down', 'jay'].map((n) => get(n)));
-  const [seed] = await get('seed', 1), [lull] = await get('lull', 1);
+  const [on, xf, xl, xh, yf, yl, yh, way, spd, col, wait, phl, phh, down, jay, stuck, stall, aside, road] = await Promise.all(
+    ['on', 'xf', 'xl', 'xh', 'yf', 'yl', 'yh', 'way', 'spd', 'col', 'wait', 'phl', 'phh', 'down', 'jay', 'stuck', 'stall', 'aside', 'road'].map((n) => get(n)));
+  const [seed] = await get('seed', 1), [lull] = await get('lull', 1), [half] = await get('half', 1);
   return {
-    seed, lull,
+    seed, lull, half,
     people: on.map((o, i) => (o ? {
-      on: 1, x: xf[i] | (xl[i] << 8) | (xh[i] << 16), y: yf[i] | (yl[i] << 8) | (yh[i] << 16), way: way[i], spd: spd[i], col: col[i], wait: wait[i], ph: phl[i] | (phh[i] << 8), down: down[i], jay: jay[i],
+      on: 1, x: xf[i] | (xl[i] << 8) | (xh[i] << 16), y: yf[i] | (yl[i] << 8) | (yh[i] << 16), way: way[i], spd: spd[i], col: col[i], wait: wait[i], ph: phl[i] | (phh[i] << 8), down: down[i], jay: jay[i], stuck: stuck[i], stall: stall[i], aside: aside[i], road: road[i],
     } : { on: 0 })),
   };
 }
@@ -189,7 +254,7 @@ export async function readPeople(vice, L, crowd = P.CROWD) {
 export async function putPerson(vice, L, people, i, { x, y, way = 0, spd = 90, col = 2, wait = 100, ph = 0, jay = 0 }) {
   const p = new Person({ on: 1, x: x << 8, y: y << 8, way, spd, col, wait, ph, jay });
   people.people[i] = p;
-  for (const [name, value] of Object.entries({ on: 1, xf: 0, xl: x & 255, xh: x >> 8, yf: 0, yl: y & 255, yh: y >> 8, way, spd, col, wait, phl: ph & 255, phh: ph >> 8, down: 0, jay }))
+  for (const [name, value] of Object.entries({ on: 1, xf: 0, xl: x & 255, xh: x >> 8, yf: 0, yl: y & 255, yh: y >> 8, way, spd, col, wait, phl: ph & 255, phh: ph >> 8, down: 0, jay, stuck: 0, stall: 0, aside: 0, road: 0 }))
     await vice.write(L[`people.${name}`] + i, [value]);
   return p;
 }
