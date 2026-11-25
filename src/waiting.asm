@@ -65,7 +65,7 @@ EXTRA_PAGES     = (extra_end - EXTRA_CODE + 255) / 256
                 .cerror high_end > SQUARES2, "the code at HIGH_CODE runs into the tables"   ; (the rest of its last
                                         ; page is copied over them too, before car.init makes them)
                 .cerror top_end > $fffa, "the code at TOP_CODE runs into the interrupt vectors"
-                .cerror MORE_CODE < video.COPIES + 18 * video.COPY_SIZE, "MORE_CODE is in the screen copies"
+                .cerror MORE_CODE < video.COPIES + 9 * video.COPY_SIZE, "MORE_CODE is in the screen copies"
                 .cerror more_end > $d000, "the code at MORE_CODE runs into the I/O area"
                 .cerror EXTRA_CODE + EXTRA_PAGES * 256 > TOP_CODE, "the code at EXTRA_CODE runs into TOP_CODE"
                 .cerror * > HIGH_CODE, "what waits after the map reaches where it is copied to"

@@ -107,8 +107,12 @@ A briefing for whoever picks this project up next, person or assistant. Written 
     (`$aef2`-`$bbff`, right after the colour routines: Big Honk, the player on foot, the passers-by's test for a car in their way, their arriving, punches and running) has about 330 left
     since the colour routines were packed end to end (25 November 2026: each had had room for the longest,
     and the one after the map 600 bytes more);
-    `MORE_CODE` (`$cdb0`-`$cfff`, after the screen copies: the water, and the screen copy's helpers and
-    variables, and more of the passers-by's car test) about 35; `TOP_CODE` (`$f300`-`$fff9`:
+    `MORE_CODE` (`$c8e0`-`$cfff`, after the screen copies: the water, and the screen copy's helpers and
+    variables, and more of the passers-by's car test) about 1180, since the screen copies were halved
+    (25 November 2026: nine, one for each way, from screen A to B, each turned round in place, 42 high
+    bytes 4 pages either way, when it is next used the other way round, about 950 cycles; measured, the
+    tightest scrolling frame went from 55 to 51 lines spare driving and from 64 to 45 on foot, flat out from
+    86 to 68); `TOP_CODE` (`$f300`-`$fff9`:
     the traffic, the car's grip and steering limit) about 100; and below the screens, up to the passers-by's frames at `$2000`, about 220
     (`car.init`, which makes the multiplication tables, runs once from where it waits in the program file, as
     `src/frames.asm` does).
