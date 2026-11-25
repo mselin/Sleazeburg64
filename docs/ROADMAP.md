@@ -265,6 +265,9 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
     LOADING while the KERNAL loads the game, the second file, from the same drive. The web page still runs the
     `.prg` (its open-source ROMs cannot load a second file from a disk), and offers the disk to download. The browser game's text page and its taking turns with the picture are not
     copied: the C64's title page is the picture alone.
+  - **Fixed in the browser game** (mselin/gta-c64#70): fire starts the game from the title screen, and fire
+    also shoots, so a press still held when play began fired a shot at once, and the player started a bullet
+    short. Now the press that starts the game is not a shot; fire shoots once let go of and pressed again.
 
 ## Milestone 4: sound and polish
 
