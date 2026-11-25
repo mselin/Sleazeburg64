@@ -53,6 +53,8 @@ extra_image
 extra_end
                 .endlogical
 people_image    .binary "people.bin"    ; the passers-by's frames, copied to PEOPLE_FRAMES at start
+punch_image     .binary "punch.bin"     ; the player punching, copied to PUNCH_FRAMES at start
+                .cerror size(punch_image) != 2 * 256, "the punching frames are two pages"
                 .cerror PEOPLE_FRAMES + size(people_image) > PLAYER_FRAMES, "the passers-by's frames reach the player's"
 HIGH_PAGES      = (high_end - HIGH_CODE + 255) / 256
 MORE_PAGES      = (more_end - MORE_CODE + 255) / 256

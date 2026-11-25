@@ -59,6 +59,8 @@ MORE_CODE       = $cdb0                 ; from after the screen copies,
 TOP_CODE        = $f300                 ; and from the top of memory: all copied there at start
 EXTRA_CODE      = $e000                 ; and from under the KERNAL ROM, which is switched out, up to TOP_CODE
 PEOPLE_FRAMES   = $2000                 ; the passers-by's sprite, copied there at start: 20 frames
+PUNCH_FRAMES    = $0200                 ; the player punching, 8 frames, copied there at start (the KERNAL's
+                                        ; pages, which it does not use once it is switched out)
 PLAYER_FRAMES   = $2580                 ; the player on foot's sprite, made at start: 42 frames, up to the screens
 
 ; ---------- zero page ----------
@@ -110,6 +112,7 @@ start           sei
                 #raise top_image, TOP_CODE, TOP_PAGES
                 #raise extra_image, EXTRA_CODE, EXTRA_PAGES
                 #raise people_image, PEOPLE_FRAMES, (size(people_image) + 255) / 256
+                #raise punch_image, PUNCH_FRAMES, 2
 .endif
                 lda #<ignore            ; RESTORE does nothing (after the copy, which can run over the vectors)
                 sta $fffa

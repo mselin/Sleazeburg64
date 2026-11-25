@@ -983,6 +983,8 @@ punch           lda punch_left
                 bne +
                 lda #PUNCH_WAIT
                 sta punch_left
+                lda #ARM_OUT            ; the arm goes out, whether it lands or not
+                sta foot.arm
                 ldx foot.face           ; the point
                 ldy #0
                 lda reach_x,x

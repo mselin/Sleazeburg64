@@ -39,6 +39,8 @@
 ; tests/e2e/foot-model.mjs does the same in JavaScript, and the tests hold the two to each other exactly.
 
 PLAYER_SPRITE   = PLAYER_FRAMES / 64    ; direction * 5 + pose, then the two swimming
+PUNCH_SPRITE    = PUNCH_FRAMES / 64     ; punching, by direction
+ARM_OUT         = 10                    ; the arm stays out 0.2 seconds
 PLAYER_COLOUR   = WHITE | $80           ; $80: a multicolour sprite
 
 foot            .block
@@ -61,6 +63,7 @@ fire_was        .byte ?                 ; 1: fire was held in the pass before
 joy             .byte ?                 ; this pass's joystick
 use             .byte ?                 ; 1: fire has just been pressed with the stick centred
 press           .byte ?                 ; 1: fire has just been pressed, the stick anywhere
+arm             .byte ?                 ; frames left with the arm out, after a punch (people.punch)
 stuck           .byte ?                 ; walk: inside a wall
 amount          .word ?                 ; walk: how far along an axis this frame
 next            .fill 3                 ; walk: where that would put them on the axis
@@ -85,6 +88,7 @@ init            lda #$ff                ; (car.survey: no tile asked about yet)
                 sta car.other_col
                 lda #0
                 sta on
+                sta arm
                 sta water.wet
                 sta swim
                 sta face
@@ -101,7 +105,10 @@ init            lda #$ff                ; (car.survey: no tile asked about yet)
 ; One pass of the main loop. In: A = joystick bits. Drives the car or walks, gets in or out if asked, and
 ; leaves where the player is in player_at.
 update          sta joy
-                lda #0
+                lda arm                 ; the arm out after a punch: ARM_OUT frames
+                beq +
+                dec arm
++               lda #0
                 sta use
                 sta press
                 lda joy
@@ -644,6 +651,12 @@ show            lda on
                 and #1
                 clc
                 adc #PLAYER_SPRITE + 40
+                bne +++
++               lda arm                 ; a punch: the arm out, facing the way they face
+                beq +
+                lda face
+                clc
+                adc #PUNCH_SPRITE
                 bne ++
 +               lda phase + 1           ; walking: the pose its cycle has reached, for the way they face
                 and #7
