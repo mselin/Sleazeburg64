@@ -37,7 +37,8 @@ You need [64tass](https://tass64.sourceforge.net/), Node.js 20 or later, and `ma
 make
 ```
 
-That writes `build/sleazeburg64.prg`. The map and the code that start copies up are carried packed in it
+That writes `build/sleazeburg64.prg`, and `build/sleazeburg64.d64`, a disk with a loader first (see Run), for
+which you also need VICE's `c1541`. The map and the code that start copies up are carried packed in it
 (`tools/build-game.sh` assembles the game, packs that part with `tools/pack.mjs`, and assembles it again around
 the packed bytes), which makes the file about 25K rather than 33K; the game unpacks it as it starts.
 
@@ -46,8 +47,11 @@ the packed bytes), which makes the file about 25K rather than 33K; the game unpa
 In a browser: <https://mselin.github.io/Sleazeburg64/> has the latest tested build, playable in VirtualC64 Web
 (see [docs/BROWSER.md](docs/BROWSER.md)) or to download.
 
-On a real C64 or C128 in 64 mode: copy the `.prg` to a disk, SD card or cartridge of your choice, plug a
-joystick into **port 2**, then `LOAD` and `RUN` it. The program is for PAL machines; it has not been tried
+On a real C64 or C128 in 64 mode: write the `.d64` to a disk (or use it on an SD card drive), plug a joystick
+into **port 2**, then `LOAD"*",8,1` and `RUN`. The loader, the disk's first file, shows the title picture
+saying LOADING while it loads the game, the second file; the game then shows it saying PRESS FIRE. Or copy the
+`.prg` alone to a disk, SD card or cartridge and `LOAD` and `RUN` that: it shows the title picture once it has
+loaded. The program is for PAL machines; it has not been tried
 on NTSC.
 
 - **In the car:** up accelerates, down brakes and then reverses, left and right steer, and fire is the
@@ -133,7 +137,7 @@ game started directly, and that both tunes produce sound. It cannot judge how th
 | `src/honk.asm` | Big Honk: where he goes, what happens when a car runs into him, and his sprite. |
 | `src/foot.asm` | The player on foot: walking, swimming, and getting in and out of cars. |
 | `src/water.asm` | Water: what it does to the player's car, flooding, and a flooded car sinking. |
-| `src/frames.asm` | Makes the player on foot's 42 sprite frames from the twelve in the program file, at start. |
+| `src/frames.asm` | The player on foot's sprite frames: the twelve in the program file, and the rest made from them as they are shown. |
 | `src/waiting.asm` | What waits after the tiles, packed: the map, the code copied up at start, the player's frames. |
 | `src/digits.asm` | Tables for the city viewer's readout. |
 | `src/irq.asm` | The raster interrupts: the split under the city, and putting each frame in place. |
@@ -142,10 +146,13 @@ game started directly, and that both tunes produce sound. It cannot judge how th
 | `src/panel.asm` | The city viewer's panel: where the view is. |
 | `src/input.asm` | The joystick. |
 | `src/music.asm` | Music test builds: the tune that plays in the game, and its credits in the panel. |
+| `src/title-page.asm` | The title page: the sunset picture, until fire. |
+| `src/loader.asm` | The disk's loader: the picture saying LOADING while it loads the game. |
 | `src/title.asm` | Music test builds: the title screen, its tune, and starting the game from it. |
 | `src/c64.inc` | Hardware addresses and colour names. |
 | `tools/city.mjs` | The city generator, identical to the browser game's. |
 | `tools/assets.mjs` | Builds the character set, tile definitions, map and the sprites: the car, the player and Big Honk. |
+| `tools/picture.mjs` | Makes the title page's picture (`assets/title-sunset.png`, the browser game's) a C64 multicolour bitmap, packed. |
 | `tools/pack.mjs`, `tools/build-game.sh` | Packs what waits after the tiles, and builds the game around it. |
 | `tools/sid.mjs` | Fetches and checks a tune for a music test build, and writes its addresses and credits. |
 | `tools/emulator-test.sh` | Runs the program in VICE and takes screenshots. |

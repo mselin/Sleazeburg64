@@ -33,6 +33,7 @@ ITEMS           = 1
 CROWD          = 4                     ; passers-by at most at once (people.asm); 0 leaves them out
 PACKED          = 0
 PACK_FILE       = "packed.bin"
+TITLE           = 0                     ; 1: the title page first (title-page.asm), as the game is shipped
                 .endweak
 WITH_HONK       = VIEWER == 0 && HONK != 0
                 .cerror MUSIC != 0 && VIEWER == 0, "only the city viewer can have a tune: the game's code is at $e000"
@@ -110,6 +111,11 @@ start           sei
                 lda #$35                ; BASIC and KERNAL out, I/O in: the program owns the machine
                 sta CPU_PORT
 .if VIEWER == 0
+.if PACKED != 0 && TITLE != 0
+                jsr title_page.show     ; first of all, the title page, until fire
+.elsif TITLE != 0
+                bit title_page.show     ; (the same size, as below)
+.endif
 .if PACKED != 0
                 jsr unpack              ; first: everything after the tiles is still packed
 .else
@@ -280,6 +286,8 @@ ref             = $fc
                 sta dst
                 lda #>city_map
                 sta dst + 1
+; Unpack from src to dst, with all RAM in ($34): the title page's picture comes here too (title-page.asm).
+stream          ldy #0
 next            jsr get
                 cmp #$ff
                 beq done
@@ -551,6 +559,9 @@ char_of         lda cam_hi,x
 .if VIEWER == 0
                 .include "car.asm"
                 .include "pickups.asm"
+.if TITLE != 0
+                .include "title-page.asm"
+.endif
 .endif
 .if MUSIC != 0 && VIEWER != 0
                 .include "music.asm"
@@ -609,10 +620,16 @@ PACK_HOME       = (program_end + 255) & $ff00 ; where start moves it to unpack i
                                         ; code copied up there only takes once it has been unpacked)
                 .cerror packed_end > PACK_HOME, "the packed data would be overwritten as it is moved"
                 .cerror * - packed_start != size(packed_bytes), "the packed data is not all there"
+.if TITLE != 0
+packed_title    .binary "title.bin"     ; the title page's picture, packed (title-page.asm): shown, then written over
+packed_title_end
+                .cerror packed_title_end > PACK_HOME, "the title picture would be overwritten as the rest is moved"
+.endif
 .endif
 .if PACKED == 0 && VIEWER == 0
 packed_start    = city_map              ; (not packed: unpack is assembled, the same size, but not called)
 packed_end      = city_map
+packed_title    = city_map              ; (nor is the title page shown)
 PACK_HOME       = $a000
 .endif
 file_end                                ; (what the program file holds ends here)
