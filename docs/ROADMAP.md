@@ -277,6 +277,10 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
     (mselin/gta-c64#44, fixed in mselin/gta-c64#45). The upload is now named after the run's attempt, here as in the browser game, so
     re-running the failed job works. Running the workflow afresh on main (Actions, Build and test, Run
     workflow) works too.
+  - **The browser game's icon is now the goose** (mselin/gta-c64#62): Big Honk in sunglasses and a gold chain on
+    a sunset, in a circle, in the artwork's own colours, in place of the S. The play page's `site/index.html`
+    names icons of its own, copies of the old S. See "Icon" under the design's
+    [Title screen and icon](https://github.com/mselin/gta-c64/blob/main/specs/design.md#title-screen-and-icon).
 
 ## What will not carry over from the browser game
 
