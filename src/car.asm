@@ -167,8 +167,9 @@ mul             .macro v, s, to         ; to = v * s / 256, rounded towards 0, f
                 .endm
 
                 .section once           ; runs once, from where it waits in the program file (main.asm)
-; Build the quarter square tables: SQUARES[n] = n * n / 4, rounded down, for n = 0..511, low bytes then high
-; bytes, and SQUARES2[n] = SQUARES[|n - 255|], so that a * b = SQUARES[a + b] - SQUARES2[b - a + 255].
+; Build the quarter square table: n * n / 4, rounded down, for n = -255..511, the low bytes at SQUARES + n
+; and the high bytes at SQUARES_HI + n, so that a * b = (a + b)^2 / 4 - (a - b)^2 / 4, from the one table.
+; (Before, a second table, moved along by 255, held the negative half: 1K, for what is 510 bytes.)
 init            lda #0
                 sta trig_set
                 sta fwd_set
@@ -194,11 +195,11 @@ init            lda #0
                 bne +
                 sta SQUARES,x
                 lda sum
-                sta SQUARES + 512,x
+                sta SQUARES_HI,x
                 jmp ++
 +               sta SQUARES + 256,x
                 lda sum
-                sta SQUARES + 768,x
+                sta SQUARES_HI + 256,x
 +               txa                     ; n * n + 2n + 1 = (n + 1) * (n + 1)
                 asl
                 sta mp
@@ -220,20 +221,15 @@ init            lda #0
                 lda tb
                 cmp #2
                 bne -
-                ldx #0                  ; SQUARES2 for n = 0..255: |n - 255| = 255 - n ...
+                ldx #1                  ; and -n the same as n, for n = 1..255
 -               txa
                 eor #$ff
                 tay
-                lda SQUARES,y
-                sta SQUARES2,x
-                lda SQUARES + 512,y
-                sta SQUARES2 + 512,x
-                inx
-                bne -
--               lda SQUARES + 1,x       ; ... and 256..511: n - 255
-                sta SQUARES2 + 256,x
-                lda SQUARES + 513,x
-                sta SQUARES2 + 768,x
+                iny                     ; 256 - n
+                lda SQUARES,x
+                sta SQUARES - 256,y
+                lda SQUARES_HI,x
+                sta SQUARES_HI - 256,y
                 inx
                 bne -
                 rts
@@ -392,26 +388,44 @@ trig            ldx angle + 1
                 dex
                 bpl -
                 .cerror sn - cs != 2, "trig expects sn two bytes after cs"
-                lda size_lo             ; and the multiplications' tables, moved along by |cs| and |sn|
+                lda size_lo             ; and the multiplications' table, moved along by |cs| and |sn| ...
                 sta mul_c.p1 + 1
                 sta mul_c.p3 + 1
                 sta mul_c.p5 + 1
                 sta mul_c.p7 + 1
-                eor #$ff
+                lda #0                  ; ... and back by them (into the page before, but for 0)
+                sec
+                sbc size_lo
                 sta mul_c.p2 + 1
                 sta mul_c.p4 + 1
                 sta mul_c.p6 + 1
                 sta mul_c.p8 + 1
+                lda #>SQUARES - 1       ; (the carry is set for 0)
+                adc #0
+                sta mul_c.p2 + 2
+                sta mul_c.p6 + 2
+                adc #(>SQUARES_HI) - (>SQUARES) ; (the carry is clear)
+                sta mul_c.p4 + 2
+                sta mul_c.p8 + 2
                 lda size_lo + 2
                 sta mul_s.p1 + 1
                 sta mul_s.p3 + 1
                 sta mul_s.p5 + 1
                 sta mul_s.p7 + 1
-                eor #$ff
+                lda #0
+                sec
+                sbc size_lo + 2
                 sta mul_s.p2 + 1
                 sta mul_s.p4 + 1
                 sta mul_s.p6 + 1
                 sta mul_s.p8 + 1
+                lda #>SQUARES - 1
+                adc #0
+                sta mul_s.p2 + 2
+                sta mul_s.p6 + 2
+                adc #(>SQUARES_HI) - (>SQUARES)
+                sta mul_s.p4 + 2
+                sta mul_s.p8 + 2
                 rts
 
 ; Turn by up to 2.46 directions a frame, scaled down below TURN_SPEED forward, a quarter more on the
@@ -660,12 +674,12 @@ hold_turn       tax                     ; nf = grip * most_turn, by quarter squa
                 bcs +
                 lda SQUARES,x
                 sta nf
-                lda SQUARES + 512,x
+                lda SQUARES_HI,x
                 sta nf + 1
                 jmp ++
 +               lda SQUARES + 256,x
                 sta nf
-                lda SQUARES + 768,x
+                lda SQUARES_HI + 256,x
                 sta nf + 1
 +               lda mr
                 sec
@@ -679,7 +693,7 @@ hold_turn       tax                     ; nf = grip * most_turn, by quarter squa
                 sbc SQUARES,x
                 sta nf
                 lda nf + 1
-                sbc SQUARES + 512,x
+                sbc SQUARES_HI,x
                 sta nf + 1
                 lsr nf + 1              ; / 4
                 ror nf
@@ -1340,8 +1354,8 @@ kind_at         lda py
                 .send
 
 ; mr = mv * s / 256, rounded towards 0, for s = cs (mul_c) or sn (mul_s), as trig left them. With quarter
-; squares (see init): the tables' addresses are moved along by |s| (the low bytes of p1, p3, p5, p7) and by
-; 255 - |s| (p2, p4, p6, p8) by trig, which leaves a * |s| = p1[a] - p2[a] as 16 bits.
+; squares (see init): trig moves the table's addresses along by |s| (the low bytes of p1, p3, p5, p7) and back
+; by it (p2, p4, p6, p8, both bytes: the table goes on below), which leaves a * |s| = p1[a] - p2[a], 16 bits.
 times           .macro at
                 lda size_hi + \at       ; |s| = 256: mr = mv, or -mv
                 beq ++
@@ -1359,9 +1373,9 @@ times           .macro at
 +               ldx mv                  ; the low byte times |s|: the high byte of that, the low only for its
                 sec                     ; borrow
 p1              lda SQUARES,x
-p2              cmp SQUARES2,x
-p3              lda SQUARES + 512,x
-p4              sbc SQUARES2 + 512,x
+p2              cmp SQUARES,x
+p3              lda SQUARES_HI,x
+p4              sbc SQUARES_HI,x
                 sta mr
                 lda #0
                 sta mr + 1
@@ -1369,10 +1383,10 @@ p4              sbc SQUARES2 + 512,x
                 beq +
                 sec
 p5              lda SQUARES,x
-p6              sbc SQUARES2,x
+p6              sbc SQUARES,x
                 tay
-p7              lda SQUARES + 512,x
-p8              sbc SQUARES2 + 512,x
+p7              lda SQUARES_HI,x
+p8              sbc SQUARES_HI,x
                 sta mr + 1
                 tya
                 clc

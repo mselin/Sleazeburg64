@@ -112,7 +112,11 @@ A briefing for whoever picks this project up next, person or assistant. Written 
     give the game the room the in-game test tune had, then drawing the city (`src/video.asm`, which left room
     for the passers-by's frames at `$2000`) and the passers-by: about 250 bytes are left there (the
     steering limit and grip moved to `TOP_CODE` when jaywalking came in). `HIGH_CODE`
-    (`$aef2`-`$bbff`, right after the colour routines: Big Honk, the player on foot, the passers-by's test for a car in their way, their arriving, punches and running) has about 330 left
+    (`$aef2`-`$be00`, right after the colour routines: Big Honk, the player on foot, the passers-by's test for a car in their way, their arriving, punches and running) has about 520 left
+    since the multiplication's two tables became one (25 November 2026: n * n / 4 for n = -255..511, 1.5K at
+    `$be01`, where the second table, moved along by 255, had taken 1K; dropping that half altogether, working
+    out |a - b| in each multiplication, cost 19 raster lines in the worst screen-crossing frame of the long
+    drive, so the table was extended below zero instead, for 2 lines), before that about 330
     since the colour routines were packed end to end (25 November 2026: each had had room for the longest,
     and the one after the map 600 bytes more);
     `MORE_CODE` (`$c8e0`-`$cfff`, after the screen copies: the water, and the screen copy's helpers and

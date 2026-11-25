@@ -89,14 +89,12 @@ test('the sine table, the car\'s axis, the steering limit and the multiplication
   run(async (vice) => {
     // The program keeps the low bytes; car.sine makes the high byte: 1 within two directions of a quarter turn
     // (256, rounded), $ff past half a turn.
-    const lo = await vice.read(L['car.sin_lo'], 256), hi = (a) => (a >= 129 ? 0xff : a >= 62 && a <= 66 ? 1 : 0);
-    assert.deepEqual([...lo].map((l, a) => signed(l, hi(a))), SIN);
+    const sinLo = await vice.read(L['car.sin_lo'], 256), sinHi = (a) => (a >= 129 ? 0xff : a >= 62 && a <= 66 ? 1 : 0);
+    assert.deepEqual([...sinLo].map((l, a) => signed(l, sinHi(a))), SIN);
     assert.deepEqual([...(await vice.read(L['car.most_turn'], 65))], MOST_TURN, 'the most turn for each speed');
-    const squares = await vice.read(0xc000, 1024);
-    for (let n = 0; n < 512; n++) assert.equal(squares[n & 255 | (n & 256)] | (squares[512 + (n & 255) + (n & 256)] << 8), (n * n) >> 2, `quarter square of ${n}`);
-    // The other half of a multiplication: the same, moved along by 255.
-    const moved = await vice.read(L.SQUARES2, 1024);
-    for (let n = 0; n < 512; n++) assert.equal(moved[n] | (moved[512 + n] << 8), ((n - 255) * (n - 255)) >> 2, `moved quarter square of ${n}`);
+    // Quarter squares, n * n / 4 for n = -255..511: the low bytes at SQUARES + n, the high at SQUARES_HI + n.
+    const lo = await vice.read(L.SQUARES - 255, 767), hi = await vice.read(L.SQUARES_HI - 255, 767);
+    for (let n = -255; n < 512; n++) assert.equal(lo[n + 255] | (hi[n + 255] << 8), (n * n) >> 2, `quarter square of ${n}`);
   }));
 
 test('the car starts in the middle of the window, standing still and facing east, on a street', () =>

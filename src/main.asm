@@ -56,8 +56,10 @@ CENTRE_Y        = VIEW_H / 2
 CAR_FRAMES      = $0840                 ; the car's sprite in 16 directions, 64 bytes each
 CAR_SPRITE      = CAR_FRAMES / 64       ; sprite pointer of the first
 PICKUP_FRAMES   = CAR_FRAMES + 16 * 64  ; the pickups' sprite in five kinds, after the car's
-SQUARES         = $c000                 ; quarter squares for multiplying (see car.init): 1K, made at start
-SQUARES2        = $bc00                 ; and the same moved along, for the other half of a multiplication: 1K
+SQUARES         = $bf00                 ; quarter squares for multiplying (see car.init), made at start: the
+SQUARES_HI      = $c200                 ; low and high bytes of n * n / 4 for n = -255..511, at each + n
+SQUARES_START   = SQUARES - 255         ; (1.5K, from here up to the screen copies)
+                .cerror SQUARES - 255 + 767 > SQUARES_HI - 255, "the halves of the quarter squares overlap"
 HIGH_CODE       = video.COLOUR_END       ; code that runs from just above the colour routines,
 MORE_CODE       = $c8e0                 ; from after the screen copies,
 TOP_CODE        = $f300                 ; and from the top of memory: all copied there at start
