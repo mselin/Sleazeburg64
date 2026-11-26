@@ -35,6 +35,11 @@ C64, that goes in an issue in mselin/gta-c64, and the browser game's sessions ch
     pixels a frame on the road (163 px/s), with a table of the most turn for each speed, and sooner where the
     grip is less (braking, on grass, in the water). Grass slows the car as well as making it slide. See the
     design's [Handling](https://github.com/mselin/gta-c64/blob/main/specs/design.md#handling).
+  - **Changed in the browser game: settling onto a street's line** (mselin/gta-c64#55, #87). A car someone is
+    driving, let go of within about 11° of one of the eight ways (the axes and the diagonals), eases onto it and
+    keeps to it, at most a sixth of its steering rate, so it reads as straightening up rather than a snap. The
+    browser game also draws cars in 64 directions now. See "Settling on a straight line" under the design's
+    [Handling](https://github.com/mselin/gta-c64/blob/main/specs/design.md#handling).
 
 If 1b and 1c feel right on real hardware, the rest is a long list of known work.
 
@@ -104,6 +109,11 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
     cars and four people here, that is at most twenty boxes to test a frame. On the C64 the passers-by test the
     traffic's boxes (traffic.bump's, 3 pixels larger for their feet) and a square round the player's car, and
     each walks every other frame, two frames' worth at a time, to keep within the frame time.
+  - **Changed in the browser game: skaters on classic** (mselin/gta-c64#89, #91). The riders on the pavements
+    follow the difficulty (below, under Title screen): scooter riders on modern, skaters on classic. A skater has
+    a light grey hoodie and stands side on across a cyan skateboard with black wheels, at 46 px/s. The two rider
+    jobs, the news line and the title's greetings speak of skaters on classic. See "The riders" under
+    "Difficulty" in the design's [Title screen and icon](https://github.com/mselin/gta-c64/blob/main/specs/design.md#title-screen-and-icon).
 - Water: cars flood and sink, people swim (done, not yet tried on real hardware). The player's car wades,
   slower the deeper it is, floods once it is wholly in, and sinks in three colours, leaving the player swimming.
   It stops where it floods rather than drifting on, and it is out of the way from the moment it floods rather
@@ -157,6 +167,24 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
     Ramming or shooting one sets off its alarm, which reports the tampering; then it goes dark until the city
     puts it back up. Each of these has its own status lines. See "GAGGLE cameras" under the design's
     [Heat and the police](https://github.com/mselin/gta-c64/blob/main/specs/design.md#heat-and-the-police).
+  - **Changed in the browser game: the police helicopter** (mselin/gta-c64#83, #95). At heat 5 a police
+    helicopter comes in from out of sight and follows the player over buildings and water, faster than any car, so
+    it cannot be shaken off. It never lands, shoots or arrests: it lights the player up with a ring of yellow
+    dots, and while it is overhead the heat does not cool. It leaves when the heat drops below 5 (the paint shop),
+    and goes with the rest of the police when the player comes back from being wasted or busted. See "The police
+    helicopter" under the design's [Heat and the police](https://github.com/mselin/gta-c64/blob/main/specs/design.md#heat-and-the-police).
+  - **Changed in the browser game: the police and the pavement** (mselin/gta-c64#107). Driving faster than 15
+    px/s on a pavement or plaza where a chasing car, a patrol car or an officer on foot notices the player is a
+    crime of 4 points, at most every 3 seconds, with a line from the police ("OFFICER: THAT IS A SIDEWALK, NOT A
+    SHORTCUT." and three more). See "The police and the pavement" under the same heading.
+  - **Fixed in the browser game: the arrest count** (mselin/gta-c64#95). Boxed in (2 seconds) and an officer at
+    the window (0.7 seconds) each have their own count, back to 0 the moment the player is free of it. One shared
+    count that never went back used to leave a close escape a moment's touch from arrest. The design now
+    describes the officer-at-the-window rule too.
+  - **Changed in the browser game: the paint shop arrow** (mselin/gta-c64#80). With heat, at the wheel, a cyan
+    arrow with an S at the edge of the view points to the paint shop, PAINT & PRAY, where the heat goes. The
+    design now describes the paint shop itself as well. And the stolen police car's rise to heat 2 is no longer a
+    crime a GAGGLE camera adds to (mselin/gta-c64#100).
 - Fighting on foot, by the design's
   [Fighting on foot](https://github.com/mselin/gta-c64/blob/main/specs/design.md#fighting-on-foot): fire uses
   the gun while there is ammo, then the knife if the player has one, otherwise fists. A punch knocks someone
@@ -227,6 +255,9 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
       (mselin/gta-c64#72).
 
     See the design's [Cursed driver assistance](https://github.com/mselin/gta-c64/blob/main/specs/design.md#cursed-driver-assistance).
+  - **Changed in the browser game: modern only** (mselin/gta-c64#85). Cursed driver assistance, its car alarms
+    and the GAGGLE cameras are now only on the modern difficulty; classic, where a visit starts, has none of them.
+    See "Difficulty" under the design's [Title screen and icon](https://github.com/mselin/gta-c64/blob/main/specs/design.md#title-screen-and-icon).
 - Jobs, starting with deliveries and the cult of 6-7.
 - Pickups, money, getting arrested, the hospital. Pickups include the knife (a **K**, also dropped now and then
   by someone the player kills), and ammo stops at 99 so the panel always shows two digits.
@@ -308,6 +339,15 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
   - **Fixed in the browser game** (mselin/gta-c64#70): fire starts the game from the title screen, and fire
     also shoots, so a press still held when play began fired a shot at once, and the player started a bullet
     short. Now the press that starts the game is not a shot; fire shoots once let go of and pressed again.
+  - **Changed in the browser game: the boot's pause** (mselin/gta-c64#78). Once the loading picture has all
+    arrived, it stays 5 seconds before READY. and RUN and the title screen. See "The boot" under the design's
+    [Title screen and icon](https://github.com/mselin/gta-c64/blob/main/specs/design.md#title-screen-and-icon).
+  - **Changed in the browser game: a new picture** (mselin/gta-c64#105). The owner's new artwork: the car in it
+    is now a purple supercar, which suits both difficulties. `assets/title-sunset.png` there is the new picture.
+  - **Changed in the browser game: the difficulty** (mselin/gta-c64#85). The title screen has a setting, CLASSIC
+    (where a visit starts) or MODERN, which D goes through on the title screen. More settings may come. Modern
+    adds the cursed driver assistance, car alarms and GAGGLE cameras, and scooter riders instead of skaters. See
+    "Difficulty" under the design's [Title screen and icon](https://github.com/mselin/gta-c64/blob/main/specs/design.md#title-screen-and-icon).
 
 ## Milestone 4: sound and polish
 
