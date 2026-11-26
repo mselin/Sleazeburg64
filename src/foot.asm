@@ -601,6 +601,7 @@ out_here        lda #0
                 sta traffic.held,x
                 sta traffic.ghost,x
                 sta traffic.blocked,x
+                sta police.cop,x        ; (even where a police car was: the player's is not one)
                 sta car.vel_x
                 sta car.vel_x + 1
                 sta car.vel_y

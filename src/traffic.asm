@@ -664,6 +664,9 @@ way             txa
 no_way          inx
                 cpx #4
                 bne way
+                ldy i                   ; a police car chasing takes the way to the player (police.asm)
+                jsr police.chasing
+                bcs chosen
                 lda straight            ; straight on half the time if it can ...
                 beq +
                 jsr rnd
@@ -682,7 +685,7 @@ no_way          inx
                 bne -
                 ldx t1
                 lda ways,x
-                ldy i
+chosen          ldy i
                 cmp dir,y
                 beq go_on
                 sta turn,y              ; turning: where the lane it turns into is
@@ -699,7 +702,10 @@ go_on           rts
 
 .if SPAWN != 0
 ; One try at a new car somewhere off screen, a little way from the player, if there is room for one.
-try_spawn       ldx #SLOTS - 1          ; with CARS cars about, the cars the player has left among them, there
+try_spawn       jsr police.allowed      ; (with heat, only a police car, when one is due: police.asm)
+                bcs +
+                rts
++               ldx #SLOTS - 1          ; with CARS cars about, the cars the player has left among them, there
                 ldy #0                  ; are enough: that leaves a place free for the car the player is in
 -               lda on,x
                 beq +
@@ -963,6 +969,7 @@ near_next       dey
                 and #63
                 clc
                 adc #CRUISE_MIN
+                jsr police.new_car      ; (with heat, a police car)
                 sta cruise,x
                 sta sp,x
                 asl

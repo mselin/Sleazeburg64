@@ -129,10 +129,19 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
 - Heat and police, by the design's rules: the heat levels and what each crime adds, the distances the police
   notice from, and the stolen police car (driving one where the police notice it raises the heat to 2).
   - **Heat** (started): points, kept in halves, at most 230; the levels from 8, 25, 60, 110 and 180, with their
-    messages; with no police yet it cools a level every 9 seconds, its points to that level's start, the time
+    messages; it cools a level every 9 seconds with no police near, its points to that level's start, the time
     counted afresh with every crime (`status.add_heat`, `status.cooling`). The crimes the game has so far: a
-    punch that lands 3, running someone over 6 (a kill), taking a car from its driver 4. Still to come: the
-    police, and the other crimes (shots, ramming, police cars).
+    punch that lands 3, a stab or a kill 6, a shot 1.5, a car hit by one 1, taking a car from its driver 4.
+    Still to come: ramming, and police cars (their crimes).
+  - **The chase** (started, `src/police.asm`). With heat, up to min(5, heat) police cars, one every 2.2
+    seconds: traffic cars marked in `police.cop`, white, at the fastest a traffic car goes (100 pixels a second
+    where the design's do 188: a traffic car's speed is a byte), appearing where traffic does. While there is
+    heat no other traffic appears: the traffic's five places are the police's. At a crossing a police car takes
+    the way that closes the longer of its gaps to the player, across or down, else the other, else straight on;
+    with no heat it drives as traffic does. A police car (not a wreck) within 150 pixels either way is near:
+    then, with heat, the border flashes red and blue every 25 frames, and the heat does not cool. Still to come:
+    busted (boxed in, slow, for 2 seconds), officers on foot, the siren's sound, the stolen police car, patrol
+    cars joining in (here every police car chases).
   - **The siren and the flashing border.** The border flashes red and blue (`$D020`, every 25 frames) only while
     the siren sounds: the police near, in play. It never flashes with nobody about, on the busted screen or
     while paused. The browser game got this wrong and kept flashing as long as there was any heat

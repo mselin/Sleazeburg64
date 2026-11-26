@@ -18,8 +18,8 @@ export class Heat {
     if (level > this.level) this.level = level;
   }
   /** status.cooling, once a frame (status.update) while there is heat: a level less every COOL frames. */
-  tick() {
-    if (!this.level) return;
+  tick(around = 0) {
+    if (!this.level || around) return; // (not with the police near)
     this.cool = (this.cool - 1) & 0xffff;
     if (this.cool) return;
     this.cool = H.COOL;
