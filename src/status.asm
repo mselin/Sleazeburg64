@@ -566,26 +566,26 @@ MSG_SUNK        = 2
 MSG_HEAT        = 3                     ; and on, for heat levels 1-5
 MSG_BUSTED      = 8
 MESSAGES        = ("fire: handbrake. standing still: get out", "stand by a car and press fire to get in", "the car is gone. swim for it. the warranty does not cover this.", "a stern letter is being drafted", "police dispatched. eventually.", "shoot first, paperwork never", "overtime has been approved", "the homeowners association has been notified", 'busted. your weapons are now evidence')
-msg_texts       .block
+                .send                   ; (the messages: in the room the tables by tile leave, main.asm)
+                .section tile_room1
 m0              .text format("%-40s", MESSAGES[0])
 m1              .text format("%-40s", MESSAGES[1])
-m2              .text format("%-40s", MESSAGES[2])
-                .bend
-                .section status_high    ; (where there is room: waiting.asm)
-heat_texts      .block
 m3              .text format("%-40s", MESSAGES[3])
+                .send
+                .section tile_room2
+m2              .text format("%-40s", MESSAGES[2])
 m4              .text format("%-40s", MESSAGES[4])
+                .send
+                .section tile_room3
 m5              .text format("%-40s", MESSAGES[5])
 m6              .text format("%-40s", MESSAGES[6])
 m7              .text format("%-40s", MESSAGES[7])
-                .bend
                 .send
-                .section panel_code     ; (where there is room: waiting.asm)
-                .enc "screen"
-busted_text     .text format("%-40s", MESSAGES[8])
-                .enc "none"
+                .section tile_room4
+m8              .text format("%-40s", MESSAGES[8])
                 .send
-MSG_AT          = (msg_texts.m0, msg_texts.m1, msg_texts.m2, heat_texts.m3, heat_texts.m4, heat_texts.m5, heat_texts.m6, heat_texts.m7, busted_text)
+                .section status
+MSG_AT          = (m0, m1, m2, m3, m4, m5, m6, m7, m8)
 msg_lo          .byte <MSG_AT
 msg_hi          .byte >MSG_AT
 most_of         .function m

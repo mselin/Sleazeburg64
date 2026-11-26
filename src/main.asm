@@ -640,14 +640,23 @@ bss_end
                 * = $3800
 charset         .binary "chars.bin"     ; font in 0-63, tile characters after
 
+; The tables by tile have room for TILE_ROOM tiles (tools/assets.mjs holds the city to it); the rest of each
+; table's page holds other things (.section tile_room1-6): the panel's messages, and code.
+TILE_ROOM       = 128
+room            .macro table, number
+                .binary "tiles.bin", \table * 256, TILE_ROOM
+                .dsection tile_room\number
+                .cerror * > $4000 + (\table + 1) * 256, "too much in tile_room\number"
+                .fill $4000 + (\table + 1) * 256 - *, 0
+                .endm
                 * = $4000
-tile_tl         .binary "tiles.bin", 0, 256     ; character for each quarter of a tile ...
-tile_tr         .binary "tiles.bin", 256, 256
-tile_bl         .binary "tiles.bin", 512, 256
-tile_br         .binary "tiles.bin", 768, 256
+tile_tl         #room 0, 1      ; character for each quarter of a tile ...
+tile_tr         #room 1, 2
+tile_bl         #room 2, 3
+tile_br         #room 3, 4
 char_colour     .binary "tiles.bin", 1024, 256  ; ... the colour of each character
-tile_kind       .binary "tiles.bin", 1280, 256  ; ... what each tile is to a car ...
-tile_colour     .binary "tiles.bin", 1536, 256  ; ... and its colour, for colour memory
+tile_kind       #room 5, 5      ; ... what each tile is to a car ...
+tile_colour     #room 6, 6      ; ... and its colour, for colour memory
 ; What waits after the tiles: the map, and the code start copies up and the code it runs once, which video.init
 ; later writes the colour routines over. A packed build (PACKED, tools/pack.mjs) carries it packed in the
 ; program file, here, and start unpacks it in place before anything else.
