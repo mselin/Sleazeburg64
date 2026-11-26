@@ -116,6 +116,7 @@ start           sei
                 jsr video.init          ; draws the first picture and sets up the raster interrupts
 .if VIEWER == 0
                 jsr traffic.init        ; after video.init clears the panel's screen, where its tables are
+                jsr police.init
                 jsr frames.init         ; and where the player's flipped frames are kept track of
 .endif
 .if WITH_HONK
@@ -157,6 +158,7 @@ ready           jsr input.read          ; A = which directions are held
                 jsr follow_car
                 jsr move_both
                 jsr traffic.update      ; after the window has moved: it needs to know whether the screen will
+                jsr police.watch        ; (and whether the police are near, before the status panel cools heat)
                 jsr water.update        ; move a character this frame; the same for the water ...
 .if WITH_HONK
                 jsr honk.update         ; ... Big Honk ...
@@ -584,6 +586,7 @@ char_of         lda cam_hi,x
 .if VIEWER == 0
                 .include "car.asm"
                 .include "pickups.asm"
+                .include "police.asm"   ; (its code is with the code copied up: HIGH_CODE)
 .if CROWD != 0
                 .include "gun.asm"
 .endif

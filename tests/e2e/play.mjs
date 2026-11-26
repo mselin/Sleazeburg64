@@ -36,7 +36,9 @@ export async function readTraffic(vice, L, n) {
   }
   const seed = await get('seed', 2);
   const [tick, rot, wait, turns, mine] = await Promise.all([get('tick', 1), get('rot', 1), get('spawn_wait', 1), get('turns', 1), get('mine', 1)]);
-  return { cars, seed: [seed[0], seed[1]], tick: tick[0], turns: turns[0], rot: rot[0], spawnWait: wait[0], mine: mine[0] };
+  const cop = await vice.read(L['police.cop'], n), [chaseWait] = await vice.read(L['police.chase_wait'], 1), [around] = await vice.read(L['police.around'], 1);
+  cars.forEach((c, i) => c.on && (c.cop = cop[i]));
+  return { cars, seed: [seed[0], seed[1]], tick: tick[0], turns: turns[0], rot: rot[0], spawnWait: wait[0], mine: mine[0], chaseWait, around };
 }
 
 /** The same, from the model. */
@@ -46,9 +48,10 @@ export function modelTraffic(t) {
     const car = { on: 1, x: c.x, y: c.y };
     for (const f of TRAFFIC_FIELDS) car[f] = c[f];
     car.ta = c.turn === 0xff ? null : c.ta;
+    car.cop = c.cop;
     return car;
   });
-  return { cars, seed: [t.rnd.lo, t.rnd.hi], tick: t.tick, turns: t.turns, rot: t.rot, spawnWait: t.spawnWait, mine: t.mine };
+  return { cars, seed: [t.rnd.lo, t.rnd.hi], tick: t.tick, turns: t.turns, rot: t.rot, spawnWait: t.spawnWait, mine: t.mine, chaseWait: t.chaseWait, around: t.around };
 }
 
 const signed = (lo, hi) => ((hi << 8) | lo) << 16 >> 16;
@@ -82,7 +85,7 @@ export class World {
     if (this.pickups) this.people.onKill = (p) => p.rider || this.pickups.drop(p.px, p.py); // (a rider: nothing)
     this.people.items = this.pickups; // (the ammo, for the gun)
     // Heat, which the crimes in the models add to (heat-model.mjs).
-    this.heat = this.people.heat = this.player.heat = new Heat();
+    this.heat = this.people.heat = this.player.heat = this.traffic.heat = new Heat();
     if (this.pickups) this.pickups.heat = this.heat;
     this.list = [];
   }
@@ -94,9 +97,10 @@ export class World {
     this.player.step(bits, this.traffic, busy, this.people);
     this.cam.follow(this.player.px, this.player.py);
     this.traffic.step(this.player.px, this.player.py, this.cam, busy);
+    this.traffic.watch(); // (police.watch)
     waterStep(this, cell);
     if (this.honk) this.honk.step(this.car, this.traffic, this.cam, cell);
-    this.heat.tick(); // (status.update)
+    this.heat.tick(this.traffic.around); // (status.update)
     const moves = ((this.cam.x >> 3) ^ cell[0]) & 31 || ((this.cam.y >> 3) ^ cell[1]) & 31;
     this.people.step(!moves && !busy, [this.player.px, this.player.py], this.cam, this.traffic, this.player.on ? null : this.car);
     this.people.shoot(this.traffic);

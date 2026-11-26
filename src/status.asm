@@ -171,7 +171,10 @@ update          lda left
 timed
                 lda heat
                 beq +
+                lda police.around         ; (not while the police are near)
+                bne no_cooling
                 jsr cooling
+no_cooling
                 lda heat
                 beq +
                 dec flash_wait

@@ -10,6 +10,7 @@ import { CENTRE_X, CENTRE_Y, Camera, assemble, assets, camera, pictureMismatches
 import { LOWEST, T, Traffic, TrafficCar, plan } from './traffic-model.mjs';
 import { Honk, readHonk } from './honk-model.mjs';
 import { modelTraffic, readTraffic } from './play.mjs';
+import { Heat } from './heat-model.mjs';
 import { Player } from './foot-model.mjs';
 import { waterStep } from './water-model.mjs';
 import { P as PEOPLE, People, ROADWAY, putPerson, readPeople } from './people-model.mjs';
@@ -36,7 +37,8 @@ function models(traffic) {
   const cam = new Camera(...START);
   const pickups = new Pickups(cam);
   people.onKill = (p) => p.rider || pickups.drop(p.px, p.py); // (what someone killed drops: a rider, nothing)
-  return { car, player: new Player(car), cam, traffic, honk: new Honk(), people, pickups, list: [] };
+  const heat = people.heat = pickups.heat = traffic.heat = new Heat(); // (which the police come by)
+  return { car, player: new Player(car), cam, traffic, honk: new Honk(), people, pickups, heat, list: [] };
 }
 
 /** One pass of the main loop in the models, with the joystick held as given. */
@@ -46,8 +48,10 @@ function step(m, bits) {
   m.car.step(bits, m.traffic, busy);
   m.cam.follow(m.car.px, m.car.py);
   m.traffic.step(m.car.px, m.car.py, m.cam, busy);
+  m.traffic.watch();
   waterStep(m, cell);
   m.honk.step(m.car, m.traffic, m.cam, cell);
+  m.heat.tick(m.traffic.around);
   const moves = ((m.cam.x >> 3) ^ cell[0]) & 31 || ((m.cam.y >> 3) ^ cell[1]) & 31;
   m.people.step(!moves && !busy, [m.car.px, m.car.py], m.cam, m.traffic, m.car);
   m.people.shoot(m.traffic);

@@ -147,6 +147,7 @@ game started directly, and that both tunes produce sound. It cannot judge how th
 | `src/input.asm` | The joystick. |
 | `src/music.asm` | Music test builds: the tune that plays in the game, and its credits in the panel. |
 | `src/gun.asm` | The gun: shots, and the bullets in flight. |
+| `src/police.asm` | The police: police cars chasing with heat, and the siren. |
 | `src/title-page.asm` | The title page: the sunset picture, until fire. |
 | `src/loader.asm` | The disk's loader: the picture saying LOADING while it loads the game. |
 | `src/title.asm` | Music test builds: the title screen, its tune, and starting the game from it. |
