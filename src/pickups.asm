@@ -503,8 +503,23 @@ one             ldy kind,x
                 jmp hidden
 +               jsr middle
 +               lda kind,x
-; Listed if in sight: one of kind A, its middle at mid_x, mid_y. X kept.
+; Listed if in sight: one of kind A, its middle at mid_x, mid_y, bobbing. X kept.
 sight           sta seen
+                tay
+                clc
+                adc #PICKUP_SPRITE
+                sta sprites.sp
+                lda colour,y
+                sta sprites.sc
+                lda clock               ; the bob
+                lsr
+                lsr
+                lsr
+                lsr
+                and #1
+; in_view: listed if in sight: sprites.sp and sprites.sc, its middle at mid_x, mid_y, A pixels lower (gun.show too). X
+; kept.
+in_view         sta mid_hi
                 sec                     ; down: 0 to LOWEST - 1 from cy
                 lda mid_y
                 sbc traffic.cy
@@ -528,13 +543,6 @@ sight           sta seen
                 bcs hidden
                 lda #1
 +               sta sprites.sx + 1
-                lda clock               ; the bob
-                lsr
-                lsr
-                lsr
-                lsr
-                and #1
-                sta mid_hi
                 tya
                 clc
                 adc mid_hi
@@ -546,14 +554,7 @@ sight           sta seen
                 sta sprites.sx
                 bcc +
                 inc sprites.sx + 1
-+               lda seen
-                tay
-                clc
-                adc #PICKUP_SPRITE
-                sta sprites.sp
-                lda colour,y
-                sta sprites.sc
-                stx who
++               stx who
                 jsr sprites.add
                 ldx who
 hidden          rts

@@ -22,6 +22,8 @@ SCREEN_A        = $3000
 SCREEN_B        = $3400
 PANEL_SCREEN    = $0400             ; the panel's own: only its rows 21-23 are shown
 ROWS            = 21            ; rows of city in each screen; the panel shows rows 21-23 of PANEL_SCREEN
+PANEL_CODE      = $0640             ; code in the panel's screen, after the variables, in rows it never shows (main.asm)
+PANEL_CLEAR     = PANEL_CODE + $100     ; video.init clears from here, a page
 D018_A          = (SCREEN_A & $3fff) / $400 * 16 | (charset & $3fff) / $800 * 2
 D018_B          = (SCREEN_B & $3fff) / $400 * 16 | (charset & $3fff) / $800 * 2
 D018_PANEL      = (PANEL_SCREEN & $3fff) / $400 * 16 | (charset & $3fff) / $800 * 2
@@ -90,10 +92,9 @@ init            lda #$ff                ; no copy made ahead yet
                 sta SCREEN_B + $100,x
                 sta SCREEN_B + $200,x
                 sta SCREEN_B + $300,x
-                sta PANEL_SCREEN,x
-                sta PANEL_SCREEN + $100,x
-                sta PANEL_SCREEN + $200,x
-                sta PANEL_SCREEN + $300,x
+                sta PANEL_SCREEN,x      ; (the panel's screen but for PANEL_CODE: from its last rows up to the car's
+                sta PANEL_SCREEN + $100,x       ; frames, where the BASIC line was)
+                sta PANEL_CLEAR,x
                 inx
                 bne -
                 lda #0                  ; the first picture goes straight onto screen A

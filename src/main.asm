@@ -228,6 +228,7 @@ boot            cld
                 #raise extra_image, EXTRA_CODE, EXTRA_PAGES
                 #raise people_image, PEOPLE_FRAMES, (size(people_image) + 255) / 256
                 #raise punch_image, PUNCH_FRAMES, 2
+                #raise panel_image, PANEL_CODE, 1     ; (before video.init clears round it)
 .endif
                 lda #<ignore            ; RESTORE does nothing (after the copy, which can run over the vectors)
                 sta $fffa
@@ -629,6 +630,11 @@ boot_end        = PLAYER_FRAMES
 bss_end
                 .endv
                 .cerror bss_end > PANEL_SCREEN + ROWS * 40, "the variables have run into the panel's rows"
+.if VIEWER == 0
+                .cerror SLOTS <= 6 && bss_end > PANEL_CODE, "the variables have run into the code in the panel's screen"
+                                        ; (A test build with more cars, for the multiplexer, has its variables
+                                        ; over that code: what is there runs only with heat, which it never has.)
+.endif
 
 ; ---------- data ----------
                 * = $3800

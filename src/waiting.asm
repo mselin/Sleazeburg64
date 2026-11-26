@@ -61,6 +61,16 @@ punch_image     .binary "punch.bin"     ; the player punching, copied to PUNCH_F
                 .cerror size(punch_image) != 2 * 256, "the punching frames are two pages"
                 .cerror PEOPLE_FRAMES + size(people_image) > PLAYER_BUFFERS, "the passers-by's frames reach the player's"
                 .cerror PEOPLE_FRAMES + (size(people_image) + 255) / 256 * 256 > PLAYER_FRAMES, "copying them up reaches the player's"
+; Code for the panel's screen (PANEL_CODE): in its rows 0-20, never shown, after the variables. A page, copied
+; down at start before video.init clears the rest of that screen.
+panel_image
+                .logical PANEL_CODE
+                .dsection panel_code
+panel_end
+                .endlogical
+                .cerror panel_end > PANEL_CLEAR, "the code in the panel's screen is more than a page"
+                .cerror PANEL_CLEAR > PANEL_SCREEN + ROWS * 40, "video.init would not clear all the panel's rows"
+                .cerror PANEL_CLEAR + $100 > CAR_FRAMES, "video.init would clear the car's frames"
 HIGH_PAGES      = (high_end - HIGH_CODE + 255) / 256
 MORE_PAGES      = (more_end - MORE_CODE + 255) / 256
 TOP_PAGES       = (top_end - TOP_CODE + 255) / 256

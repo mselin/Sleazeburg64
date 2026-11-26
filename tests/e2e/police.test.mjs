@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // End-to-end tests of the police (src/police.asm): with heat, police cars come, white, at most the heat's level of
 // them, and only they; at a crossing they take the way to the player; near the player, the border flashes red and
-// blue and the heat does not cool. The real program in VICE, the models (traffic-model.mjs, heat-model.mjs) held
+// blue and the heat does not cool; boxed in by one, slow, for two seconds, the player is busted. The real program in VICE, the models (traffic-model.mjs, heat-model.mjs) held
 // to it frame by frame, as everywhere else.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { assemble, withProgram } from './game.mjs';
-import { World, missed, pass, putOnFoot } from './play.mjs';
+import { assemble, readPanel, withProgram } from './game.mjs';
+import { BUSTED, World, assertPicture, missed, pass, putCar, putOnFoot, putTrafficCar } from './play.mjs';
+import { JOY } from './vice.mjs';
 import { putHeat } from './heat-model.mjs';
 
 const game = assemble('police', { defs: { HONK: 0 } });
@@ -78,4 +79,75 @@ test('with no heat, no siren, and new cars are traffic again', () =>
       assert.equal(await border(vice), 0, 'the border black');
     }
     assert.ok(w.traffic.cars.every((c) => !c.on || !c.cop), 'no police cars');
+  }));
+
+// ---------- busted ----------
+const quiet = assemble('busted', { defs: { HONK: 0, SPAWN: 0 } });
+const Q = quiet.labels;
+const bcd = (n) => [n % 100, Math.floor(n / 100) % 100, Math.floor(n / 10000)].map((d) => (d / 10 << 4) | d % 10);
+const unbcd = (b) => b.reduce((n, d, i) => n + ((d >> 4) * 10 + (d & 15)) * 100 ** i, 0);
+
+/** The player's car standing at the top of the city, facing east, a police car standing `gap` pixels ahead. */
+const boxedIn = (gap, body) =>
+  withProgram(quiet.prg, async (vice) => {
+    await vice.runTo(Q.ready);
+    const w = new World({ honk: false, traffic: { spawn: false } });
+    await pass(vice, Q, w, 0, 'first');
+    await putCar(vice, Q, w, 200, 24, 0);
+    for (let i = 1; i <= 3; i++) await pass(vice, Q, w, 0, `put there, ${i} frames`);
+    const cop = await putTrafficCar(vice, Q, w, 0, { x: 200 + gap, y: 24, dir: 2, cruise: 0, col: WHITE });
+    cop.cop = 1;
+    await vice.write(Q['police.cop'], [1]);
+    await putHeat(vice, Q, w.heat, { level: 1, points: 2 * 8, cool: 60000 });
+    w.money = 12345;
+    await vice.write(Q['status.money'], bcd(w.money));
+    await vice.write(Q['status.ammo'], bcd(7));
+    await vice.write(Q['status.knife'], [1]);
+    Object.assign(w.pickups, { ammo: 7, knife: 1 });
+    await body(vice, w, cop);
+  });
+
+test('boxed in by a police car for two seconds, the player is busted: on foot at the police station, and what it costs', () =>
+  boxedIn(20, async (vice, w) => {
+    const late = await missed(vice, Q);
+    for (let i = 1; i < BUSTED.AFTER; i++) {
+      await pass(vice, Q, w, 0, `boxed in, ${i} frames`);
+      assert.equal(w.player.on, 0, 'still in the car');
+      assert.equal((await vice.read(Q['police.boxed_for'], 1))[0], i, 'counted');
+    }
+    assert.equal(await missed(vice, Q) - late, 0, 'no frame was late before');
+    await pass(vice, Q, w, 0, 'busted');
+    // (That frame draws the screen at the station afresh, as when the tests put the window somewhere, and is late.)
+    const after = await missed(vice, Q);
+    const [x, y] = BUSTED.STATION;
+    assert.equal(w.player.on, 1, 'out of the car');
+    assert.deepEqual([w.player.x >> 8, w.player.y >> 8], [x, y], 'at the police station');
+    assert.ok(w.traffic.cars.every((c) => !c.cop), 'the police car gone');
+    assert.ok(w.traffic.cars.some((c) => c.on && c.wreck), 'the car left where it was');
+    assert.deepEqual(w.heat.state.level, 0, 'no heat');
+    assert.equal(unbcd([...(await vice.read(Q['status.money'], 3))]), 12345 - 2469, 'a fifth of the money gone');
+    assert.equal((await vice.read(Q['status.ammo'], 1))[0], 0, 'no ammo');
+    assert.equal((await vice.read(Q['status.knife'], 1))[0], 0, 'no knife');
+    assert.equal(await border(vice), 0, 'no siren');
+    for (let i = 1; i <= 3; i++) await pass(vice, Q, w, 0, `at the station, ${i} frames`);
+    await assertPicture(vice, Q, w, 'at the police station');
+    assert.ok((await readPanel(vice)).includes('BUSTED. YOUR WEAPONS ARE NOW EVIDENCE'), 'and the panel says so');
+    assert.equal(await missed(vice, Q) - after, 0, 'no frame was late after it');
+  }));
+
+test('not busted: a police car too far, or driving off before two seconds', () =>
+  boxedIn(BUSTED.BOXED + 1, async (vice, w, cop) => {
+    for (let i = 1; i <= BUSTED.AFTER + 10; i++) await pass(vice, Q, w, 0, `a police car ${BUSTED.BOXED + 1} pixels off, ${i} frames`);
+    assert.equal(w.player.on, 0, 'still in the car');
+    assert.equal(w.boxed, 0, 'not boxed in');
+    // Nearer, then reversing away before the two seconds are up.
+    Object.assign(cop, { x: (200 + 16) << 8 });
+    await vice.write(Q['traffic.pl'], [216 & 255]);
+    for (let i = 1; i <= BUSTED.AFTER - 20; i++) await pass(vice, Q, w, 0, `boxed in, ${i} frames`);
+    assert.equal(w.boxed, BUSTED.AFTER - 20);
+    let i = 0;
+    while (w.boxed && i < 60) await pass(vice, Q, w, JOY.DOWN, `reversing away, ${++i} frames`);
+    assert.equal(w.boxed, 0, 'free again');
+    for (let k = 1; k <= 40; k++) await pass(vice, Q, w, 0, `rolling on, ${k} frames`);
+    assert.equal(w.player.on, 0, 'not busted');
   }));

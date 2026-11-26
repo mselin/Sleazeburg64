@@ -139,9 +139,14 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
     heat no other traffic appears: the traffic's five places are the police's. At a crossing a police car takes
     the way that closes the longer of its gaps to the player, across or down, else the other, else straight on;
     with no heat it drives as traffic does. A police car (not a wreck) within 150 pixels either way is near:
-    then, with heat, the border flashes red and blue every 25 frames, and the heat does not cool. Still to come:
-    busted (boxed in, slow, for 2 seconds), officers on foot, the siren's sound, the stolen police car, patrol
-    cars joining in (here every police car chases).
+    then, with heat, the border flashes red and blue every 25 frames, and the heat does not cool. **Busted**
+    (done): with heat, in a car slower than 12 pixels a second either way, a police car (not a wreck) within 24
+    pixels either way, for 2 seconds on end. The police cars go, and the heat, the ammo, the knife and a fifth
+    of the money; the car is left where it is; the player is on foot at the police station (where the browser
+    game has it), with the message BUSTED. YOUR WEAPONS ARE NOW EVIDENCE (it cannot say how much was taken: the
+    panel's messages are fixed). The frame it happens in draws the screen afresh and is late. With no game over
+    yet, busted with no money changes nothing more. Still to come: officers on foot, the siren's sound, the
+    stolen police car, patrol cars joining in (here every police car chases).
   - **The siren and the flashing border.** The border flashes red and blue (`$D020`, every 25 frames) only while
     the siren sounds: the police near, in play. It never flashes with nobody about, on the busted screen or
     while paused. The browser game got this wrong and kept flashing as long as there was any heat
