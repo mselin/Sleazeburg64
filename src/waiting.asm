@@ -54,6 +54,7 @@ extra_image
                 .include "people.asm"
 .endif
                 .dsection status
+                .dsection police_extra
 extra_end
                 .endlogical
 people_image    .binary "people.bin"    ; the passers-by's frames, copied to PEOPLE_FRAMES at start

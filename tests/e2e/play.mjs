@@ -9,13 +9,15 @@ import { Traffic, TrafficCar, plan } from './traffic-model.mjs';
 import { Honk, readHonk } from './honk-model.mjs';
 import { F, Player, readPlayer } from './foot-model.mjs';
 import { waterStep } from './water-model.mjs';
-import { People, readPeople } from './people-model.mjs';
+import { P, People, inSight, readPeople, WALL } from './people-model.mjs';
 import { Pickups, readPickups } from './pickups-model.mjs';
 import { Heat, readHeat } from './heat-model.mjs';
 
 export const START = [9 * 16, 8 * 16]; // the window's top left corner at start; the car is in its middle
 /** Busted (police.boxed_in, police.busted): slower than SLOW, a police car within BOXED, for AFTER frames. */
 export const BUSTED = { SLOW: 61, BOXED: 24, AFTER: 100, STATION: [(6 * 12 + 7) * 16, (2 * 12 + 2) * 16 + 8] };
+/** Officers on foot (police.get_out, police.on_foot). */
+export const OFFICERS = { NEAR: 36, CAR_STILL: 77, STILL: 154, MOST: 4, BESIDE: 12, NOTICE: 120, ARREST: 7, WINDOW: 13, WINDOW_SLOW: 113, WINDOW_AFTER: 35 };
 const TRAFFIC_FIELDS = ['dir', 'sp', 'cruise', 'face', 'col', 'turn', 'held', 'ghost', 'blocked', 'entered', 'wreck', 'sink'];
 
 /** Read the program's traffic: every car, and the counters and random seed that decide what comes next. */
@@ -91,6 +93,7 @@ export class World {
     if (this.pickups) this.pickups.heat = this.heat;
     this.list = [];
     this.boxed = 0; // frames boxed in by the police
+    this.window = 0; // frames with an officer at the window
     this.money = 0; // (only for busted's fine: the tests that use it put it in)
   }
   /** One pass of the main loop with the joystick held as given. */
@@ -101,8 +104,7 @@ export class World {
     this.player.step(bits, this.traffic, busy, this.people);
     this.cam.follow(this.player.px, this.player.py);
     this.traffic.step(this.player.px, this.player.py, this.cam, busy);
-    this.traffic.watch(); // (police.watch)
-    if (this.heat.level) this.boxedIn();
+    this.policeWatch();
     waterStep(this, cell);
     if (this.honk) this.honk.step(this.car, this.traffic, this.cam, cell);
     this.heat.tick(this.traffic.around); // (status.update)
@@ -115,6 +117,76 @@ export class World {
     this.people.tick(this.cam, this.car);
     this.list = [...this.traffic.show(this.cam), ...(this.honk ? this.honk.show(this.cam) : []), ...this.people.show(this.cam),
       ...(this.pickups ? this.pickups.show(this.cam, [this.player.px, this.player.py], busy) : []), ...this.people.shown(this.cam)].slice(0, 16); // the multiplexer lists sixteen
+  }
+  /**
+   * police.watch, after the traffic has moved: with heat, an officer gets out of each police car that may; the
+   * wait for the next police car and whether one is near; the officers on foot; and boxed in.
+   */
+  policeWatch() {
+    const t = this.traffic;
+    if (this.heat.level) for (let k = t.n - 1; k >= 0; k--) {
+      const c = t.cars[k];
+      if (c.on && c.cop && !c.wreck) this.getOut(c);
+    }
+    t.watch();
+    if (!this.heat.level) {
+      this.boxed = this.window = 0; // (the counts to an arrest start again)
+      return;
+    }
+    if (this.onFoot() || !this.heat.level) return; // (busted)
+    this.boxedIn();
+  }
+  /** C clear in the program: |d| (16 bits) no more than `lim`. */
+  static near(d, lim) {
+    return ((d + lim) & 0xffff) <= 2 * lim;
+  }
+  /** Where the program has the player: their middle, in the car or on foot. */
+  get at() {
+    return [this.player.px, this.player.py];
+  }
+  /** police.get_out: police car `c` slow, and near the player, also slow: an officer gets out beside it. */
+  getOut(c) {
+    const { car, player, people } = this, O = OFFICERS, near = World.near;
+    if (c.sp >= O.CAR_STILL) return;
+    if (!player.on && !(Math.abs(car.vx) < O.STILL && Math.abs(car.vy) < O.STILL)) return;
+    const [x, y] = this.at;
+    if (!near(c.px - x, O.NEAR) || !near(c.py - y, O.NEAR)) return;
+    const all = people.people;
+    let i = -1;
+    for (let k = all.length - 1; k >= 0 && i < 0; k--) if (!all[k].on) i = k;
+    if (i < 0) {
+      if (all.filter((p) => p.officer).length >= O.MOST) return;
+      for (let k = all.length - 1; k >= 0 && i < 0; k--) {
+        const p = all[k];
+        if (!p.officer && !p.down && !(inSight((p.px - this.cam.x) & 0xffff, false) && inSight((p.py - this.cam.y) & 0xffff, true))) i = k;
+      }
+      if (i < 0) return;
+    }
+    const at = [c.px, c.py], a = c.dir & 1 ? 0 : 1; // across its way
+    at[a] = (at[a] + O.BESIDE) & 0xffff;
+    if (People.kind(...at) === WALL) {
+      at[a] = (at[a] - 2 * O.BESIDE) & 0xffff;
+      if (People.kind(...at) === WALL) return;
+    }
+    Object.assign(people.setUp(i, ...at), { col: P.OFFICER, spd: P.COP_PACE, officer: 1 });
+    Object.assign(c, { wreck: 1, sp: 0, cruise: 0 });
+  }
+  /** police.on_foot: the officers on foot who are not down: near, and arresting. True if the player is busted. */
+  onFoot() {
+    const { car, player } = this, O = OFFICERS, near = World.near, [x, y] = this.at;
+    const slow = !player.on && Math.abs(car.vx) < O.WINDOW_SLOW && Math.abs(car.vy) < O.WINDOW_SLOW;
+    let windowed = false;
+    for (let k = this.people.people.length - 1; k >= 0; k--) {
+      const p = this.people.people[k], by = (lim) => near(p.px - x, lim) && near(p.py - y, lim);
+      if (!p.on || !p.officer || p.down || !by(O.NOTICE)) continue;
+      this.traffic.around = 1;
+      if (player.on) {
+        if (by(O.ARREST)) return this.busted(), true;
+      } else if (slow && by(O.WINDOW)) windowed = true;
+    }
+    if (!windowed) this.window = 0;
+    else if (++this.window >= O.WINDOW_AFTER) return this.busted(), true;
+    return false;
   }
   /** police.boxed_in, with heat: in a car, slow, a police car near, AFTER frames on end, and the player is busted. */
   boxedIn() {
@@ -134,10 +206,11 @@ export class World {
     const { traffic, player, car } = this;
     this.boxed = 0;
     for (const c of traffic.cars) if (c.on && c.cop) Object.assign(c, { on: 0, cop: 0 });
+    for (const p of this.people.people) if (p.officer) p.on = 0; // the officers on foot go too
     Object.assign(this.heat, { level: 0, points: 0 });
     if (this.pickups) Object.assign(this.pickups, { ammo: 0, knife: 0 });
     this.money -= Math.floor(this.money / 5);
-    player.out(traffic, Player.place(traffic), [car.px, car.py], 0);
+    if (!player.on) player.out(traffic, Player.place(traffic), [car.px, car.py], 0);
     const [x, y] = BUSTED.STATION;
     Object.assign(player, { x: x << 8, y: y << 8 });
     this.cam = new Camera(x - CENTRE_X, y - CENTRE_Y);
