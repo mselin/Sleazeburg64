@@ -264,13 +264,13 @@ export class Traffic {
   /** police.allowed: with heat, a car may appear only as a police car, when one is due. */
   allowed() {
     if (!this.heat?.level) return true;
-    return !this.chaseWait && this.cars.filter((c) => c.on && c.cop).length < this.heat.level;
+    return !this.chaseWait && this.cars.filter((c) => c.on && c.cop && !c.wreck).length < this.heat.level; // (an empty one does not chase)
   }
   /** police.watch, once a frame after step(): the wait for the next police car, and whether one is near the player. */
   watch() {
     if (this.chaseWait) this.chaseWait--;
     const { px, py } = this.player, within = (d) => w16(d + 150) <= 300;
-    this.around = this.cars.some((c) => c.on && c.cop && !c.wreck && within(c.px - px) && within(c.py - py)) ? 1 : 0;
+    this.around = this.heat?.level && this.cars.some((c) => c.on && c.cop && !c.wreck && within(c.px - px) && within(c.py - py)) ? 1 : 0;
   }
 
   trySpawn(cam) {

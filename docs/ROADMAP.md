@@ -155,8 +155,18 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
     of the money; the car is left where it is; the player is on foot at the police station (where the browser
     game has it), with the message BUSTED. YOUR WEAPONS ARE NOW EVIDENCE (it cannot say how much was taken: the
     panel's messages are fixed). The frame it happens in draws the screen afresh and is late. With no game over
-    yet, busted with no money changes nothing more. Still to come: officers on foot, the siren's sound, the
-    stolen police car, patrol cars joining in (here every police car chases).
+    yet, busted with no money changes nothing more. **Officers on foot** (done): a police car and the player
+    both slower than 30 pixels a second within 36 pixels either way, an officer gets out beside it (12 pixels to
+    its side, the middle of that tile), up to four on foot, and the car is left empty. They are passers-by's
+    places, in light blue at 47 pixels a second (the browser game's pace: the design does not give it, mselin/gta-c64#108); with
+    heat they walk at the player, the longer gap first, the way someone running away walks away; with none, as a
+    passer-by. While there is heat no new passers-by arrive, and an officer may take the place of one out of
+    sight. Within 120 an officer who is not down is the police near; within 7 of the player on foot, they arrest
+    them (the browser game's rule, mselin/gta-c64#108); within 13 of the player's car going slower than 22 pixels a second, for 0.7
+    seconds on end, too. Each count to an arrest goes back to 0 when the player is free of it, and with no heat.
+    Knocking one down is 14 heat, killing one 28. The design's white cap cannot be shown in a sprite's colours.
+    Still to come: officers shooting from heat 3, the siren's sound, the stolen police car, patrol cars joining
+    in (here every police car chases).
   - **The siren and the flashing border.** The border flashes red and blue (`$D020`, every 25 frames) only while
     the siren sounds: the police near, in play. It never flashes with nobody about, on the busted screen or
     while paused. The browser game got this wrong and kept flashing as long as there was any heat

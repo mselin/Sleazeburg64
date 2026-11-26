@@ -36,6 +36,10 @@
 ; way costs about 25 raster lines. Listing them for the multiplexer
 ; (about 300 cycles a frame for someone in sight) happens every frame, as it must.
 ;
+; Police officers on foot (police.get_out puts them here): light blue, at COP_PACE. With heat they walk at the
+; player (chase_way: flee_way turned round), and with none as anyone else. While there is heat nobody new
+; arrives: the places are kept for the police. Knocking one down is 14 heat, killing one 28 (crime).
+;
 ; This code runs from EXTRA_CODE (main.asm), with its tables. Its random numbers are its own.
 ;
 ; tests/e2e/people-model.mjs does the same in JavaScript, and the tests hold the two to each other exactly.
@@ -71,6 +75,7 @@ CAR_LONG        = 13                    ; a traffic car's body, as traffic.bump 
 CAR_SHORT       = 8                     ; its way, and across
 CAR_SQUARE      = 10                    ; the player's car, which turns any way: this far either way
 ROADWAY         = 0                     ; a tile's kind: a road or a car park (tools/assets.mjs)
+COP_PACE        = 241                   ; a police officer's: 47 pixels a second
 
 
 init            lda #0
@@ -144,6 +149,11 @@ walk            lda down,x              ; lying: no more walking
                 lda #0
                 sta on,x
                 rts
++               lda officer,x           ; a police officer, with heat: at the player (chase_way)
+                beq +
+                lda status.heat
+                beq +
+                jmp chase_way
 +               lda flee,x              ; running: away from the player (flee_way)
                 beq +
                 jmp flee_way
@@ -494,10 +504,12 @@ off_city        lda #WALL
 axis_of         .byte 0, 2, 0, 2        ; nx or ny, by way
                 .cerror ny - nx != 2, "ahead expects ny two bytes after nx"
 
-.if SPAWN != 0
                 .section people_high    ; (where there is room: waiting.asm)
 ; Someone new in a free place, if the point picked at random is out of sight and on a pavement or a plaza.
-arrive           ldx #CROWD - 1
+arrive           lda status.heat         ; (with heat, nobody new: the places are kept for the police)
+                beq +
+                rts
++                ldx #CROWD - 1
 -               lda on,x
                 beq +
                 dex
@@ -527,11 +539,13 @@ arrive           ldx #CROWD - 1
                 sbc cam_hi + 1
                 ldx #1
                 jsr in_sight
-                bcc nobody              ; in sight
+                bcc none                ; in sight
 +               jsr kind
                 cmp #PAVEMENT
-                bne nobody
-                ldx who                 ; in the middle of its tile
+                beq set_up
+none            rts
+; Person who starts in the middle of the tile at nx, ny, walking, as someone new (police.get_out too).
+set_up          ldx who                 ; in the middle of its tile
                 lda #0
                 sta xf,x
                 sta yf,x
@@ -575,6 +589,10 @@ arrive           ldx #CROWD - 1
                 sta road,x
                 sta ko,x
                 sta flee,x
+                sta officer,x
+                sta stuck,x
+                sta stall,x
+                sta aside,x
                 lda #1                  ; and they pick a way at once
                 sta wait,x
                 sta on,x
@@ -625,7 +643,6 @@ unseen          sec
                 rts
 shirts          .byte PURPLE, ORANGE, CYAN, RED, LIGHT_RED, BROWN, GREEN, WHITE
                 .send
-.endif
 
 ; List everyone in sight for the multiplexer, after traffic.show (which leaves the window's corner, moved by
 ; where a sprite can start, in traffic.cx and cy) and Big Honk, as he is listed.
@@ -1053,6 +1070,9 @@ knock           lda #DOWN_TIME
                 jsr pickups.drop        ; killed: what they drop
 +
 .endif
+                ldy status.knife        ; heat: 3, half a kill, for a punch; 6, a kill, for a stab
+                lda heat_of,y
+                jsr crime
                 lda xl,x                ; who is near them runs
                 sta cx
                 lda xh,x
@@ -1074,9 +1094,24 @@ knock           lda #DOWN_TIME
                 sta flee,x
 +               dex
                 bpl -
-                ldy status.knife        ; heat: 3, half a kill, for a punch; 6, a kill, for a stab
-                lda heat_of,y
-                jmp status.add_heat
+                rts
+; Heat A (in halves: 6 half a kill, 12 a kill) for what was done to person X; for a police officer, 14 and 28.
+; X kept.
+crime           ldy officer,x
+                beq ++
+                cmp #2 * 6
+                lda #2 * 14
+                bcc +
+                lda #2 * 28
++
++               tay
+                txa
+                pha
+                tya
+                jsr status.add_heat
+                pla
+                tax
+                rts
 wait_of         .byte PUNCH_WAIT, STAB_WAIT
 ko_of           .byte 1, 0
 heat_of         .byte 2 * 3, 2 * 6
@@ -1109,7 +1144,7 @@ reach_y         .char 0, 5, PUNCH_REACH, 5, 0, -5, -PUNCH_REACH, -5
 killed          txa
                 pha
                 lda #2 * 6
-                jsr status.add_heat
+                jsr crime
                 pla
                 tax
 .if ITEMS != 0
@@ -1133,13 +1168,21 @@ got_up          lda ko,x
 
 ; A turn of running (person who, flee set): away from the player, along the axis they are further from them on
 ; (the other if that way is a wall), ready to cross roads, and without stopping before a car.
+chase_way       lda #0                  ; an officer: the same, towards the player, at their own pace
+                sta flee,x
+                lda #2
+                sta turned
+                bne run_way
 flee_way        dec flee,x
-                lda #1
+                lda #0
+                sta turned
+run_way         lda #1
                 sta jay,x
                 lda #0
                 sta stall,x
                 ldy #0                  ; |dx| and |dy|, and which way is away on each
                 jsr away
+                eor turned
                 sta f_x
                 lda a_lo
                 sta a_x
@@ -1147,6 +1190,7 @@ flee_way        dec flee,x
                 sta a_x + 1
                 ldy #2
                 jsr away
+                eor turned
                 sta f_y
                 lda a_lo
                 sta a_y
@@ -1213,6 +1257,7 @@ away            ldx who
                 rts
 ko              .fill CROWD, 0          ; 1: knocked down by a punch (they get up); 0: run over (gone)
 flee            .fill CROWD, 0          ; turns left running away
+officer         .fill CROWD, 0          ; 1: a police officer on foot (police.get_out)
 punch_left      .byte 0                 ; frames until the player can punch again
 a_lo            .byte 0
 a_hi            .byte 0
@@ -1221,6 +1266,7 @@ a_y             .word 0
 f_x             .byte 0
 f_y             .byte 0
 f_other         .byte 0
+turned          .byte 0                 ; 0 running from the player, 2 going at them
                 .send
 
 ; Its variables, here with the code (the panel screen's room for them is full with sixteen cars).
