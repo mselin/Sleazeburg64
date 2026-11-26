@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 import { JOY } from './vice.mjs';
 import { COLOUR_RAM, PANEL_SCREEN, ROWS, assemble, readPanel, withProgram } from './game.mjs';
 import { World, assertPicture, missed, pass, putCar } from './play.mjs';
+import { putHeat } from './heat-model.mjs';
 
 // No traffic of its own and no Big Honk, except where a test says.
 const game = assemble('panel', { defs: { SPAWN: 0, HONK: 0 } });
@@ -167,7 +168,8 @@ test('the money, heat, health and ammo as they change: digits, lit stars that fl
     assert.equal((await readPanel(vice))[0].slice(34), '  FIST');
     assert.deepEqual(r1.colours.slice(36, 40), Array(4).fill(LIGHT_RED));
     // Heat 3: three stars flash yellow and red, twelve frames each; the other two stay dark grey.
-    await set(vice, w, { heat: [3] }, 'heat 3');
+    await putHeat(vice, L, w.heat, { level: 3, points: 2 * 60 });
+    await set(vice, w, {}, 'heat 3');
     const lit = [];
     for (let i = 0; i < 60; i++) {
       const stars = (await readRows(vice))[0].colours.slice(13, 18);

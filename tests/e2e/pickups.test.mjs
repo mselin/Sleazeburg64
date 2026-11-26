@@ -9,6 +9,7 @@ import { PICKUP_SPRITE, assemble, assets, withProgram } from './game.mjs';
 import { World, assertPicture, missed, pass, putCar, putOnFoot } from './play.mjs';
 import { AMMO, BANDAGE, CASH, DONUT, K, KNIFE } from './pickups-model.mjs';
 import { P, People, putPerson } from './people-model.mjs';
+import { putHeat } from './heat-model.mjs';
 
 const game = assemble('pickups', { defs: { SPAWN: 0, HONK: 0 } });
 const L = game.labels;
@@ -115,14 +116,12 @@ test('what each does: ammo, cash, a donut, a bandage, a knife and a spare knife'
     assert.equal(now.knife, 1);
     assert.equal(now.money, before.money + 10, 'pawned for $10');
     // A donut: a level of heat less, its points to that level's start; nothing with none.
-    await vice.write(L['status.heat'], [2]);
-    await vice.write(L['status.points'], [2 * 30, 0]);
+    await putHeat(vice, L, w.heat, { level: 2, points: 2 * 30 });
     await walkOnto(vice, w, DONUT, 'a donut');
     now = await status(vice);
     assert.equal(now.heat, 1, 'a level less');
     assert.deepEqual([...(await vice.read(L['status.points'], 2))], [2 * 8, 0], 'its points to level 1\'s start');
-    await vice.write(L['status.heat'], [0]);
-    await vice.write(L['status.points'], [0, 0]);
+    await putHeat(vice, L, w.heat, { level: 0, points: 0 });
     await walkOnto(vice, w, DONUT, 'a donut with no heat');
     assert.equal((await status(vice)).heat, 0, 'nothing');
   }));

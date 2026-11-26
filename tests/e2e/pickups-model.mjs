@@ -123,6 +123,7 @@ export class Pickups {
     const kind = p.kind;
     if (kind === KNIFE) this.knife = 1; // (a spare one is pawned)
     if (kind === AMMO) this.ammo = Math.min(99, this.ammo + 12);
+    if (kind === DONUT) this.heat?.donut(); // (heat-model.mjs)
     p.kind = K.AWAY;
     p.back = (this.rnd() % K.BACK_SPREAD) + K.BACK_MIN;
     if (kind === CASH) this.lastCash = 50 * ((this.rnd() % 6) + 1);
