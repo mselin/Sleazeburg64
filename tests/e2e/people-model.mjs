@@ -225,6 +225,7 @@ export class People {
       p.ko = knife ? 0 : 1;
       if (knife) this.onKill?.(p); // killed: what they drop (pickups-model.mjs)
       for (const q of this.people) if (q.on && !q.down && near(q, [p.px, p.py], P.SCARE)) q.flee = P.FLEE_TURNS;
+      this.heat?.add(knife ? 2 * 6 : 2 * 3); // a kill, or half of one (heat-model.mjs)
       return;
     }
   }
@@ -246,6 +247,7 @@ export class People {
     }
     const near = (q, lim) => w16(q.px - player.px + lim) <= 2 * lim && w16(q.py - player.py + lim) <= 2 * lim;
     for (const q of this.people) if (q.on && !q.down && near(q, G.SCARE)) q.flee = G.FLEE;
+    this.heat?.add(3); // 1.5, for a shot
   }
   /** gun.update: once a frame, after step(): each bullet flies on, and is spent on a wall, a passer-by or a car. */
   shoot(traffic) {
@@ -265,6 +267,7 @@ export class People {
       if (p) {
         p.down = P.DOWN_TIME;
         p.ko = 0;
+        this.heat?.add(2 * 6); // a kill
         this.onKill?.(p);
         b.ticks = 0;
         continue;
@@ -272,6 +275,7 @@ export class People {
       for (let k = (traffic?.n ?? 0) - 1; k >= 0; k--) {
         const c = traffic.cars[k];
         if (c.on && near(c.px, c.py, x, y, G.HIT_CAR)) {
+          this.heat?.add(2); // 1, for hitting a car
           b.ticks = 0;
           break;
         }
@@ -347,6 +351,7 @@ export class People {
       if (p.down || !fast) continue; // (anyone the car can run over is in sight)
       if (points.some(([x, y, lim]) => within(p.px - x, lim) && within(p.py - y, lim))) {
         p.down = P.DOWN_TIME;
+        this.heat?.add(2 * 6); // a kill
         this.onKill?.(p); // run over by the player: what they drop
       }
     }

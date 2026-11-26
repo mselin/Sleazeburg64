@@ -11,6 +11,7 @@ import { F, Player, readPlayer } from './foot-model.mjs';
 import { waterStep } from './water-model.mjs';
 import { People, readPeople } from './people-model.mjs';
 import { Pickups, readPickups } from './pickups-model.mjs';
+import { Heat, readHeat } from './heat-model.mjs';
 
 export const START = [9 * 16, 8 * 16]; // the window's top left corner at start; the car is in its middle
 const TRAFFIC_FIELDS = ['dir', 'sp', 'cruise', 'face', 'col', 'turn', 'held', 'ghost', 'blocked', 'entered', 'wreck', 'sink'];
@@ -80,6 +81,9 @@ export class World {
     this.pickups = pickups ? new Pickups(this.cam) : null;
     if (this.pickups) this.people.onKill = (p) => p.rider || this.pickups.drop(p.px, p.py); // (a rider: nothing)
     this.people.items = this.pickups; // (the ammo, for the gun)
+    // Heat, which the crimes in the models add to (heat-model.mjs).
+    this.heat = this.people.heat = this.player.heat = new Heat();
+    if (this.pickups) this.pickups.heat = this.heat;
     this.list = [];
   }
   /** One pass of the main loop with the joystick held as given. */
@@ -92,6 +96,7 @@ export class World {
     this.traffic.step(this.player.px, this.player.py, this.cam, busy);
     waterStep(this, cell);
     if (this.honk) this.honk.step(this.car, this.traffic, this.cam, cell);
+    this.heat.tick(); // (status.update)
     const moves = ((this.cam.x >> 3) ^ cell[0]) & 31 || ((this.cam.y >> 3) ^ cell[1]) & 31;
     this.people.step(!moves && !busy, [this.player.px, this.player.py], this.cam, this.traffic, this.player.on ? null : this.car);
     this.people.shoot(this.traffic);
@@ -124,6 +129,7 @@ export async function pass(vice, L, w, bits, what) {
   if (w.honk) assert.deepEqual(await readHonk(vice, L), w.honk.state, `Big Honk ${what}`);
   assert.deepEqual(await readPeople(vice, L), w.people.state, `the passers-by ${what}`);
   if (w.pickups) assert.deepEqual(await readPickups(vice, L), w.pickups.state, `the pickups ${what}`);
+  assert.deepEqual(await readHeat(vice, L), w.heat.state, `the heat ${what}`);
 }
 
 /**
