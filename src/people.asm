@@ -36,6 +36,10 @@
 ; way costs about 25 raster lines. Listing them for the multiplexer
 ; (about 300 cycles a frame for someone in sight) happens every frame, as it must.
 ;
+; Police officers on foot (police.get_out puts them here): light blue, at COP_PACE. With heat they walk at the
+; player (chase_way: flee_way turned round), and with none as anyone else. While there is heat nobody new
+; arrives: the places are kept for the police. Knocking one down is 14 heat, killing one 28 (crime).
+;
 ; This code runs from EXTRA_CODE (main.asm), with its tables. Its random numbers are its own.
 ;
 ; tests/e2e/people-model.mjs does the same in JavaScript, and the tests hold the two to each other exactly.
@@ -1094,13 +1098,16 @@ knock           lda #DOWN_TIME
 ; Heat A (in halves: 6 half a kill, 12 a kill) for what was done to person X; for a police officer, 14 and 28.
 ; X kept.
 crime           ldy officer,x
-                beq +
+                beq ++
                 cmp #2 * 6
                 lda #2 * 14
                 bcc +
                 lda #2 * 28
-+               txa
++
++               tay
+                txa
                 pha
+                tya
                 jsr status.add_heat
                 pla
                 tax

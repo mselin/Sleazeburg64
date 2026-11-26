@@ -22,7 +22,14 @@
 ; ends the game when the player is busted with no money; with no game over yet, here they come back as ever.
 ; The message cannot say how much was taken: the panel's messages are fixed.
 ;
-; tests/e2e/traffic-model.mjs does the same in JavaScript, and the tests hold the two to each other.
+; Officers on foot (get_out, on_foot): a police car slower than CAR_STILL and the player slower than STILL (or
+; on foot), within OUT_NEAR of each other either way, and an officer gets out BESIDE pixels to its side, up to
+; OFFICERS, in a passer-by's place (people.asm); the car is left empty, a wreck that keeps its cop mark. Within
+; FOOT_NOTICE, an officer who is not down is the police around; within ARREST of the player on foot, they arrest
+; them; within AT_WINDOW of the player's car going slower than WINDOW_SLOW, for WINDOW_AFTER frames on end, so
+; do they. (Distances either way, as squares, as everywhere here.)
+;
+; tests/e2e/traffic-model.mjs and play.mjs do the same in JavaScript, and the tests hold the two to each other.
 
 police          .block
 
@@ -196,7 +203,7 @@ watch           lda chase_wait
                 bne +                   ; and the counts to an arrest start again)
                 sta boxed_for
                 sta window_for
-                rts
+                jmp quiet               ; (and no siren: the heat may have just gone)
 +               ldx #SLOTS - 1
 each            stx looked
                 lda traffic.on,x

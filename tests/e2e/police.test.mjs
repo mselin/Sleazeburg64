@@ -88,7 +88,10 @@ const Q = quiet.labels;
 const bcd = (n) => [n % 100, Math.floor(n / 100) % 100, Math.floor(n / 10000)].map((d) => (d / 10 << 4) | d % 10);
 const unbcd = (b) => b.reduce((n, d, i) => n + ((d >> 4) * 10 + (d & 15)) * 100 ** i, 0);
 
-/** The player's car standing at the top of the city, facing east, a police car standing `gap` pixels ahead. */
+/**
+ * The player's car standing at the top of the city, facing east, a police car standing `gap` pixels ahead.
+ * Four officers lie knocked down out of sight, so that none gets out of the police car (no more than four).
+ */
 const boxedIn = (gap, body) =>
   withProgram(quiet.prg, async (vice) => {
     await vice.runTo(Q.ready);
@@ -99,6 +102,12 @@ const boxedIn = (gap, body) =>
     const cop = await putTrafficCar(vice, Q, w, 0, { x: 200 + gap, y: 24, dir: 2, cruise: 0, col: WHITE });
     cop.cop = 1;
     await vice.write(Q['police.cop'], [1]);
+    for (let i = 0; i < 4; i++) {
+      const o = await putPerson(vice, Q, w.people, i, { x: 40 + 10 * i, y: 300, spd: P.COP_PACE, col: P.OFFICER, officer: 1 });
+      Object.assign(o, { down: 255, ko: 1 });
+      await vice.write(Q['people.down'] + i, [255]);
+      await vice.write(Q['people.ko'] + i, [1]);
+    }
     await putHeat(vice, Q, w.heat, { level: 1, points: 2 * 8, cool: 60000 });
     w.money = 12345;
     await vice.write(Q['status.money'], bcd(w.money));
@@ -187,6 +196,9 @@ test('an officer gets out of a slow police car near the player, in light blue, a
     assert.equal(w.traffic.around, 1, 'the police are around');
     for (let i = 1; i <= 20; i++) await pass(vice, Q, w, 0, `the officer comes, ${i} frames`);
     assert.equal(officers(w).length, 1, 'one officer from one car');
+    await putHeat(vice, Q, w.heat, { level: 0, points: 0, cool: 0 }); // (no siren: the picture's border is black)
+    await pass(vice, Q, w, 0, 'no heat');
+    assert.equal(await border(vice), 0, 'the siren stops the moment the heat goes, the police near or not');
     await assertPicture(vice, Q, w, 'an officer on foot');
   }));
 
