@@ -379,7 +379,10 @@ donut           ldx status.heat         ; a level of heat less, its points to th
                 sta status.points + 1
                 lda #1
                 sta status.stars_shown
+                txa                     ; (none left: the siren stops, the police near or not)
+                beq to_quiet
 +               rts
+to_quiet        jmp police.quiet
 bandage         lda status.hp           ; 40 health back, to at most 100, for $20 (as far as the money goes)
                 clc
                 adc #40

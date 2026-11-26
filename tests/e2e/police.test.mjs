@@ -8,6 +8,7 @@ import assert from 'node:assert/strict';
 import { assemble, readPanel, withProgram } from './game.mjs';
 import { BUSTED, OFFICERS, World, assertPicture, missed, pass, putCar, putOnFoot, putTrafficCar } from './play.mjs';
 import { P, putPerson } from './people-model.mjs';
+import { DONUT } from './pickups-model.mjs';
 import { JOY } from './vice.mjs';
 import { putHeat } from './heat-model.mjs';
 
@@ -196,8 +197,13 @@ test('an officer gets out of a slow police car near the player, in light blue, a
     assert.equal(w.traffic.around, 1, 'the police are around');
     for (let i = 1; i <= 20; i++) await pass(vice, Q, w, 0, `the officer comes, ${i} frames`);
     assert.equal(officers(w).length, 1, 'one officer from one car');
-    await putHeat(vice, Q, w.heat, { level: 0, points: 0, cool: 0 }); // (no siren: the picture's border is black)
-    await pass(vice, Q, w, 0, 'no heat');
+    // A donut under the car: the heat goes, and the siren stops at once, the police near or not.
+    assert.notEqual(await border(vice), 0, 'the siren');
+    Object.assign(w.pickups.items[0], { col: 200 >> 4, row: 24 >> 4, kind: DONUT });
+    for (const [name, value] of [['col', 200 >> 4], ['row', 24 >> 4], ['kind', DONUT]]) await vice.write(Q[`pickups.${name}`], [value]);
+    let k = 0;
+    while (w.heat.level && k < 20) await pass(vice, Q, w, 0, `a donut, ${++k} frames`);
+    assert.equal(w.heat.level, 0, 'the heat gone');
     assert.equal(await border(vice), 0, 'the siren stops the moment the heat goes, the police near or not');
     await assertPicture(vice, Q, w, 'an officer on foot');
   }));

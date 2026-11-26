@@ -146,6 +146,10 @@ A briefing for whoever picks this project up next, person or assistant. Written 
     `video.init` now clears); 4K of RAM under the I/O area, for code only with every interrupt setting the
     port back (a few raster lines a frame); and two of the four colour routines (about 8.4K), at a cost in
     raster lines not yet measured.
+  - A timing edge (26 November 2026): `tests/e2e/screen.test.mjs`, "whatever is on the screen not shown ...",
+    fails by one pixel (column 39, line 114) with about 15 more cycles in every frame with no heat (writing
+    the border black in `police.watch` did it; 8 more did not). Keep the frames with no heat as they are, and
+    look there first if that test fails after a change that adds work to every frame.
   - Zero page is full: it is used up to `$d7`, and up to `$df` in the city viewer's music build, whose tune
     has `$e0` on.
     New variables go in the panel screen's rows 0-20, which the video chip never shows (`.section bss`, from

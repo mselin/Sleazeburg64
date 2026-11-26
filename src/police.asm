@@ -203,7 +203,7 @@ watch           lda chase_wait
                 bne +                   ; and the counts to an arrest start again)
                 sta boxed_for
                 sta window_for
-                jmp quiet               ; (and no siren: the heat may have just gone)
+                rts
 +               ldx #SLOTS - 1
 each            stx looked
                 lda traffic.on,x
@@ -348,6 +348,8 @@ dyh             .byte 0
 first           .byte 0                 ; the ways that close the gaps, the longer's first
 second          .byte 0
 looked          .byte 0                 ; watch: the car looked at
+boxed_for       .byte 0                 ; frames boxed in (here: watch clears it in any build)
+window_for      .byte 0                 ; frames with an officer at the window
                 .send
 
                 .section panel_code     ; (where there is room: waiting.asm)
@@ -440,8 +442,6 @@ close           tax
                 rts
 
 fine            .fill 3, 0              ; busted: a fifth of the money
-boxed_for       .byte 0                 ; frames boxed in
-window_for      .byte 0                 ; frames with an officer at the window
 reach           .byte 0                 ; close: how near
 span            .byte 0
 how_slow            .byte 0                 ; slower: how slow
