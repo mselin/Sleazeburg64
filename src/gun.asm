@@ -252,46 +252,20 @@ near_car        sta people.lim
 show            ldx #BULLETS - 1
 -               lda ticks,x
                 beq next_shown
-                sec                     ; down: 0 to LOWEST - 1 from cy, as for a pickup
-                lda yl,x
-                sbc traffic.cy
-                tay
-                lda yh,x
-                sbc traffic.cy + 1
-                bne next_shown
-                cpy #LOWEST
-                bcs next_shown
-                sec                     ; across: 0-326 from cx
-                lda xl,x
-                sbc traffic.cx
-                sta sprites.sx
+                lda xl,x                ; listed as a pickup is, without the bob
+                sta pickups.mid_x
                 lda xh,x
-                sbc traffic.cx + 1
-                beq +
-                cmp #1
-                bne next_shown
-                lda sprites.sx
-                cmp #326 - 256 + 1
-                bcs next_shown
-                lda #1
-+               sta sprites.sx + 1
-                tya
-                clc
-                adc #55 - 10 - 1 - 10
-                sta sprites.sy
-                clc
-                lda sprites.sx
-                adc #31 - 12 - 11
-                sta sprites.sx
-                bcc +
-                inc sprites.sx + 1
-+               lda #BULLET_SPRITE
+                sta pickups.mid_x + 1
+                lda yl,x
+                sta pickups.mid_y
+                lda yh,x
+                sta pickups.mid_y + 1
+                lda #BULLET_SPRITE
                 sta sprites.sp
                 lda #YELLOW             ; (a hi-res sprite: bit 7 clear)
                 sta sprites.sc
-                stx who
-                jsr sprites.add
-                ldx who
+                lda #0
+                jsr pickups.in_view
 next_shown      dex
                 bpl -
                 rts

@@ -14,6 +14,8 @@ import { Pickups, readPickups } from './pickups-model.mjs';
 import { Heat, readHeat } from './heat-model.mjs';
 
 export const START = [9 * 16, 8 * 16]; // the window's top left corner at start; the car is in its middle
+/** Busted (police.boxed_in, police.busted): slower than SLOW, a police car within BOXED, for AFTER frames. */
+export const BUSTED = { SLOW: 61, BOXED: 24, AFTER: 100, STATION: [(6 * 12 + 7) * 16, (2 * 12 + 2) * 16 + 8] };
 const TRAFFIC_FIELDS = ['dir', 'sp', 'cruise', 'face', 'col', 'turn', 'held', 'ghost', 'blocked', 'entered', 'wreck', 'sink'];
 
 /** Read the program's traffic: every car, and the counters and random seed that decide what comes next. */
@@ -88,6 +90,8 @@ export class World {
     this.heat = this.people.heat = this.player.heat = this.traffic.heat = new Heat();
     if (this.pickups) this.pickups.heat = this.heat;
     this.list = [];
+    this.boxed = 0; // frames boxed in by the police
+    this.money = 0; // (only for busted's fine: the tests that use it put it in)
   }
   /** One pass of the main loop with the joystick held as given. */
   step(bits) {
@@ -98,6 +102,7 @@ export class World {
     this.cam.follow(this.player.px, this.player.py);
     this.traffic.step(this.player.px, this.player.py, this.cam, busy);
     this.traffic.watch(); // (police.watch)
+    if (this.heat.level) this.boxedIn();
     waterStep(this, cell);
     if (this.honk) this.honk.step(this.car, this.traffic, this.cam, cell);
     this.heat.tick(this.traffic.around); // (status.update)
@@ -110,6 +115,33 @@ export class World {
     this.people.tick(this.cam, this.car);
     this.list = [...this.traffic.show(this.cam), ...(this.honk ? this.honk.show(this.cam) : []), ...this.people.show(this.cam),
       ...(this.pickups ? this.pickups.show(this.cam, [this.player.px, this.player.py], busy) : []), ...this.people.shown(this.cam)].slice(0, 16); // the multiplexer lists sixteen
+  }
+  /** police.boxed_in, with heat: in a car, slow, a police car near, AFTER frames on end, and the player is busted. */
+  boxedIn() {
+    const { car, player, traffic } = this, { SLOW, BOXED, AFTER } = BUSTED;
+    const near = (d) => Math.abs(((d + 0x8000) & 0xffff) - 0x8000) <= BOXED;
+    const boxed = !player.on && Math.abs(car.vx) < SLOW && Math.abs(car.vy) < SLOW &&
+      traffic.cars.some((c) => c.on && c.cop && !c.wreck && near(c.px - car.px) && near(c.py - car.py));
+    this.boxed = boxed ? this.boxed + 1 : 0;
+    if (this.boxed >= AFTER) this.busted();
+  }
+  /**
+   * police.busted: the police cars go, and the heat, the ammo, the knife and a fifth of the money; the car stays
+   * where it is, as when the player gets out; and the player is on foot at the police station, the window there,
+   * the program drawing the screen afresh.
+   */
+  busted() {
+    const { traffic, player, car } = this;
+    this.boxed = 0;
+    for (const c of traffic.cars) if (c.on && c.cop) Object.assign(c, { on: 0, cop: 0 });
+    Object.assign(this.heat, { level: 0, points: 0 });
+    if (this.pickups) Object.assign(this.pickups, { ammo: 0, knife: 0 });
+    this.money -= Math.floor(this.money / 5);
+    player.out(traffic, Player.place(traffic), [car.px, car.py], 0);
+    const [x, y] = BUSTED.STATION;
+    Object.assign(player, { x: x << 8, y: y << 8 });
+    this.cam = new Camera(x - CENTRE_X, y - CENTRE_Y);
+    this.cam.busy = true; // (the program draws the new screen at the end of this pass: the next goes on colour memory)
   }
   /** Every sprite that should be on screen, the one in front first: sprite 0, then sprites 1-7 as shared out. */
   sprites() {

@@ -117,7 +117,7 @@ A briefing for whoever picks this project up next, person or assistant. Written 
     give the game the room the in-game test tune had, then drawing the city (`src/video.asm`, which left room
     for the passers-by's frames at `$2000`) and the passers-by: about 250 bytes are left there (the
     steering limit and grip moved to `TOP_CODE` when jaywalking came in). `HIGH_CODE`
-    (`$aef2`-`$be00`, right after the colour routines: Big Honk, the player on foot, the passers-by's test for a car in their way, their arriving, punches and running) has about 60 left since the police came (25 November 2026: `src/police.asm`, about 460 bytes), and had about 520
+    (`$aef2`-`$be00`, right after the colour routines: Big Honk, the player on foot, the passers-by's test for a car in their way, their arriving, punches and running) has about 40 left since the police came (25 November 2026: `src/police.asm`, about 460 bytes, and busted), and had about 520
     since the multiplication's two tables became one (25 November 2026: n * n / 4 for n = -255..511, 1.5K at
     `$be01`, where the second table, moved along by 255, had taken 1K; dropping that half altogether, working
     out |a - b| in each multiplication, cost 19 raster lines in the worst screen-crossing frame of the long
@@ -130,7 +130,7 @@ A briefing for whoever picks this project up next, person or assistant. Written 
     bytes 4 pages either way, when it is next used the other way round, about 950 cycles; measured, the
     tightest scrolling frame went from 55 to 51 lines spare driving and from 64 to 45 on foot, flat out from
     86 to 68); `TOP_CODE` (`$f300`-`$fff9`:
-    the traffic, the car's grip and steering limit) about 100; and below the screens, up to the passers-by's frames at `$2000`, about 220
+    the traffic, the car's grip and steering limit) about 100; below the screens, up to the passers-by's frames at `$2000`, about 140; and after the player's frames, up to the screens at `$3000`, about 15
     (`car.init`, which makes the multiplication tables, runs once from where it waits in the program file, as
     `src/frames.asm` does).
     All four are assembled with `.logical` and wait after the map in the program file; start copies them up
@@ -138,9 +138,14 @@ A briefing for whoever picks this project up next, person or assistant. Written 
     `src/frames.asm` and the twelve frames it reads wait there too and run once from there.
   - Zero page is full: it is used up to `$d7`, and up to `$df` in the city viewer's music build, whose tune
     has `$e0` on.
-    New variables go in the panel screen's rows 0-20 (`$0400`-`$0747`, `.section bss`), which the video chip
-    never shows and `video.init` clears: about 270 bytes are left there, 6 in a build with sixteen cars
-    (which is why the status panel's money, heat, health and ammo are kept with its code, at `EXTRA_CODE`).
+    New variables go in the panel screen's rows 0-20, which the video chip never shows (`.section bss`, from
+    `$0400`, up to `$0640`): about 7 bytes are left there. From `$0640` to `$073f` is code
+    (`.section panel_code`, `PANEL_CODE`: busted, its counter and its message, 26 November 2026, the owner's
+    choice), copied there at start with the rest; `video.init` clears the panel screen but for that page. A
+    test build with sixteen cars has its variables over it (it never has heat, which is what runs it). 3
+    bytes are left there. The gun's bullets are listed by the pickups' code (`pickups.in_view`), which saved
+    about 45 bytes below the screens. (The status panel's money, heat, health and ammo are kept with its
+    code, at `EXTRA_CODE`.)
   - The program file is packed (the owner's choice, with `$e000`): `tools/build-game.sh` assembles the game,
     packs what waits after the tiles (`src/waiting.asm`: the map, the code start copies up, the player's
     frames) with `tools/pack.mjs`, an LZ of literal runs and copies, and assembles it again with

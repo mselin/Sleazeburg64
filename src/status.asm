@@ -564,7 +564,8 @@ MSG_CAR         = 0
 MSG_FOOT        = 1
 MSG_SUNK        = 2
 MSG_HEAT        = 3                     ; and on, for heat levels 1-5
-MESSAGES        = ("fire: handbrake. standing still: get out", "stand by a car and press fire to get in", "the car is gone. swim for it. the warranty does not cover this.", "a stern letter is being drafted", "police dispatched. eventually.", "shoot first, paperwork never", "overtime has been approved", "the homeowners association has been notified")
+MSG_BUSTED      = 8
+MESSAGES        = ("fire: handbrake. standing still: get out", "stand by a car and press fire to get in", "the car is gone. swim for it. the warranty does not cover this.", "a stern letter is being drafted", "police dispatched. eventually.", "shoot first, paperwork never", "overtime has been approved", "the homeowners association has been notified", 'busted. your weapons are now evidence')
 msg_texts       .block
 m0              .text format("%-40s", MESSAGES[0])
 m1              .text format("%-40s", MESSAGES[1])
@@ -579,7 +580,12 @@ m6              .text format("%-40s", MESSAGES[6])
 m7              .text format("%-40s", MESSAGES[7])
                 .bend
                 .send
-MSG_AT          = (msg_texts.m0, msg_texts.m1, msg_texts.m2, heat_texts.m3, heat_texts.m4, heat_texts.m5, heat_texts.m6, heat_texts.m7)
+                .section panel_code     ; (where there is room: waiting.asm)
+                .enc "screen"
+busted_text     .text format("%-40s", MESSAGES[8])
+                .enc "none"
+                .send
+MSG_AT          = (msg_texts.m0, msg_texts.m1, msg_texts.m2, heat_texts.m3, heat_texts.m4, heat_texts.m5, heat_texts.m6, heat_texts.m7, busted_text)
 msg_lo          .byte <MSG_AT
 msg_hi          .byte >MSG_AT
 most_of         .function m
@@ -588,7 +594,8 @@ frames_of       .function m             ; 50 * max(4, 0.14 * its length + 1.5), 
                 .endf (len(m) * 7 + 75 > 200 ? len(m) * 7 + 75 : 200) + 1     ; in, which counts it down too
 msg_most        .byte most_of(MESSAGES[0]), most_of(MESSAGES[1]), most_of(MESSAGES[2]), most_of(MESSAGES[3])
                 .byte most_of(MESSAGES[4]), most_of(MESSAGES[5]), most_of(MESSAGES[6]), most_of(MESSAGES[7])
-MSG_FRAMES      = (frames_of(MESSAGES[0]), frames_of(MESSAGES[1]), frames_of(MESSAGES[2]), frames_of(MESSAGES[3]), frames_of(MESSAGES[4]), frames_of(MESSAGES[5]), frames_of(MESSAGES[6]), frames_of(MESSAGES[7]))
+                .byte most_of(MESSAGES[8])
+MSG_FRAMES      = (frames_of(MESSAGES[0]), frames_of(MESSAGES[1]), frames_of(MESSAGES[2]), frames_of(MESSAGES[3]), frames_of(MESSAGES[4]), frames_of(MESSAGES[5]), frames_of(MESSAGES[6]), frames_of(MESSAGES[7]), frames_of(MESSAGES[8]))
 msg_left_lo     .byte <MSG_FRAMES
 msg_left_hi     .byte >MSG_FRAMES
                 .enc "none"
