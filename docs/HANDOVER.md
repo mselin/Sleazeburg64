@@ -54,7 +54,7 @@ Bootstrap only: create the handover docs in Sleazeburg64 from the design doc, ro
 
 - Sleazeburg64, branch `claude/confident-euler-70sqzi`: `docs/HANDOVER.md` renamed to `docs/NOTES.md`; this
   file and `docs/HANDOVER-PROTOCOL.md` new; the pointer in `tests/e2e/car.test.mjs` (a comment) updated. No
-  code changes. Pull request: (this one).
+  code changes. Pull request: mselin/Sleazeburg64#112.
 - Recent merged work (git log, newest first): #111 the banners; #109 the paint shop and the messages under
   the I/O area; #108 the pavement; #107 patrol cars; #106 officers shoot; #105 code under the I/O area, hurt
   and wasted; #104 the stolen police car; #103 more room and the siren's sound; #101 officers on foot.
