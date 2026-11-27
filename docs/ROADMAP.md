@@ -176,8 +176,13 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
     **The siren's sound** (done): with the siren on, the SID's first voice wails every 0.7 seconds, a square
     wave, 620 Hz for 17 frames then 830 Hz for 17, then a frame of nothing; it stops the moment the police are
     out of range, and starts afresh, from the low note, when they come back (`police.wailing`). It is the
-    game's first sound. Still to come: officers shooting from heat 3, the stolen police car, patrol cars
-    joining in (here every police car chases).
+    game's first sound. **A stolen police car** (done): taking a police car from its driver is 16 heat (an
+    empty one, none); driving one with heat 1 while the police are around (a chasing car within 150, an
+    officer within 120) puts the heat straight up to 2, its start, with THE COPS KNOW THAT CRUISER. THEY DO NOT
+    KNOW YOU., again whenever that holds; getting out ends it, and leaves it an empty police car. With no
+    patrol cars yet, there are no police about at heat 0, so the rule only ever acts at heat 1. Still to come:
+    officers shooting from heat 3 (with the player shot, and wasted), patrol cars joining in (here every police
+    car chases).
   - **The siren and the flashing border.** The border flashes red and blue (`$D020`, every 25 frames) only while
     the siren sounds: the police near, in play. It never flashes with nobody about, on the busted screen or
     while paused. The browser game got this wrong and kept flashing as long as there was any heat
