@@ -623,6 +623,7 @@ char_of         lda cam_hi,x
 .if CROWD != 0
                 .include "gun.asm"
 .endif
+                .dsection low_code      ; (more, where there is room)
 .if TITLE != 0
                 .include "title-page.asm"
 .endif
@@ -648,6 +649,16 @@ low_end
 ; Nothing writes there before: the title page's picture goes to $c000, the unpacking from city_map up.
                 * = SCREEN_A
                 .dsection boot
+; Code under the I/O area (IO_CODE, the RAM at $d000-$dfff): what runs now and then and does nothing with the
+; video chip, the SID, the CIAs or colour memory, run through a gate (above) with interrupts off. It waits
+; here, with what start runs once, and start copies it there.
+io_image
+                .logical IO_CODE
+                .dsection io_code
+io_end
+                .endlogical
+                .cerror io_end > $e000, "the code under the I/O area runs into EXTRA_CODE"
+IO_PAGES        = (io_end - IO_CODE + 255) / 256
 boot_end
                 .cerror * > charset, "what start runs once has run into the character set"
 .else

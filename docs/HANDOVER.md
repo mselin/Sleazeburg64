@@ -149,7 +149,10 @@ A briefing for whoever picks this project up next, person or assistant. Written 
     (`.section basic_code`, `$0800`-`$083f`, 64 bytes, empty: `video.init` now clears the panel's screen only
     up to `$07ff`). Mind that a store to `$00ff,x` is a zero-page store that wraps round in page 0: copying
     into the stack page needs a full address (`sta @w`). Code under the I/O area since 27 November 2026 (the owner's choice): `.section io_code`, at `IO_CODE`
-    (`$d000`-`$dfff`, 4K, about 3.5K left), copied there at start with the I/O area switched out. It runs only
+    (`$d000`-`$dfff`, 4K, about 3.2K left), copied there at start with the I/O area switched out. It waits with
+    what start runs once, where the screens will be (`boot`: about 1.1K left there), not after the map: what
+    waits after the map, `car.init` included, must end before `HIGH_CODE` (a check says so; on 27 November 2026
+    it did not cover `car.init`, which the code copied up then wrote over). It runs only
     through a gate (`io_gate` in `src/main.asm`): interrupts off and the I/O area out while it runs, so it must
     touch nothing there (no video chip, SID, CIAs or colour memory; no routine that does), and it must be what
     happens now and then, never every frame: busted, wasted, an officer getting out are there. The frames it

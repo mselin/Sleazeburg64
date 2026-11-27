@@ -9,7 +9,7 @@ import { Traffic, TrafficCar, plan } from './traffic-model.mjs';
 import { Honk, readHonk } from './honk-model.mjs';
 import { F, Player, readPlayer } from './foot-model.mjs';
 import { waterStep } from './water-model.mjs';
-import { P, People, inSight, readPeople, WALL } from './people-model.mjs';
+import { G, P, People, inSight, readPeople, WALL } from './people-model.mjs';
 import { Pickups, readPickups } from './pickups-model.mjs';
 import { H, Heat, readHeat } from './heat-model.mjs';
 
@@ -21,7 +21,10 @@ export const SIREN = { WAIL: 35, NOTE: 17 };
 /** Hurt, and wasted (police.hits, police.wasted). */
 export const HURT = { FAST: 115, REACH: 9, WAIT: 20, HOSPITAL: [(1 * 12 + 7) * 16, (1 * 12 + 2) * 16 + 8] };
 /** Officers on foot (police.get_out, police.on_foot). */
-export const OFFICERS = { NEAR: 36, CAR_STILL: 77, STILL: 154, MOST: 4, BESIDE: 12, NOTICE: 120, ARREST: 7, WINDOW: 13, WINDOW_SLOW: 113, WINDOW_AFTER: 35 };
+export const OFFICERS = {
+  NEAR: 36, CAR_STILL: 77, STILL: 154, MOST: 4, BESIDE: 12, NOTICE: 120, ARREST: 7, WINDOW: 13, WINDOW_SLOW: 113, WINDOW_AFTER: 35,
+  SHOOT_HEAT: 3, SHOOT_RANGE: 95, AIM_MIN: 55, SHOT_HURT: 11, // (police.may_shoot, shoot_io, cop_bullet)
+};
 const TRAFFIC_FIELDS = ['dir', 'sp', 'cruise', 'face', 'col', 'turn', 'held', 'ghost', 'blocked', 'entered', 'wreck', 'sink'];
 
 /** Read the program's traffic: every car, and the counters and random seed that decide what comes next. */
@@ -93,6 +96,8 @@ export class World {
     this.pickups = pickups ? new Pickups(this.cam) : null;
     if (this.pickups) this.people.onKill = (p) => p.rider || this.pickups.drop(p.px, p.py); // (a rider: nothing)
     this.people.items = this.pickups; // (the ammo, for the gun)
+    this.people.playerAt = () => this.at; // (officers' bullets hit the player)
+    this.people.onShot = () => this.harm(OFFICERS.SHOT_HURT, true);
     // Heat, which the crimes in the models add to (heat-model.mjs).
     this.heat = this.people.heat = this.player.heat = this.traffic.heat = new Heat();
     if (this.pickups) this.pickups.heat = this.heat;
@@ -100,6 +105,7 @@ export class World {
     this.boxed = 0; // frames boxed in by the police
     this.window = 0; // frames with an officer at the window
     this.hp = 100; // (status.hp: only hits and wasted change it here)
+    this.aim = [0, 0, 0, 0]; // (police.aim: an officer's frames before they can shoot again)
     this.hitWait = 0;
     this.money = 0; // (only for busted's fine: the tests that use it put it in)
   }
@@ -120,7 +126,9 @@ export class World {
     this.people.step(!moves && !busy, [this.player.px, this.player.py], this.cam, this.traffic, this.player.on ? null : this.car);
     this.people.shoot(this.traffic);
     const level = this.heat.level;
-    this.pickups?.step(this.cam, !moves && !busy);
+    // (Shot dead, the window has jumped since: pickups.update looks at it afresh.)
+    const movesNow = ((this.cam.x >> 3) ^ cell[0]) & 31 || ((this.cam.y >> 3) ^ cell[1]) & 31;
+    this.pickups?.step(this.cam, !movesNow && !busy);
     if (this.player.on) this.player.draw(this.traffic.tick, !moves && !busy);
     else this.player.drawn = null;
     this.people.tick(this.cam, this.car);
@@ -187,6 +195,7 @@ export class World {
       if (People.kind(...at) === WALL) return;
     }
     Object.assign(people.setUp(i, ...at), { col: P.OFFICER, spd: P.COP_PACE, officer: 1 });
+    this.aim[i] = 0; // (ready to shoot)
     Object.assign(c, { wreck: 1, sp: 0, cruise: 0 });
   }
   /** police.on_foot: the officers on foot who are not down: near, and arresting. True if the player is busted. */
@@ -196,8 +205,11 @@ export class World {
     let windowed = false;
     for (let k = this.people.people.length - 1; k >= 0; k--) {
       const p = this.people.people[k], by = (lim) => near(p.px - x, lim) && near(p.py - y, lim);
-      if (!p.on || !p.officer || p.down || !by(O.NOTICE)) continue;
+      if (!p.on || !p.officer || p.down) continue;
+      if (this.aim[k]) this.aim[k]--;
+      if (!by(O.NOTICE)) continue;
       this.traffic.around = 1;
+      if (this.heat.level >= O.SHOOT_HEAT && !this.aim[k] && by(O.SHOOT_RANGE)) this.shootAt(k);
       if (player.on) {
         if (by(O.ARREST)) return this.busted(), true;
       } else if (slow && by(O.WINDOW)) windowed = true;
@@ -205,6 +217,32 @@ export class World {
     if (!windowed) this.window = 0;
     else if (++this.window >= O.WINDOW_AFTER) return this.busted(), true;
     return false;
+  }
+  /**
+   * police.shoot_io: officer `k` shoots, unless in the water: a bullet of theirs (own) from their middle, the one
+   * of eight ways nearest the player's, at the gun's speed; the next shot in AIM_MIN to AIM_MIN + 31 frames. With
+   * all the gun's bullets flying, nothing.
+   */
+  shootAt(k) {
+    const p = this.people.people[k], ppl = this.people;
+    if (People.kind(p.px, p.py) === 3) return; // (water)
+    const i = ppl.bullets.map((b) => b.ticks).lastIndexOf(0);
+    if (i < 0) return;
+    const [x, y] = this.at, dx = ((x - p.px) << 16) >> 16, dy = ((y - p.py) << 16) >> 16;
+    const ax = Math.abs(dx) & 0xff, ay = Math.abs(dy) & 0xff;
+    let way;
+    if (2 * ay < 256 && 2 * ay < ax) way = dx < 0 ? 4 : 0;
+    else if (2 * ax < 256 && 2 * ax < ay) way = dy < 0 ? 6 : 2;
+    else way = (dx < 0 ? 3 : 1) ^ (dy < 0 ? 6 : 0);
+    const [vx, vy] = G.VELOCITY[way];
+    ppl.bullets[i] = { ticks: G.LIFE, x: (p.px << 8) | 0x80, y: (p.py << 8) | 0x80, vx, vy, own: 1 };
+    this.aim[k] = OFFICERS.AIM_MIN + (ppl.rnd() & 31);
+  }
+  /** police.harm: `n` health less; at none left, wasted (`shot`: by an officer). */
+  harm(n, shot = false) {
+    const hp = this.hp - n;
+    if (hp <= 0) return this.wasted(shot);
+    this.hp = hp;
   }
   /** police.boxed_in, with heat: in a car, slow, a police car near, AFTER frames on end, and the player is busted. */
   boxedIn() {
@@ -257,23 +295,20 @@ export class World {
     for (let k = t.n - 1; k >= 0; k--) {
       const c = t.cars[k];
       if (!c.on || c.sp <= HURT.FAST || !near(c.px - x, HURT.REACH) || !near(c.py - y, HURT.REACH)) continue;
-      const hp = this.hp - ((c.sp >> 3) - (c.sp >> 6));
-      if (hp <= 0) return this.wasted();
-      this.hp = hp;
       this.hitWait = HURT.WAIT;
-      return;
+      return this.harm((c.sp >> 3) - (c.sp >> 6));
     }
   }
   /**
    * police.wasted: the police take the weapons if they are about (as of the last frame's police.watch); the
    * police and the heat go; full health; the hospital bills up to $500; the player is at the hospital; no siren.
    */
-  wasted() {
-    if (this.traffic.around && this.pickups) Object.assign(this.pickups, { ammo: 0, knife: 0 });
+  wasted(shot = false) {
+    if ((this.traffic.around || shot) && this.pickups) Object.assign(this.pickups, { ammo: 0, knife: 0 });
     this.calm();
     this.hp = 100;
     this.money = Math.max(0, this.money - 500);
-    this.putAt(HURT.HOSPITAL, true);
+    this.putAt(HURT.HOSPITAL, !shot); // (a car's hit comes in foot.update, early in the pass; a shot in gun.update)
     this.traffic.wail = this.traffic.tone = 0;
   }
   /** Every sprite that should be on screen, the one in front first: sprite 0, then sprites 1-7 as shared out. */

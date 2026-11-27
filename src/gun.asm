@@ -9,6 +9,9 @@
 ; (killed: 6 heat, and what they drop), or on a car within 8 either way (1 heat). It is a 2 x 2 yellow square,
 ; a sprite listed for the multiplexer after the pickups, its top left corner at the bullet.
 ;
+; Officers on foot shoot with it too (police.shoot_io): their bullets (own 1) share its places, and hit only the
+; player (police.cop_bullet).
+;
 ; As the arm goes out for a punch, it does for a shot: the gun's frames want sprite room there is not yet.
 ; tests/e2e/people-model.mjs does the same in JavaScript, and the tests hold the two to each other.
 
@@ -26,7 +29,7 @@ FLEE_SHOT       = 100                   ; for 4 seconds (people.asm counts their
 BULLET_SPRITE   = BULLET_FRAME / 64
 OFF             = 0                     ; ticks: no bullet
 
-                .section low_more
+                .section low_code       ; (where there is room: main.asm)
 ; Its frame, at start (after the passers-by's frames are copied up: the page they come in reaches it).
 init            ldx #63
                 lda #0
@@ -37,6 +40,8 @@ init            ldx #63
                 sta BULLET_FRAME + 10 * 3 + 1
                 sta BULLET_FRAME + 11 * 3 + 1
                 rts
+                .send
+                .section low_more
 
 ; Fire on foot, out of the water (foot.update): with ammo left a shot, if the last was long enough ago; with
 ; none, people.punch (the knife or fists).
@@ -65,6 +70,8 @@ fire            lda status.ammo
                 bpl -
                 bmi scare
 +               stx who
+                lda #0                  ; (the player's)
+                sta own,x
                 lda #LIFE
                 sta ticks,x
                 ldy foot.face
@@ -185,8 +192,11 @@ hits            lda xl,x                ; a wall (off the map is one too)
                 jsr car.kind_at
                 cmp #WALL
                 beq spent
-                ldx who                 ; a passer-by, alive (and not lying dead)
-                lda xl,x
+                ldx who                 ; an officer's: only the player (police.cop_bullet)
+                lda own,x
+                beq +
+                jmp police.cop_bullet
++               lda xl,x                ; a passer-by, alive (and not lying dead)
                 sta people.cx
                 lda xh,x
                 sta people.cx + 1
@@ -279,6 +289,11 @@ vy_lo           .byte 0, <DIAGONAL, <STRAIGHT, <DIAGONAL, 0, <-DIAGONAL, <-STRAI
 vy_hi           .byte 0, >DIAGONAL, >STRAIGHT, >DIAGONAL, 0, >-DIAGONAL, >-STRAIGHT, >-DIAGONAL
 
 ticks           .fill BULLETS, 0        ; frames left; OFF: none
+                .send
+                .section low_code       ; (where there is room: main.asm)
+own             .fill BULLETS, 0        ; 1: an officer's (police.shoot_io), which hits only the player
+                .send
+                .section low_more
 xf              .fill BULLETS, 0        ; where: x as fraction, pixel low and high; y the same
 xl              .fill BULLETS, 0
 xh              .fill BULLETS, 0

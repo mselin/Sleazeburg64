@@ -190,8 +190,14 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
     hospital bills $500 (or all there is) and the player is at the hospital (where the browser game has it).
     The police take the knife and the ammo if they were about; the message is ST. INVOICE HOSPITAL:
     AMBULANCE RIDE (OUT OF NETWORK), or AMBULANCE RIDE BILLED. THE POLICE KEPT YOUR WEAPONS (the panel's
-    messages are fixed: no amount). Still to come: the FLATLINED banner and the pause, officers' shots, a car
-    blowing up with the player in it.
+    messages are fixed: no amount). **Officers shoot** (done): from heat 3, an officer on foot who is not down
+    and not in the water, within 95 pixels of the player either way, shoots at them, then again 1.1 to 1.7
+    seconds later (55 to 86 frames, from the passers-by's random numbers). The bullet is the gun's (its three
+    places shared with the player's shots), one of eight ways, the nearest to the player's, at the gun's 240
+    pixels a second (the design's officers shoot at 200, straight at the player, with a little scatter: neither
+    is done here). It hits only the player, in a car or on foot, within 3 pixels: 11 health. Shot dead, the
+    police keep the weapons. Still to come: the FLATLINED banner and the pause, a car blowing up with the
+    player in it, the officer's arm out as they shoot.
   - **The siren and the flashing border.** The border flashes red and blue (`$D020`, every 25 frames) only while
     the siren sounds: the police near, in play. It never flashes with nobody about, on the busted screen or
     while paused. The browser game got this wrong and kept flashing as long as there was any heat

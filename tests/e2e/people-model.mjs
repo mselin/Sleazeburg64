@@ -77,7 +77,7 @@ export class People {
     Object.assign(this, { seed: 0x5d, lull: 1, crossing: 0, half: 0, punchLeft: 0, knife: 0 });
     // The gun's bullets (ticks: frames left, 0 none; positions and speeds in 1/256 pixel), and the pickups model,
     // which keeps the ammo (set by whoever steps the models; none: no ammo).
-    this.bullets = Array.from({ length: G.BULLETS }, () => ({ ticks: 0, x: 0, y: 0, vx: 0, vy: 0 }));
+    this.bullets = Array.from({ length: G.BULLETS }, () => ({ ticks: 0, x: 0, y: 0, vx: 0, vy: 0, own: 0 }));
     this.items = null;
   }
   rnd() {
@@ -255,7 +255,7 @@ export class People {
     const i = this.bullets.map((b) => b.ticks).lastIndexOf(0);
     if (i >= 0) {
       const [fx, fy] = G.FROM[player.face], [vx, vy] = G.VELOCITY[player.face];
-      this.bullets[i] = { ticks: G.LIFE, x: ((w16(player.px + fx) << 8) | 0x80), y: ((w16(player.py + fy) << 8) | 0x80), vx, vy };
+      this.bullets[i] = { ticks: G.LIFE, x: ((w16(player.px + fx) << 8) | 0x80), y: ((w16(player.py + fy) << 8) | 0x80), vx, vy, own: 0 };
     }
     const near = (q, lim) => w16(q.px - player.px + lim) <= 2 * lim && w16(q.py - player.py + lim) <= 2 * lim;
     for (const q of this.people) if (q.on && !q.down && near(q, G.SCARE)) q.flee = G.FLEE;
@@ -272,6 +272,14 @@ export class People {
       const x = (b.x >> 8) & 0xffff, y = (b.y >> 8) & 0xffff;
       if (People.kind(x, y) === WALL) {
         b.ticks = 0;
+        continue;
+      }
+      if (b.own) { // an officer's: only the player (police.cop_bullet)
+        const [px, py] = this.playerAt();
+        if (near(px, py, x, y, G.HIT_PERSON)) {
+          b.ticks = 0;
+          this.onShot();
+        }
         continue;
       }
       const p = [...this.people.keys()].reverse().map((k) => this.people[k])
@@ -401,11 +409,11 @@ export async function readPeople(vice, L, crowd = P.CROWD) {
     ['on', 'xf', 'xl', 'xh', 'yf', 'yl', 'yh', 'way', 'spd', 'col', 'wait', 'phl', 'phh', 'down', 'jay', 'stuck', 'stall', 'aside', 'road', 'ko', 'flee', 'officer'].map((n) => get(n)));
   const [seed] = await get('seed', 1), [lull] = await get('lull', 1), [half] = await get('half', 1), [punchLeft] = await get('punch_left', 1);
   const gun = async (name) => [...(await vice.read(L[`gun.${name}`], G.BULLETS))];
-  const [ticks, bxf, bxl, bxh, byf, byl, byh, vxl, vxh, vyl, vyh] = await Promise.all(['ticks', 'xf', 'xl', 'xh', 'yf', 'yl', 'yh', 'vxl', 'vxh', 'vyl', 'vyh'].map(gun));
+  const [ticks, bxf, bxl, bxh, byf, byl, byh, vxl, vxh, vyl, vyh, own] = await Promise.all(['ticks', 'xf', 'xl', 'xh', 'yf', 'yl', 'yh', 'vxl', 'vxh', 'vyl', 'vyh', 'own'].map(gun));
   const s16 = (lo, hi) => ((lo | (hi << 8)) << 16) >> 16;
   return {
     seed, lull, half, punchLeft,
-    bullets: ticks.map((t, i) => (t ? { ticks: t, x: bxf[i] | (bxl[i] << 8) | (bxh[i] << 16), y: byf[i] | (byl[i] << 8) | (byh[i] << 16), vx: s16(vxl[i], vxh[i]), vy: s16(vyl[i], vyh[i]) } : { ticks: 0 })),
+    bullets: ticks.map((t, i) => (t ? { ticks: t, x: bxf[i] | (bxl[i] << 8) | (bxh[i] << 16), y: byf[i] | (byl[i] << 8) | (byh[i] << 16), vx: s16(vxl[i], vxh[i]), vy: s16(vyl[i], vyh[i]), own: own[i] } : { ticks: 0 })),
     people: on.map((o, i) => (o ? {
       on: 1, x: xf[i] | (xl[i] << 8) | (xh[i] << 16), y: yf[i] | (yl[i] << 8) | (yh[i] << 16), way: way[i], spd: spd[i], col: col[i], wait: wait[i], ph: phl[i] | (phh[i] << 8), down: down[i], jay: jay[i], stuck: stuck[i], stall: stall[i], aside: aside[i], road: road[i], ko: ko[i], flee: flee[i], officer: officer[i],
     } : { on: 0 })),
