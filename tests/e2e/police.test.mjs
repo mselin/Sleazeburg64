@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // End-to-end tests of the police (src/police.asm): with heat, police cars come, white, at most the heat's level of
-// them, and only they; at a crossing they take the way to the player; near the player, the border flashes red and
-// blue and the heat does not cool; boxed in by one, slow, for two seconds, the player is busted. The real program in VICE, the models (traffic-model.mjs, heat-model.mjs) held
+// them, and only they; at a crossing they take the way to the player; near the player, the siren wails, the border
+// flashes red and blue and the heat does not cool; boxed in by one, slow, for two seconds, the player is busted. The real program in VICE, the models (traffic-model.mjs, heat-model.mjs) held
 // to it frame by frame, as everywhere else.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -52,7 +52,7 @@ test('with heat 2, police cars come: white, no more than two, and no other traff
     assert.equal(await missed(vice, L) - late, 0, 'no frame was late');
   }));
 
-test('police cars come to the player; near, the border flashes red and blue every half second, and the heat does not cool', () =>
+test('police cars come to the player; near, the siren wails, the border flashes red and blue every half second, and the heat does not cool', () =>
   run(async (vice, w) => {
     await putOnFoot(vice, L, w, 200, 24, 0);
     await putHeat(vice, L, w.heat, { level: 1, points: 2 * 8, cool: 60000 });
@@ -61,12 +61,16 @@ test('police cars come to the player; near, the border flashes red and blue ever
     assert.equal(w.traffic.around, 1, `a police car came near (${i} frames)`);
     // Near: no cooling, however little time is left; the siren's colours, a half second each.
     await putHeat(vice, L, w.heat, { level: 1, points: 2 * 8, cool: 2 });
-    const colours = [];
+    const colours = [], tones = [];
     for (let k = 1; k <= 60 && w.traffic.around; k++) {
       await pass(vice, L, w, 0, `with the police near, ${k} frames`);
       colours.push(await border(vice));
+      tones.push(w.traffic.tone); // (the program's, as pass() holds it to the model)
       assert.equal(w.heat.level, 1, 'the heat does not cool');
     }
+    // The siren's sound: a wail every 0.7 seconds, 17 frames of the low note, 17 of the high, one of nothing.
+    const wail = tones.join('');
+    assert.ok(/^1+2{17}01{17}2/.test(wail), `the wail (${wail})`);
     assert.ok(colours.length >= 30, `near for a while (${colours.length} frames)`);
     assert.ok(colours.every((c) => c === RED || c === BLUE), 'red and blue');
     const runs = [];

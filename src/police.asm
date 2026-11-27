@@ -21,6 +21,9 @@
 ; as when the player gets out; and the player is on foot at the police station, the window there. The design
 ; ends the game when the player is busted with no money; with no game over yet, here they come back as ever.
 ; The message cannot say how much was taken: the panel's messages are fixed.
+; The sound (wailing), with the siren: the SID's first voice, a square wave, the low note for NOTE frames, the
+; high one for NOTE, then a frame of nothing, over and over; quiet the moment the siren stops (quiet). `tone`
+; says what it plays, for the tests: the SID's registers cannot be read back.
 ;
 ; Officers on foot (get_out, on_foot): a police car slower than CAR_STILL and the player slower than STILL (or
 ; on foot), within OUT_NEAR of each other either way, and an officer gets out BESIDE pixels to its side, up to
@@ -37,6 +40,11 @@ CHASE_GAP       = 110                   ; frames between police cars (2.2 second
 COP_CRUISE      = 255                   ; their cruising speed, in the traffic's 1/128 pixel a frame
 NOTICE          = 150                   ; the police around: this many pixels either way
 SIREN_TIME      = 25                    ; frames each colour of the siren (half a second)
+WAIL_TIME       = 35                    ; the siren's sound: a wail every 0.7 seconds ...
+NOTE            = 17                    ; ... of two notes this long (the design's 0.33 seconds) ...
+LOW_NOTE        = 620 * 16777216 / 985248       ; ... 620 Hz then 830 Hz, in the SID's units (PAL)
+HIGH_NOTE       = 830 * 16777216 / 985248
+PULSE           = $40                   ; a square wave (pulse, half and half), the gate bit 0 or 1
 SLOW            = 61                    ; busted: slower than this, in 1/256 pixel a frame (12 pixels a second) ...
 BOXED           = 24                    ; ... with a police car this near either way ...
 BUSTED_AFTER    = 100                   ; ... for this many frames (2 seconds)
@@ -56,8 +64,16 @@ STATION_Y       = (2 * 12 + 2) * 16 + 8
 
                 .section police_high
 ; At start (after video.init, which clears the variables' screen): no police, and none due yet.
-init            ldx #SLOTS - 1
+init            lda #15                 ; the siren's voice (the first): full volume, a square wave, at full
+                sta SID + $18           ; sustain from the first moment
+                lda #8
+                sta SID + 3
+                lda #$f0
+                sta SID + 6
+                ldx #SLOTS - 1
                 lda #0
+                sta SID + 2
+                sta SID + 5
 -               sta cop,x
                 dex
                 bpl -
@@ -256,11 +272,15 @@ sound           jsr boxed_in            ; (with heat: busted, after long enough 
 +               ldx flash
                 lda siren_colours,x
                 sta VIC_BORDER
-                rts
+                jmp wailing             ; and the sound
 quiet           lda #0                  ; (afresh when they come back)
                 sta siren
                 sta flash
                 sta VIC_BORDER          ; (black)
+                sta wail
+                sta tone
+                lda #PULSE              ; (the gate off: silent)
+                sta SID + 4
                 rts
 ; C clear if the difference A (high), Y (low) is NOTICE or less either way.
 within          tax
@@ -296,6 +316,8 @@ dyh             .byte 0
 first           .byte 0                 ; the ways that close the gaps, the longer's first
 second          .byte 0
 looked          .byte 0                 ; watch: the car looked at
+wail            .byte 0                 ; frames into the siren's wail
+tone            .byte 0                 ; what the siren's voice plays: 0 nothing, 1 the low note, 2 the high
 boxed_for       .byte 0                 ; frames boxed in (here: watch clears it in any build)
 window_for      .byte 0                 ; frames with an officer at the window
                 .send
@@ -542,6 +564,35 @@ next_officer    ldx looked
                 bcc +
                 jmp busted
 +               rts
+                .send
+
+                .section gap_code       ; (where there is room: waiting.asm)
+; The siren's sound, a frame of it (watch, with the siren on): the low note, then the high, then a frame of
+; nothing, over and over, from the low note when it starts.
+wailing         ldx wail
+                inx
+                cpx #WAIL_TIME
+                bcc +
+                ldx #0
++               stx wail
+                ldy #0                  ; the tone
+                cpx #2 * NOTE
+                bcs +
+                iny
+                cpx #NOTE
+                bcc +
+                iny
++               sty tone
+                lda note_lo,y
+                sta SID
+                lda note_hi,y
+                sta SID + 1
+                lda gate,y
+                sta SID + 4
+                rts
+note_lo         .byte 0, <LOW_NOTE, <HIGH_NOTE
+note_hi         .byte 0, >LOW_NOTE, >HIGH_NOTE
+gate            .byte PULSE, PULSE | 1, PULSE | 1
                 .send
 
                 .section tile_room5     ; (where there is room: main.asm)

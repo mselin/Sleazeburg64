@@ -16,6 +16,8 @@ import { Heat, readHeat } from './heat-model.mjs';
 export const START = [9 * 16, 8 * 16]; // the window's top left corner at start; the car is in its middle
 /** Busted (police.boxed_in, police.busted): slower than SLOW, a police car within BOXED, for AFTER frames. */
 export const BUSTED = { SLOW: 61, BOXED: 24, AFTER: 100, STATION: [(6 * 12 + 7) * 16, (2 * 12 + 2) * 16 + 8] };
+/** The siren's sound (police.wailing): a wail every WAIL frames, two notes of NOTE frames; `tone` 1 low, 2 high. */
+export const SIREN = { WAIL: 35, NOTE: 17 };
 /** Officers on foot (police.get_out, police.on_foot). */
 export const OFFICERS = { NEAR: 36, CAR_STILL: 77, STILL: 154, MOST: 4, BESIDE: 12, NOTICE: 120, ARREST: 7, WINDOW: 13, WINDOW_SLOW: 113, WINDOW_AFTER: 35 };
 const TRAFFIC_FIELDS = ['dir', 'sp', 'cruise', 'face', 'col', 'turn', 'held', 'ghost', 'blocked', 'entered', 'wreck', 'sink'];
@@ -41,8 +43,9 @@ export async function readTraffic(vice, L, n) {
   const seed = await get('seed', 2);
   const [tick, rot, wait, turns, mine] = await Promise.all([get('tick', 1), get('rot', 1), get('spawn_wait', 1), get('turns', 1), get('mine', 1)]);
   const cop = await vice.read(L['police.cop'], n), [chaseWait] = await vice.read(L['police.chase_wait'], 1), [around] = await vice.read(L['police.around'], 1);
+  const [wail] = await vice.read(L['police.wail'], 1), [tone] = await vice.read(L['police.tone'], 1);
   cars.forEach((c, i) => c.on && (c.cop = cop[i]));
-  return { cars, seed: [seed[0], seed[1]], tick: tick[0], turns: turns[0], rot: rot[0], spawnWait: wait[0], mine: mine[0], chaseWait, around };
+  return { cars, seed: [seed[0], seed[1]], tick: tick[0], turns: turns[0], rot: rot[0], spawnWait: wait[0], mine: mine[0], chaseWait, around, wail, tone };
 }
 
 /** The same, from the model. */
@@ -55,7 +58,7 @@ export function modelTraffic(t) {
     car.cop = c.cop;
     return car;
   });
-  return { cars, seed: [t.rnd.lo, t.rnd.hi], tick: t.tick, turns: t.turns, rot: t.rot, spawnWait: t.spawnWait, mine: t.mine, chaseWait: t.chaseWait, around: t.around };
+  return { cars, seed: [t.rnd.lo, t.rnd.hi], tick: t.tick, turns: t.turns, rot: t.rot, spawnWait: t.spawnWait, mine: t.mine, chaseWait: t.chaseWait, around: t.around, wail: t.wail, tone: t.tone };
 }
 
 const signed = (lo, hi) => ((hi << 8) | lo) << 16 >> 16;
@@ -111,12 +114,14 @@ export class World {
     const moves = ((this.cam.x >> 3) ^ cell[0]) & 31 || ((this.cam.y >> 3) ^ cell[1]) & 31;
     this.people.step(!moves && !busy, [this.player.px, this.player.py], this.cam, this.traffic, this.player.on ? null : this.car);
     this.people.shoot(this.traffic);
+    const level = this.heat.level;
     this.pickups?.step(this.cam, !moves && !busy);
     if (this.player.on) this.player.draw(this.traffic.tick, !moves && !busy);
     else this.player.drawn = null;
     this.people.tick(this.cam, this.car);
     this.list = [...this.traffic.show(this.cam), ...(this.honk ? this.honk.show(this.cam) : []), ...this.people.show(this.cam),
       ...(this.pickups ? this.pickups.show(this.cam, [this.player.px, this.player.py], busy) : []), ...this.people.shown(this.cam)].slice(0, 16); // the multiplexer lists sixteen
+    if (level && !this.heat.level) this.traffic.wail = this.traffic.tone = 0; // (a donut: police.quiet)
   }
   /**
    * police.watch, after the traffic has moved: with heat, an officer gets out of each police car that may; the
@@ -133,8 +138,12 @@ export class World {
       this.boxed = this.window = 0; // (the counts to an arrest start again)
       return;
     }
-    if (this.onFoot() || !this.heat.level) return; // (busted)
-    this.boxedIn();
+    if (!this.onFoot() && this.heat.level) this.boxedIn(); // (unless busted)
+    // The siren's sound (police.wailing): the low note, the high, a frame of nothing; with the siren off, quiet.
+    if (this.heat.level && t.around) {
+      t.wail = (t.wail + 1) % SIREN.WAIL;
+      t.tone = t.wail >= 2 * SIREN.NOTE ? 0 : t.wail >= SIREN.NOTE ? 2 : 1;
+    } else t.wail = t.tone = 0;
   }
   /** C clear in the program: |d| (16 bits) no more than `lim`. */
   static near(d, lim) {

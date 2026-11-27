@@ -79,7 +79,7 @@ export class Traffic {
     this.spawnWait = 0;
     // The police (src/police.asm): frames before another can appear, whether one is near the player this frame,
     // and the heat (heat-model.mjs), set by whoever steps the models (none: no heat).
-    Object.assign(this, { chaseWait: 0, around: 0, heat: null });
+    Object.assign(this, { chaseWait: 0, around: 0, heat: null, wail: 0, tone: 0 }); // (wail, tone: the siren's sound)
   }
 
   /**
