@@ -390,77 +390,8 @@ not_this        dex
                 ldx best
                 bpl take
                 rts
-; Car X of the traffic's tables becomes the player's: heat 4, if it is taken from its driver (one driving: a car
-; left standing has none), and 16 for a police car's; a police car, driven, is a stolen one (police.cruiser).
-take            lda police.cop,x
-                sta police.stolen
-                lda traffic.cruise,x
-                beq taken
-                txa
-                pha
-                lda #2 * 4
-                ldy police.stolen
-                beq +
-                lda #2 * 16
-+               jsr status.add_heat
-                pla
-                tax
-taken           lda traffic.pf,x
-                sta car.pos_x
-                lda traffic.pl,x
-                sta car.pos_x + 1
-                lda traffic.ph,x
-                sta car.pos_x + 2
-                lda traffic.pf + N1,x
-                sta car.pos_y
-                lda traffic.pl + N1,x
-                sta car.pos_y + 1
-                lda traffic.ph + N1,x
-                sta car.pos_y + 2
-                lda traffic.face,x      ; facing as its picture does
-                asl
-                asl
-                asl
-                asl
-                sta car.angle + 1
-                lda #0
-                sta car.angle
-                sta car.vel_x
-                sta car.vel_x + 1
-                sta car.vel_y
-                sta car.vel_y + 1
-                sta traffic.on,x
-                sta on
-                lda traffic.dir,x       ; and going as it was, along its lane
-                lsr
-                lda #0
-                rol
-                asl
-                tay                     ; 0 for across, 2 for down
-                lda traffic.dir,x
-                and #2
-                bne +
-                lda traffic.dlo,x
-                sta car.vel_x,y
-                lda traffic.dhi,x
-                sta car.vel_x + 1,y
-                jmp ++
-+               sec
-                lda #0
-                sbc traffic.dlo,x
-                sta car.vel_x,y
-                lda #0
-                sbc traffic.dhi,x
-                sta car.vel_x + 1,y
-+               lda traffic.col,x
-                sta car.colour
-                lda #1
-                sta car.inside          ; wherever it was left: free to move if that was in a wall
-                cpx traffic.mine
-                bne +
-                lda #$ff
-                sta traffic.mine
-+               jmp hint
+; Car X becomes the player's (take_io, from under the I/O area: main.asm).
+take            #io_gate take_io
 
 ; C clear and A = the size of the 16-bit difference in A (high byte) and Y, if that is under 20; else C set.
 span            cmp #0
@@ -609,6 +540,7 @@ out_here        lda #0
                 lda police.stolen       ; (a police car the player drove is one still, empty; no other is)
                 sta police.cop,x
                 lda #0
+                sta police.patrol,x
                 sta police.stolen
                 sta car.vel_x
                 sta car.vel_x + 1
@@ -717,4 +649,78 @@ beyond_y
                 .for i := 0, i < 16, i += 1
                 .char int(round(18 * sin(i * pi / 8)))
                 .next
+                                .section io_code        ; (under the I/O area, through the gate: main.asm)
+; Car X of the traffic's tables becomes the player's: heat 4, if it is taken from its driver (one driving: a car
+; left standing has none), and 16 for a police car's; a police car, driven, is a stolen one (police.cruiser).
+take_io         lda police.cop,x        ; (chasing, or on patrol)
+                ora police.patrol,x
+                sta police.stolen
+                lda traffic.cruise,x
+                beq taken
+                txa
+                pha
+                lda #2 * 4
+                ldy police.stolen
+                beq +
+                lda #2 * 16
++               jsr status.add_heat
+                pla
+                tax
+taken           lda traffic.pf,x
+                sta car.pos_x
+                lda traffic.pl,x
+                sta car.pos_x + 1
+                lda traffic.ph,x
+                sta car.pos_x + 2
+                lda traffic.pf + N1,x
+                sta car.pos_y
+                lda traffic.pl + N1,x
+                sta car.pos_y + 1
+                lda traffic.ph + N1,x
+                sta car.pos_y + 2
+                lda traffic.face,x      ; facing as its picture does
+                asl
+                asl
+                asl
+                asl
+                sta car.angle + 1
+                lda #0
+                sta car.angle
+                sta car.vel_x
+                sta car.vel_x + 1
+                sta car.vel_y
+                sta car.vel_y + 1
+                sta traffic.on,x
+                sta on
+                lda traffic.dir,x       ; and going as it was, along its lane
+                lsr
+                lda #0
+                rol
+                asl
+                tay                     ; 0 for across, 2 for down
+                lda traffic.dir,x
+                and #2
+                bne +
+                lda traffic.dlo,x
+                sta car.vel_x,y
+                lda traffic.dhi,x
+                sta car.vel_x + 1,y
+                jmp ++
++               sec
+                lda #0
+                sbc traffic.dlo,x
+                sta car.vel_x,y
+                lda #0
+                sbc traffic.dhi,x
+                sta car.vel_x + 1,y
++               lda traffic.col,x
+                sta car.colour
+                lda #1
+                sta car.inside          ; wherever it was left: free to move if that was in a wall
+                cpx traffic.mine
+                bne +
+                lda #$ff
+                sta traffic.mine
++               jmp hint
+                .send
                 .bend

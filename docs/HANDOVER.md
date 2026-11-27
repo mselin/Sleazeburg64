@@ -155,7 +155,8 @@ A briefing for whoever picks this project up next, person or assistant. Written 
     it did not cover `car.init`, which the code copied up then wrote over). It runs only
     through a gate (`io_gate` in `src/main.asm`): interrupts off and the I/O area out while it runs, so it must
     touch nothing there (no video chip, SID, CIAs or colour memory; no routine that does), and it must be what
-    happens now and then, never every frame: busted, wasted, an officer getting out are there. The frames it
+    happens now and then, never every frame: busted, wasted, an officer getting out, an officer's shot, a patrol
+    car joining the chase and taking a car (`foot.take`) are there. `police.init` runs from the start-only code. The frames it
     runs in were measured with the tests' frame counts: none late but the one that draws the screen afresh.
     Other room measured and not used: all of RAM under the I/O area for any code, for code only with every interrupt setting the
     port back (a few raster lines a frame); and two of the four colour routines (about 8.4K), at a cost in

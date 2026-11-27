@@ -180,9 +180,14 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
     empty one, none); driving one with heat 1 while the police are around (a chasing car within 150, an
     officer within 120) puts the heat straight up to 2, its start, with THE COPS KNOW THAT CRUISER. THEY DO NOT
     KNOW YOU., again whenever that holds; getting out ends it, and leaves it an empty police car. With no
-    patrol cars yet, there are no police about at heat 0, so the rule only ever acts at heat 1. Still to come:
-    officers shooting from heat 3 (with the player shot, and wasted), patrol cars joining in (here every police
-    car chases).
+    patrol cars yet, there are no police about at heat 0, so the rule only ever acts at heat 1 (patrol cars came
+    after: see below). **Patrol cars** (done): with no heat, a new traffic car is a police car on patrol one
+    time in eight (three random bits the new car's rolls leave spare, so the traffic's random numbers are as
+    they were; the browser game has 7 %, which the design does not give, mselin/gta-c64#111; its C64 note asks for more
+    rather than fewer). White, driving as traffic does. One within 127 pixels either way (the design's 130: the
+    most the program's nearness test takes) sees a stolen police car, even with no heat, and counts as the
+    police about when the player is wasted; with heat, it joins the chase. It does not keep the heat from
+    cooling or set the siren off, as the design has it.
   - **Hurt, and wasted** (done, the first part: cars). On foot, a car going faster than 45 pixels a second with
     its middle within 9 pixels of the player's either way hurts them, by its speed × 0.28 (the design's),
     and nothing hurts them again for 0.4 seconds; the browser game also pushes them along, which is not done

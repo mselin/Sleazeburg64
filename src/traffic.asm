@@ -966,10 +966,7 @@ near_next       dey
                 sta sink,x
                 sta entered,x
                 jsr rnd
-                and #63
-                clc
-                adc #CRUISE_MIN
-                jsr police.new_car      ; (with heat, a police car)
+                jsr police.new_car      ; (its cruising speed from that; a police car with heat, or on patrol)
                 sta cruise,x
                 sta sp,x
                 asl

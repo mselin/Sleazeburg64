@@ -42,6 +42,7 @@ police          .block
 CHASE_GAP       = 110                   ; frames between police cars (2.2 seconds)
 COP_CRUISE      = 255                   ; their cruising speed, in the traffic's 1/128 pixel a frame
 NOTICE          = 150                   ; the police around: this many pixels either way
+PATROL_NOTICE   = 127                   ; a patrol car notices the player this near either way (the design's 130)
 SIREN_TIME      = 25                    ; frames each colour of the siren (half a second)
 WAIL_TIME       = 35                    ; the siren's sound: a wail every 0.7 seconds ...
 NOTE            = 17                    ; ... of two notes this long (the design's 0.33 seconds) ...
@@ -76,26 +77,6 @@ STATION_Y       = (2 * 12 + 2) * 16 + 8
 
 
                 .section police_high
-; At start (after video.init, which clears the variables' screen): no police, and none due yet.
-init            lda #15                 ; the siren's voice (the first): full volume, a square wave, at full
-                sta SID + $18           ; sustain from the first moment
-                lda #8
-                sta SID + 3
-                lda #$f0
-                sta SID + 6
-                ldx #SLOTS - 1
-                lda #0
-                sta SID + 2
-                sta SID + 5
--               sta cop,x
-                dex
-                bpl -
-                sta chase_wait
-                sta around
-                sta siren
-                sta flash
-                rts
-
 ; traffic.try_spawn, before anything else: C set if a car may appear. With no heat, any car; with heat, only a
 ; police car, when one is due: the wait over, and fewer than the heat of them about.
 allowed         lda status.heat
@@ -120,11 +101,14 @@ yes             sec
 no              clc
                 rts
 
-; traffic.try_spawn, a new car in place X, A its cruising speed: with heat, a police car (white, COP_CRUISE),
-; the next one due CHASE_GAP frames from now; else a car as traffic. A = the cruising speed. X kept.
-new_car         pha
+; traffic.try_spawn, a new car in place X, A a random byte (its third): with heat, a police car (white,
+; COP_CRUISE), the next one due CHASE_GAP frames from now; else a car as traffic, cruising at CRUISE_MIN plus
+; the byte's low six bits, and on patrol (white) if its top two and the top bit of its first byte are all set,
+; one time in eight. A = the cruising speed. X kept.
+new_car         sta roll
                 lda #0
                 sta cop,x
+                sta patrol,x
                 lda status.heat
                 beq +
                 lda #1
@@ -133,10 +117,20 @@ new_car         pha
                 sta traffic.col,x
                 lda #CHASE_GAP
                 sta chase_wait
-                pla
                 lda #COP_CRUISE
                 rts
-+               pla
++               lda roll
+                cmp #$c0
+                bcc +
+                bit traffic.r1
+                bpl +
+                inc patrol,x            ; (a police car on patrol)
+                lda #WHITE
+                sta traffic.col,x
++               lda roll
+                and #63
+                clc
+                adc #CRUISE_MIN
                 rts
 
 ; traffic.enter, at a crossing, the ways it can go worked out (traffic.ways, traffic.cnt): for car Y, a police
@@ -229,11 +223,16 @@ watch           lda chase_wait
 +               lda #0
                 sta around
                 ldx status.heat         ; (with no heat, nothing more: whether they are near matters only with it,
-                bne +                   ; and the counts to an arrest start again)
+                bne with_heat           ; and the counts to an arrest start again)
                 sta boxed_for
                 sta window_for
+                lda stolen              ; (but for a stolen police car a patrol car sees)
+                bne +
                 rts
-+               ldx #SLOTS - 1
++               jsr patrols
+                jmp cruiser
+with_heat       jsr patrols             ; (a patrol car near joins the chase)
+                ldx #SLOTS - 1
 each            stx looked
                 lda traffic.on,x
                 beq next
@@ -330,6 +329,9 @@ dyh             .byte 0
 first           .byte 0                 ; the ways that close the gaps, the longer's first
 second          .byte 0
 looked          .byte 0                 ; watch: the car looked at
+patrol          .fill SLOTS, 0          ; 1: a police car on patrol in ordinary traffic
+patrol_near     .byte 0                 ; 1: one of them within PATROL_NOTICE of the player, this frame
+roll            .byte 0                 ; new_car
 aim             .fill CROWD, 0          ; an officer's frames before they can shoot again (by people's places)
 shot            .byte 0                 ; 1: the player is being hurt by an officer's shot
 stolen          .byte 0                 ; 1: the player's car is a police car (foot.take; foot.out_here ends it)
@@ -496,16 +498,85 @@ next_officer    ldx looked
 +               rts
                 .send
 
+                .section boot           ; (runs once: main.asm)
+; At start (boot, once what runs from higher up is there; nothing here is in the screens video.init clears):
+; no police, and none due yet.
+init            lda #15                 ; the siren's voice (the first): full volume, a square wave, at full
+                sta SID + $18           ; sustain from the first moment
+                lda #8
+                sta SID + 3
+                lda #$f0
+                sta SID + 6
+                ldx #SLOTS - 1
+                lda #0
+                sta SID + 2
+                sta SID + 5
+-               sta cop,x
+                dex
+                bpl -
+                sta chase_wait
+                sta around
+                sta siren
+                sta flash
+                rts
+
+                .send
+
+                .section police_high
+; Once a frame with heat, or with a stolen police car (watch): the patrol cars. One within PATROL_NOTICE of the
+; player either way (not a wreck) notices them (patrol_near); with heat it joins the chase, a chasing police car
+; from now on, at COP_CRUISE.
+patrols         lda #0
+                sta patrol_near
+                lda #PATROL_NOTICE
+                sta reach
+                ldx #SLOTS - 1
+each_patrol     stx looked
+                lda traffic.on,x
+                beq next_patrol
+                lda patrol,x
+                beq next_patrol
+                lda traffic.wreck,x
+                bne next_patrol
+                sec
+                lda traffic.pl,x
+                sbc player_at
+                tay
+                lda traffic.ph,x
+                sbc player_at + 1
+                jsr close
+                bcs next_patrol
+                ldx looked
+                sec
+                lda traffic.pl + N1,x
+                sbc player_at + 2
+                tay
+                lda traffic.ph + N1,x
+                sbc player_at + 3
+                jsr close
+                bcs next_patrol
+                lda #1
+                sta patrol_near
+                lda status.heat
+                beq next_patrol
+                jsr gate_join
+next_patrol     ldx looked
+                dex
+                bpl each_patrol
+                rts
+                .send
+
                 .section basic_code     ; (where there is room: waiting.asm)
 ; A stolen police car (watch, after boxed_in): driven with heat 1, the police around, the heat goes up to 2 (no
 ; crime: straight to the level's start), and the panel says they know it. Again whenever that holds.
 cruiser         lda stolen
                 beq +
                 lda around
+                ora patrol_near
                 beq +
                 lda status.heat
-                cmp #1
-                bne +
+                cmp #2
+                bcs +
                 sec
                 lda status.level_lo + 2
                 sbc status.points
@@ -851,6 +922,15 @@ aimed           ldx bullet
                 sta aim,x
                 rts
 bullet          .byte 0
+; Patrol car looked joins the chase (patrols, with heat, the gate): a chasing police car, at COP_CRUISE.
+join_io         ldx looked
+                lda #1
+                sta cop,x
+                lda #0
+                sta patrol,x
+                lda #COP_CRUISE
+                sta traffic.cruise,x
+                rts
 ; Busted (busted, the gate).
 ; Busted.
 busted_io       lda #0                  ; the weapons go, always
@@ -968,7 +1048,8 @@ calm            lda #0
 ; Wasted (wasted, the gate): the police take the weapons if they are about; the police and the heat go; full
 ; health; the hospital bills up to $500; and the player is at the hospital, the window there.
 wasted_io       ldx #status.MSG_WASTED
-                lda around              ; (the police about, or shot by an officer)
+                lda around              ; (the police about, a patrol car near, or shot by an officer)
+                ora patrol_near
                 ora shot
                 beq +
                 lda #0
@@ -1009,6 +1090,7 @@ gate_officer    #io_gate seat_officer
 busted          #io_gate busted_io
 wasted          #io_gate wasted_io
 gate_shoot      #io_gate shoot_io
+gate_join       #io_gate join_io
 
 ; On foot, once a frame (foot.update): a car on the move hits the player, for its speed * 0.28 (in pixels a
 ; second: the traffic's speed * 7/64), unless one has in the last HURT_WAIT frames; at no health left, wasted.

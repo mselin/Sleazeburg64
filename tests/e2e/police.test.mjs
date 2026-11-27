@@ -422,3 +422,63 @@ test('shot dead by an officer, the player is wasted and the police keep the weap
     assert.equal((await vice.read(Q['status.ammo'], 1))[0], 0, 'the ammo taken');
     assert.equal((await vice.read(Q['status.knife'], 1))[0], 0, 'and the knife');
   }));
+
+// ---------- patrol cars ----------
+test('with no heat, one new car in eight or so is a police car on patrol: white, driving as traffic does', () =>
+  run(async (vice, w) => {
+    let patrols = 0, cars = 0;
+    for (let i = 1; i <= 3000 && patrols < 1; i++) {
+      const before = w.traffic.cars.map((c) => c.on);
+      await pass(vice, L, w, 0, `no heat, ${i} frames`);
+      w.traffic.cars.forEach((c, k) => {
+        if (!c.on || before[k]) return;
+        cars++;
+        if (!c.patrol) return;
+        patrols++;
+        assert.equal(c.col, WHITE, 'white');
+        assert.equal(c.cop, 0, 'not chasing');
+        assert.ok(c.cruise >= 120 && c.cruise < 184, 'at a traffic car\'s speed');
+      });
+    }
+    assert.ok(patrols >= 1, `a patrol car (of ${cars} new cars)`);
+  }));
+
+/** A patrol car (manned, standing) put 60 pixels east of the player's car. */
+async function patrolNear(vice, w, i = 0) {
+  const c = await putTrafficCar(vice, Q, w, i, { x: w.car.px + 60, y: 24, dir: 2, cruise: 0, col: WHITE });
+  c.patrol = 1;
+  await vice.write(Q['police.patrol'] + i, [1]);
+  return c;
+}
+
+test('with heat, a patrol car near the player joins the chase', () =>
+  quietRun(async (vice, w) => {
+    await putCar(vice, Q, w, 200, 24, 0);
+    for (let i = 1; i <= 3; i++) await pass(vice, Q, w, 0, `put there, ${i} frames`);
+    await putHeat(vice, Q, w.heat, { level: 1, points: 2 * 8, cool: 60000 });
+    const c = await patrolNear(vice, w);
+    await pass(vice, Q, w, 0, 'the patrol car sees them');
+    assert.deepEqual([c.cop, c.patrol, c.cruise], [1, 0, 255], 'chasing now');
+    assert.equal(w.traffic.around, 1, 'the police around');
+  }));
+
+test('with no heat, a patrol car sees a stolen police car: heat 2, and they say so', () =>
+  quietRun(async (vice, w) => {
+    // An empty police car to take (no heat for that: no driver).
+    await putOnFoot(vice, Q, w, 200, 24, 0);
+    for (let i = 1; i <= 3; i++) await pass(vice, Q, w, 0, `put there, ${i} frames`);
+    const cruiser = await putTrafficCar(vice, Q, w, 1, { x: 212, y: 24, dir: 0, cruise: 0, col: WHITE, wreck: 1 });
+    cruiser.cop = 1;
+    await vice.write(Q['police.cop'] + 1, [1]);
+    let i = 0;
+    while (w.player.on && i < 20) await pass(vice, Q, w, i++ & 1 ? JOY.FIRE : 0, `getting in, ${i} frames`);
+    assert.equal(w.player.on, 0, 'in it');
+    assert.deepEqual([w.traffic.stolen, w.heat.level], [1, 0], 'stolen, and no heat yet');
+    for (let k = 1; k <= 10; k++) await pass(vice, Q, w, 0, `no police about, ${k} frames`);
+    assert.equal(w.heat.level, 0);
+    await patrolNear(vice, w, 0);
+    await pass(vice, Q, w, 0, 'a patrol car sees it');
+    assert.deepEqual([w.heat.level, w.heat.points], [2, 2 * 25], 'heat 2');
+    for (let k = 1; k <= 5; k++) await pass(vice, Q, w, 0, `the message, ${k} frames`);
+    assert.ok((await readPanel(vice)).some((r) => r.startsWith('THE COPS KNOW THAT CRUISER.')));
+  }));
