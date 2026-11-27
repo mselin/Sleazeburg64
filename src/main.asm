@@ -117,7 +117,6 @@ start           sei
                 jsr video.init          ; draws the first picture and sets up the raster interrupts
 .if VIEWER == 0
                 jsr traffic.init        ; after video.init clears the panel's screen, where its tables are
-                jsr police.init
                 jsr frames.init         ; and where the player's flipped frames are kept track of
 .endif
 .if WITH_HONK
@@ -238,6 +237,7 @@ boot            cld
                 #lay_down stack_image, $0100, stack_end - $0100      ; (last: what waits after the map is all up now)
                 #lay_down gap_image, map_end, gap_end - map_end
                 #lay_down basic_image, $0800, basic_end - $0800
+                jsr police.init         ; (its variables are with its code, up there now)
 .endif
                 lda #<ignore            ; RESTORE does nothing (after the copy, which can run over the vectors)
                 sta $fffa

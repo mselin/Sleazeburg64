@@ -104,7 +104,7 @@ export class Player {
     const i = this.reach(traffic);
     if (i < 0) return;
     const c = traffic.cars[i], car = this.car;
-    traffic.stolen = c.cop ? 1 : 0; // a police car: a stolen one (police.cruiser)
+    traffic.stolen = c.cop || c.patrol ? 1 : 0; // a police car, chasing or on patrol: a stolen one (police.cruiser)
     if (c.cruise) this.heat?.add(c.cop ? 2 * 16 : 2 * 4); // taken from its driver (heat-model.mjs)
     const v = (c.dir & 2 ? -c.sp * 2 : c.sp * 2) || 0; // (never -0)
     Object.assign(car, { x: c.x, y: c.y, angle: c.face << 12, vx: c.dir & 1 ? 0 : v, vy: c.dir & 1 ? v : 0, colour: c.col });

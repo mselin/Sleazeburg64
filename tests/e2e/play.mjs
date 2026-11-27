@@ -49,8 +49,9 @@ export async function readTraffic(vice, L, n) {
   const [tick, rot, wait, turns, mine] = await Promise.all([get('tick', 1), get('rot', 1), get('spawn_wait', 1), get('turns', 1), get('mine', 1)]);
   const cop = await vice.read(L['police.cop'], n), [chaseWait] = await vice.read(L['police.chase_wait'], 1), [around] = await vice.read(L['police.around'], 1);
   const [wail] = await vice.read(L['police.wail'], 1), [tone] = await vice.read(L['police.tone'], 1), [stolen] = await vice.read(L['police.stolen'], 1);
-  cars.forEach((c, i) => c.on && (c.cop = cop[i]));
-  return { cars, seed: [seed[0], seed[1]], tick: tick[0], turns: turns[0], rot: rot[0], spawnWait: wait[0], mine: mine[0], chaseWait, around, wail, tone, stolen };
+  const patrol = await vice.read(L['police.patrol'], n), [patrolNear] = await vice.read(L['police.patrol_near'], 1);
+  cars.forEach((c, i) => c.on && Object.assign(c, { cop: cop[i], patrol: patrol[i] }));
+  return { cars, seed: [seed[0], seed[1]], tick: tick[0], turns: turns[0], rot: rot[0], spawnWait: wait[0], mine: mine[0], chaseWait, around, wail, tone, stolen, patrolNear };
 }
 
 /** The same, from the model. */
@@ -61,9 +62,10 @@ export function modelTraffic(t) {
     for (const f of TRAFFIC_FIELDS) car[f] = c[f];
     car.ta = c.turn === 0xff ? null : c.ta;
     car.cop = c.cop;
+    car.patrol = c.patrol;
     return car;
   });
-  return { cars, seed: [t.rnd.lo, t.rnd.hi], tick: t.tick, turns: t.turns, rot: t.rot, spawnWait: t.spawnWait, mine: t.mine, chaseWait: t.chaseWait, around: t.around, wail: t.wail, tone: t.tone, stolen: t.stolen };
+  return { cars, seed: [t.rnd.lo, t.rnd.hi], tick: t.tick, turns: t.turns, rot: t.rot, spawnWait: t.spawnWait, mine: t.mine, chaseWait: t.chaseWait, around: t.around, wail: t.wail, tone: t.tone, stolen: t.stolen, patrolNear: t.patrolNear };
 }
 
 const signed = (lo, hi) => ((hi << 8) | lo) << 16 >> 16;
@@ -142,25 +144,35 @@ export class World {
    */
   policeWatch() {
     const t = this.traffic;
-    if (this.heat.level) for (let k = t.n - 1; k >= 0; k--) {
+    if (!this.heat.level) {
+      t.watch();
+      this.boxed = this.window = 0; // (the counts to an arrest start again)
+      if (t.stolen) { // (but for a stolen police car a patrol car sees)
+        t.patrols();
+        this.cruiser();
+      }
+      return;
+    }
+    t.patrols();
+    for (let k = t.n - 1; k >= 0; k--) {
       const c = t.cars[k];
       if (c.on && c.cop && !c.wreck) this.getOut(c);
     }
     t.watch();
-    if (!this.heat.level) {
-      this.boxed = this.window = 0; // (the counts to an arrest start again)
-      return;
-    }
     if (!this.onFoot() && this.heat.level) { // (unless busted)
       this.boxedIn();
-      // police.cruiser: a stolen police car, the police around, heat 1: straight to level 2's start.
-      if (t.stolen && t.around && this.heat.level === 1) this.heat.add(H.LEVELS[2] - this.heat.points);
+      this.cruiser();
     }
     // The siren's sound (police.wailing): the low note, the high, a frame of nothing; with the siren off, quiet.
     if (this.heat.level && t.around) {
       t.wail = (t.wail + 1) % SIREN.WAIL;
       t.tone = t.wail >= 2 * SIREN.NOTE ? 0 : t.wail >= SIREN.NOTE ? 2 : 1;
     } else t.wail = t.tone = 0;
+  }
+  /** police.cruiser: a stolen police car, the police around or a patrol car near, heat below 2: level 2's start. */
+  cruiser() {
+    const t = this.traffic;
+    if (t.stolen && (t.around || t.patrolNear) && this.heat.level < 2) this.heat.add(H.LEVELS[2] - this.heat.points);
   }
   /** C clear in the program: |d| (16 bits) no more than `lim`. */
   static near(d, lim) {
@@ -304,7 +316,7 @@ export class World {
    * police and the heat go; full health; the hospital bills up to $500; the player is at the hospital; no siren.
    */
   wasted(shot = false) {
-    if ((this.traffic.around || shot) && this.pickups) Object.assign(this.pickups, { ammo: 0, knife: 0 });
+    if ((this.traffic.around || this.traffic.patrolNear || shot) && this.pickups) Object.assign(this.pickups, { ammo: 0, knife: 0 });
     this.calm();
     this.hp = 100;
     this.money = Math.max(0, this.money - 500);

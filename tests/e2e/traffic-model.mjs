@@ -50,7 +50,7 @@ export class Rnd {
 export class TrafficCar {
   constructor(fields) {
     // sink: 0, or for a car that flooded the frames since, from 1 (water.asm).
-    Object.assign(this, { on: 1, x: 0, y: 0, dir: 0, sp: 0, cruise: 0, face: 0, col: 0, turn: 0xff, ta: 0, held: 0, ghost: 0, blocked: 0, entered: 0, wreck: 0, sink: 0, cop: 0 }, fields);
+    Object.assign(this, { on: 1, x: 0, y: 0, dir: 0, sp: 0, cruise: 0, face: 0, col: 0, turn: 0xff, ta: 0, held: 0, ghost: 0, blocked: 0, entered: 0, wreck: 0, sink: 0, cop: 0, patrol: 0 }, fields);
   }
   get px() {
     return this.x >> 8;
@@ -79,7 +79,7 @@ export class Traffic {
     this.spawnWait = 0;
     // The police (src/police.asm): frames before another can appear, whether one is near the player this frame,
     // and the heat (heat-model.mjs), set by whoever steps the models (none: no heat).
-    Object.assign(this, { chaseWait: 0, around: 0, heat: null, wail: 0, tone: 0, stolen: 0 }); // (wail, tone: the siren's sound)
+    Object.assign(this, { chaseWait: 0, around: 0, heat: null, wail: 0, tone: 0, stolen: 0, patrolNear: 0 }); // (wail, tone: the siren's sound)
   }
 
   /**
@@ -267,6 +267,20 @@ export class Traffic {
     return !this.chaseWait && this.cars.filter((c) => c.on && c.cop && !c.wreck).length < this.heat.level; // (an empty one does not chase)
   }
   /** police.watch, once a frame after step(): the wait for the next police car, and whether one is near the player. */
+  /**
+   * police.patrols, with heat or a stolen police car: a patrol car (not a wreck) within PATROL of the player
+   * either way notices them (patrolNear); with heat it joins the chase, at the police's cruising speed.
+   */
+  patrols() {
+    const { px, py } = this.player, within = (d) => w16(d + 127) <= 254;
+    this.patrolNear = 0;
+    for (let k = this.n - 1; k >= 0; k--) {
+      const c = this.cars[k];
+      if (!c.on || !c.patrol || c.wreck || !within(c.px - px) || !within(c.py - py)) continue;
+      this.patrolNear = 1;
+      if (this.heat?.level) Object.assign(c, { cop: 1, patrol: 0, cruise: 255 });
+    }
+  }
   watch() {
     if (this.chaseWait) this.chaseWait--;
     const { px, py } = this.player, within = (d) => w16(d + 150) <= 300;
@@ -300,9 +314,10 @@ export class Traffic {
       if (w16(o.px - nx + T.NEAR) <= 2 * T.NEAR && w16(o.py - ny + T.NEAR) <= 2 * T.NEAR) return; // too near
     }
     const r3 = this.rnd.next();
-    let cruise = T.CRUISE_MIN + (r3 & 63), col = COLOURS[(r1 >> 4) & 7], cop = 0;
+    let cruise = T.CRUISE_MIN + (r3 & 63), col = COLOURS[(r1 >> 4) & 7], cop = 0, patrol = 0;
     if (this.heat?.level) [cruise, col, cop, this.chaseWait] = [255, 1, 1, 110]; // a police car (police.new_car)
-    this.cars[slot] = new TrafficCar({ x: nx << 8, y: ny << 8, dir, sp: cruise, cruise, face: dir * 4, col, cop });
+    else if (r3 >= 0xc0 && r1 & 0x80) [col, patrol] = [1, 1]; // on patrol: one time in eight
+    this.cars[slot] = new TrafficCar({ x: nx << 8, y: ny << 8, dir, sp: cruise, cruise, face: dir * 4, col, cop, patrol });
     this.spawnWait = T.SPAWN_GAP;
   }
 
