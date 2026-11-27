@@ -114,6 +114,14 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
     a light grey hoodie and stands side on across a cyan skateboard with black wheels, at 46 px/s. The two rider
     jobs, the news line and the title's greetings speak of skaters on classic. See "The riders" under
     "Difficulty" in the design's [Title screen and icon](https://github.com/mselin/gta-c64/blob/main/specs/design.md#title-screen-and-icon).
+  - **Fixed in the browser game: running over, end to end** (mselin/gta-c64#110). Running someone over was
+    two circles, round the car's middle and its nose, so a sedan's back corners and a limousine's ends could pass
+    over people. Now a car at 30 px/s or more runs over anyone whose shoulders (5 × PERSON) touch its body, its
+    length and width turned with it, corners included; the same for a car hurting the player. Below 30 px/s a
+    car runs no one over but no longer rolls onto people either: it pushes them out to its nearer side, or the
+    other side, or with no room knocks them down. See "Hit distances" and "Cars are solid for anyone on foot" in
+    the design's
+    [People on foot](https://github.com/mselin/gta-c64/blob/main/specs/design.md#people-on-foot).
 - Water: cars flood and sink, people swim (done, not yet tried on real hardware). The player's car wades,
   slower the deeper it is, floods once it is wholly in, and sinks in three colours, leaving the player swimming.
   It stops where it floods rather than drifting on, and it is out of the way from the moment it floods rather
