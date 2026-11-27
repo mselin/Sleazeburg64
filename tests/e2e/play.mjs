@@ -15,7 +15,7 @@ import { H, Heat, readHeat } from './heat-model.mjs';
 
 export const START = [9 * 16, 8 * 16]; // the window's top left corner at start; the car is in its middle
 /** Busted (police.boxed_in, police.busted): slower than SLOW, a police car within BOXED, for AFTER frames. */
-export const BUSTED = { SLOW: 61, BOXED: 24, AFTER: 100, STATION: [(6 * 12 + 7) * 16, (2 * 12 + 2) * 16 + 8] };
+export const BUSTED = { DOWN: 160, SLOW: 61, BOXED: 24, AFTER: 100, STATION: [(6 * 12 + 7) * 16, (2 * 12 + 2) * 16 + 8] };
 /** The siren's sound (police.wailing): a wail every WAIL frames, two notes of NOTE frames; `tone` 1 low, 2 high. */
 export const SIREN = { WAIL: 35, NOTE: 17 };
 /** The paint shop (police.paint_look): where, how near, frames between. */
@@ -116,10 +116,17 @@ export class World {
     this.hitWait = 0;
     this.paveWait = 0; // (police.pave_wait)
     this.paintWait = 0; // (police.paint_wait)
+    this.paused = 0; // (police.paused: frames of the pause, busted or wasted)
+    this.downKind = null;
     this.money = 0; // (only for busted's fine: the tests that use it put it in)
   }
   /** One pass of the main loop with the joystick held as given. */
   step(bits) {
+    if (this.paused && --this.paused) return; // (busted or wasted: the pause, everything still)
+    if (this.downKind && !this.paused) {
+      this.back();
+      this.downKind = null;
+    }
     const cell = [...this.cam.cell]; // the character the window is in before it moves
     const busy = this.cam.busy; // this pass works out colour memory if the last one swapped the screens
     this.people.knife = this.pickups?.knife ?? 0;
@@ -320,12 +327,33 @@ export class World {
    * the program drawing the screen afresh.
    */
   busted() {
-    const { traffic, player, car } = this;
-    if (this.pickups) Object.assign(this.pickups, { ammo: 0, knife: 0 });
+    this.goDown('busted', true);
+  }
+  /**
+   * police.go_down and down_io: busted, or wasted; the weapons taken if `seized`; the police and the heat gone; no
+   * siren; and DOWN frames with everything still (police.downed), the banner over it all, then back().
+   */
+  goDown(kind, seized) {
+    if (seized && this.pickups) Object.assign(this.pickups, { ammo: 0, knife: 0 });
     this.calm();
-    this.money -= Math.floor(this.money / 5);
-    if (!player.on) player.out(traffic, Player.place(traffic), [car.px, car.py], 0);
-    this.putAt(BUSTED.STATION);
+    this.quiet();
+    Object.assign(this, { downKind: kind, paused: BUSTED.DOWN });
+  }
+  /**
+   * police.back_io, at the start of the pass the pause ends in (before foot.update): busted, a fifth of the
+   * money and out of the car where it is, at the police station; wasted, full health and the hospital's bill, at
+   * the hospital.
+   */
+  back() {
+    const { traffic, player, car } = this;
+    if (this.downKind === 'busted') {
+      this.money -= Math.floor(this.money / 5);
+      if (!player.on) player.out(traffic, Player.place(traffic), [car.px, car.py], 0);
+      return this.putAt(BUSTED.STATION, true);
+    }
+    this.hp = 100;
+    this.money = Math.max(0, this.money - 500);
+    this.putAt(HURT.HOSPITAL, true);
   }
   /** police.calm: busted or wasted, the police go, and the heat, and the count to being boxed in. */
   calm() {
@@ -365,12 +393,7 @@ export class World {
    * police and the heat go; full health; the hospital bills up to $500; the player is at the hospital; no siren.
    */
   wasted(shot = false) {
-    if ((this.traffic.around || this.traffic.patrolNear || shot) && this.pickups) Object.assign(this.pickups, { ammo: 0, knife: 0 });
-    this.calm();
-    this.hp = 100;
-    this.money = Math.max(0, this.money - 500);
-    this.putAt(HURT.HOSPITAL, !shot); // (a car's hit comes in foot.update, early in the pass; a shot in gun.update)
-    this.quiet();
+    this.goDown('wasted', !!(this.traffic.around || this.traffic.patrolNear || shot));
   }
   /** Every sprite that should be on screen, the one in front first: sprite 0, then sprites 1-7 as shared out. */
   sprites() {

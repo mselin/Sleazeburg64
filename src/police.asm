@@ -78,6 +78,15 @@ PAINT_Y         = (6 * 12 + 2) * 16 + 8
 PAINT_NEAR      = 16                    ; driving this near it either way with heat ...
 PAINT_COST      = $0200                 ; ... costs $200 (binary-coded decimal) ...
 PAINT_AGAIN     = 200                   ; ... at most every 4 seconds
+DOWN_TIME       = 160                   ; busted or wasted: the pause, frames (the design's 3.2 seconds)
+BAND            = 9                     ; the banner: its rows of the screen, from this one ...
+BAND_ROWS       = 5                     ; ... this many: the title's sprites over the first two
+TITLE_Y         = 50 + BAND * 8 + 1     ; their top (as sprite registers have it)
+R_BUSTED        = 0                     ; the reasons under the banner's title, by what happened
+R_BOXED         = 1
+R_WINDOW        = 2
+R_CAR           = 3
+R_SHOT          = 4
 SHOT_HURT       = 11                    ; ... and a shot that hits takes this much health
 STATION_X       = (6 * 12 + 7) * 16     ; the police station: where the browser game has it (its COPS)
 STATION_Y       = (2 * 12 + 2) * 16 + 8
@@ -399,6 +408,7 @@ boxed_now       inc boxed_for
                 lda boxed_for
                 cmp #BUSTED_AFTER
                 bcc +
+                lda #R_BOXED
                 jmp busted
 +               rts
 ; C clear if the player's car goes slower than A (1/256 pixel a frame) either way.
@@ -489,6 +499,7 @@ each_officer    stx looked
                 lda #ARREST
                 jsr officer_near
                 bcs next_officer
+                lda #R_BUSTED
                 jmp busted
 at_car          lda slow_car
                 beq next_officer
@@ -508,6 +519,7 @@ next_officer    ldx looked
                 lda window_for
                 cmp #WINDOW_AFTER
                 bcc +
+                lda #R_WINDOW
                 jmp busted
 +               rts
                 .send
@@ -536,7 +548,7 @@ init            lda #15                 ; the siren's voice (the first): full vo
 
                 .send
 
-                .section tile_room2     ; (where there is room: main.asm)
+                .section tile_room6     ; (where there is room: main.asm)
 ; Once a frame with heat (watch): at the wheel within PAINT_NEAR of the paint shop, no sooner than PAINT_AGAIN
 ; frames after the last time, the paint shop (paint_io).
 paint_look      lda paint_wait
@@ -566,6 +578,8 @@ paint_look      lda paint_wait
                 jmp gate_paint
 +               rts
 paint_wait      .byte 0                 ; frames before the paint shop can be used again
+                .send
+                .section tile_room1
 gate_paint      #io_gate paint_io
                 .send
 
@@ -1062,11 +1076,7 @@ join_io         ldx looked
                 rts
 ; Busted (busted, the gate).
 ; Busted.
-busted_io       lda #0                  ; the weapons go, always
-                sta status.ammo
-                sta status.knife
-                jsr calm
-                sed                     ; and a fifth of the money: twice it, a digit less
+busted_io       sed                     ; a fifth of the money: twice it, a digit less
                 clc
                 ldx #0
 -               lda status.money,x
@@ -1176,18 +1186,28 @@ calm            lda #0
                 jmp officers_go         ; and the officers on foot
 ; Wasted (wasted, the gate): the police take the weapons if they are about; the police and the heat go; full
 ; health; the hospital bills up to $500; and the player is at the hospital, the window there.
-wasted_io       ldx #status.MSG_WASTED
-                lda around              ; (the police about, a patrol car near, or shot by an officer)
+; Going down (go_down, the gate), busted or wasted: the police take the weapons (busted, always; wasted, with
+; the police about, a patrol car near, or shot by an officer); the police and the heat go; and the banner.
+down_io         ldx #status.MSG_WASTED
+                lda down_kind
+                beq +
+                lda around
                 ora patrol_near
                 ora shot
-                beq +
-                lda #0
+                beq ++
++               lda #0
                 sta status.ammo
                 sta status.knife
                 ldx #status.MSG_SEIZED
 +               stx said
                 jsr calm
-                lda #100
+                jmp make_banner
+; Back from the pause (downed, the gate): wasted (busted_io for busted): full health, the hospital's bill of up
+; to $500, at the hospital.
+back_io         lda down_kind
+                bne +
+                jmp busted_io
++               lda #100
                 sta status.hp
                 lda status.money + 2    ; the bill: $500, or what there is
                 bne pay
@@ -1216,8 +1236,8 @@ billed          ldy #9
                 .section low_more       ; (where there is room: main.asm)
 ; The gates to what runs from under the I/O area (seat_officer, busted_io).
 gate_officer    #io_gate seat_officer
-busted          #io_gate busted_io
-wasted          #io_gate wasted_io
+gate_down       #io_gate down_io
+gate_back       #io_gate back_io
 gate_shoot      #io_gate shoot_io
 
 ; On foot, once a frame (foot.update): a car on the move hits the player, for its speed * 0.28 (in pixels a
@@ -1276,10 +1296,13 @@ harm            sta hurt
                 sec
                 sbc hurt
                 beq +
-                bcs ++
-+               jsr wasted
-                jmp quiet
-+               sta status.hp
+                bcs survived
++               lda #R_CAR              ; (wasted: by a car, or by an officer's shot)
+                ldx shot
+                beq +
+                lda #R_SHOT
++               jmp wasted
+survived        sta status.hp
                 lda #1
                 sta status.changed
                 rts
@@ -1319,5 +1342,267 @@ cop_bullet      lda #gun.HIT_PERSON
                 sta shot
                 jmp gun.spent
 +               rts
+                .send
+                .section tile_room2     ; (where there is room: main.asm)
+; Busted (A: the reason, R_...), or wasted: go down, and the pause.
+busted          ldx #0
+                beq go_down
+wasted          ldx #1
+; Going down: what goes now (down_io: the weapons, the police, the heat; the banner), the siren off, and then
+; DOWN_TIME frames with everything still (downed, which ready jumps to meanwhile), the banner over it all.
+go_down         sta down_reason
+                stx down_kind
+                jsr gate_down
+                lda #$4c                ; (ready: jmp downed, for the pause)
+                sta ready
+                lda #<downed
+                sta ready + 1
+                lda #>downed
+                sta ready + 2
+                lda #DOWN_TIME
+                sta paused
+                ldx #BAND_ROWS * 40     ; the band's text in white (as a character's own colour: 0-7)
+                lda #WHITE
+-               sta COLOUR_RAM + BAND * 40 - 1,x
+                dex
+                bne -
+                jmp quiet
+                .send
+                .section tile_room3     ; (where there is room: main.asm)
+; A frame of the pause: only the banner's sprites, the picture still; at the end, back (back_io), and on with the
+; frame as ever.
+downed          dec paused
+                bne +
+                lda #$20                ; (ready as it was: jsr input.read)
+                sta ready
+                lda #<input.read
+                sta ready + 1
+                lda #>input.read
+                sta ready + 2
+                jsr gate_back
+                jsr input.read
+                jmp ready + 3
++               ldx #0
+-               stx sprites.sp          ; (spare)
+                txa                     ; its x: 24 a sprite along
+                asl
+                asl
+                asl
+                sta sprites.sx
+                asl
+                adc sprites.sx          ; (24 x, no carry: at most 5 * 24)
+                adc banner_x
+                sta sprites.sx
+                lda #0
+                adc #0
+                sta sprites.sx + 1
+                lda #TITLE_Y
+                sta sprites.sy
+                lda banner_colour
+                sta sprites.sc
+                txa
+                clc
+                adc banner_sprite
+                sta sprites.sp
+                txa
+                pha
+                jsr sprites.add
+                pla
+                tax
+                inx
+                cpx banner_n
+                bne -
+                jsr sprites.plan
+                jsr video.follow
+                jsr frame.publish
+                jmp main_loop
+paused          .byte 0                 ; frames of the pause left; 0: playing
+down_kind       .byte 0                 ; 0 busted, 1 wasted
+down_reason     .byte 0                 ; R_...
+banner_x        .byte 0                 ; the title: its left edge (sprite x) ...
+banner_n        .byte 0                 ; ... how many sprites ...
+banner_sprite   .byte 0                 ; ... the first's frame (a pointer, the other screen's) ...
+banner_colour   .byte 0                 ; ... and their colour
+                .send
+
+                .section io_more        ; (under the I/O area too: main.asm)
+; The banner (down_io): the title, BUSTED in light blue or FLATLINED in red, in letters twice the font's size,
+; made into sprites 24 pixels wide in the screen not shown (nothing scrolls in the pause: video.ahead does not
+; run), centred; and across the screen shown, the band: its rows blank, the reason in the middle ones.
+make_banner     ldx down_kind
+                lda title_n,x
+                sta banner_n
+                lda title_x,x
+                sta banner_x
+                lda title_colour,x
+                sta banner_colour
+                lda title_lo,x
+                sta letter + 1
+                lda title_hi,x
+                sta letter + 2
+                lda title_len,x
+                sta letters
+                lda video.front         ; the other screen: its sprites' frames
+                eor #1
+                tax
+                lda screens,x
+                sta clear_at + 2
+                clc
+                adc #1
+                sta clear_next + 2
+                lda clear_at + 2
+                asl                     ; (its pointer: the address / 64)
+                asl
+                sta banner_sprite
+                ldy #0                  ; their frames clear (two pages: six sprites need 384 bytes)
+                tya
+clear_at        sta $ff00,y             ; (the high bytes are written above)
+clear_next      sta $ff00,y
+                iny
+                bne clear_at
+                ldx #0                  ; the letters, each 16 pixels across
+each_letter     stx letter_no
+letter          lda $ffff,x             ; (the title: written above)
+                asl                     ; its glyph: charset + 8 * the screen code
+                asl
+                asl
+                sta glyph + 1
+                lda #0
+                rol
+                adc #>charset
+                sta glyph + 2
+                lda #0
+                sta glyph_row
+each_row        ldy glyph_row
+glyph           lda $ffff,y
+                sta glyph_bits
+                lda letter_no           ; x: 16 a letter, 2 a bit
+                asl
+                asl
+                asl
+                asl
+                sta dot_x
+each_bit        asl glyph_bits
+                bcc +
+                lda glyph_row           ; y: 2 a row
+                asl
+                sta dot_y
+                jsr plot2
+                inc dot_y
+                jsr plot2
++               inc dot_x
+                inc dot_x
+                lda glyph_bits
+                bne each_bit            ; (the rest of the row is clear)
+                inc glyph_row
+                lda glyph_row
+                cmp #8
+                bne each_row
+                ldx letter_no
+                inx
+                cpx letters
+                bne each_letter
+                ldx video.front         ; the band, across the screen shown: blank, and the reason in it
+                lda screens,x
+                clc
+                adc #>(BAND * 40 - 1)
+                sta band_at + 2
+                lda screens,x
+                clc
+                adc #>((BAND + 3) * 40)
+                sta line_at + 2
+                ldx #BAND_ROWS * 40
+                lda #' '
+band_at         sta BAND * 40 - 1,x     ; (on the screen: the high byte is written above)
+                dex
+                bne band_at
+                ldx down_reason
+                lda reasons_lo,x
+                sta reason + 1
+                lda reasons_hi,x
+                sta reason + 2
+                ldx #39
+reason          lda $ffff,x
+line_at         sta (BAND + 3) * 40,x   ; (the same)
+                dex
+                bpl reason
+                rts
+; Pixels dot_x and dot_x + 1 of row dot_y of the title's sprites set.
+plot2           jsr plot
+                inc dot_x
+                jsr plot
+                dec dot_x
+                rts
+plot            lda dot_x                  ; sprite dot_x / 24, pixel dot_x % 24 in it
+                ldx #0
+-               cmp #24
+                bcc +
+                sbc #24
+                inx
+                bne -
++               pha
+                and #7
+                tay
+                pla
+                lsr
+                lsr
+                lsr
+                sta byte_of
+                txa                     ; 64 a sprite ...
+                lsr
+                lsr
+                sta plot_hi
+                txa
+                and #3
+                lsr
+                ror
+                ror
+                sta plot_lo
+                lda dot_y                  ; ... 3 a row, and the byte
+                asl
+                adc dot_y
+                adc byte_of
+                adc plot_lo             ; (no carry: at most 3 * 64 + 47)
+                sta plot_at + 1
+                sta plot_to + 1
+                lda clear_at + 2
+                adc plot_hi
+                sta plot_at + 2
+                sta plot_to + 2
+plot_at         lda $ffff
+                ora masks,y
+plot_to         sta $ffff
+                rts
+masks           .byte $80, $40, $20, $10, $08, $04, $02, $01
+screens         .byte >SCREEN_A, >SCREEN_B
+letter_no       .byte 0
+letters         .byte 0
+glyph_row       .byte 0
+glyph_bits            .byte 0
+dot_x              .byte 0
+dot_y              .byte 0
+byte_of         .byte 0
+plot_lo         .byte 0
+plot_hi         .byte 0
+                .enc "screen"
+title_busted    .text "busted"
+title_flat      .text "flatlined"
+title_lo        .byte <title_busted, <title_flat
+title_hi        .byte >title_busted, >title_flat
+title_len       .byte 6, 9
+title_n         .byte 4, 6                      ; sprites: 16 pixels a letter, 24 a sprite
+title_x         .byte 24 + (320 - 6 * 16) / 2, 24 + (320 - 9 * 16) / 2
+title_colour    .byte LIGHT_BLUE, RED           ; (hi-res sprites: bit 7 clear)
+centred         .function t
+                .endf (" " x ((40 - len(t)) / 2)) .. t .. (" " x (40 - len(t) - (40 - len(t)) / 2))
+REASONS         = ("you have the right to remain broke", "boxed in. like your career prospects.", "please step out of the stolen vehicle", "a pedestrian. in this economy?", "resisting arrest. allegedly.")
+r0              .text centred(REASONS[0])
+r1              .text centred(REASONS[1])
+r2              .text centred(REASONS[2])
+r3              .text centred(REASONS[3])
+r4              .text centred(REASONS[4])
+reasons_lo      .byte <(r0, r1, r2, r3, r4)
+reasons_hi      .byte >(r0, r1, r2, r3, r4)
+                .enc "none"
                 .send
                 .bend

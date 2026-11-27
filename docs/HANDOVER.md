@@ -136,8 +136,12 @@ A briefing for whoever picks this project up next, person or assistant. Written 
     All four are assembled with `.logical` and wait after the map in the program file; start copies them up
     before `video.init` writes the colour routines over where they waited.
     `src/frames.asm` and the twelve frames it reads wait there too and run once from there.
-  - The panel's messages are under the I/O area too (`.section io_text`, at `IO_TEXT`, `$d800`, waiting after
-    the map), since 27 November 2026: `status.say` copies the one it is to show to `msg_buf` (64 bytes, in
+  - Under the I/O area (27 November 2026, later): `io_code` at `$d000` waits where the passers-by's frames go
+    (`$2000`, at most `$600`), and is copied up first, before them; `io_more` (the banner) at `$d600` waits after
+    the map; the texts at `$dc00` wait with what start runs once. The pause after going down (`police.downed`)
+    is switched on by writing a `jmp` over the `jsr input.read` at `ready`, so it costs other frames nothing.
+  - The panel's messages are under the I/O area too (`.section io_text`, at `IO_TEXT`, `$dc00`, waiting with
+    what start runs once), since 27 November 2026: `status.say` copies the one it is to show to `msg_buf` (64 bytes, in
     tile room 1), switching the I/O area out round the copy and putting the port back as it was, so that code
     under the I/O area can call it too. A message is at most 63 characters.
   - The tables by tile (`$4000`-`$46ff`) have room for 128 tiles (`TILE_ROOM`; the city has 78, and
