@@ -136,6 +136,10 @@ A briefing for whoever picks this project up next, person or assistant. Written 
     All four are assembled with `.logical` and wait after the map in the program file; start copies them up
     before `video.init` writes the colour routines over where they waited.
     `src/frames.asm` and the twelve frames it reads wait there too and run once from there.
+  - The panel's messages are under the I/O area too (`.section io_text`, at `IO_TEXT`, `$d800`, waiting after
+    the map), since 27 November 2026: `status.say` copies the one it is to show to `msg_buf` (64 bytes, in
+    tile room 1), switching the I/O area out round the copy and putting the port back as it was, so that code
+    under the I/O area can call it too. A message is at most 63 characters.
   - The tables by tile (`$4000`-`$46ff`) have room for 128 tiles (`TILE_ROOM`; the city has 78, and
     `tools/assets.mjs` refuses more than 128): the rest of six of the seven pages is `.section tile_room1`-`6`,
     128 bytes each (26 November 2026, measured as the one room with no cost left). The panel's messages are in

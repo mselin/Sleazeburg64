@@ -73,6 +73,11 @@ SHOOT_RANGE     = 95                    ; ... at the player this near either way
 AIM_MIN         = 55                    ; ... every 55 to 86 frames (the design's 1.1 to 1.7 seconds) ...
 PAVE_FAST       = 77                    ; driving faster than this either way (15 pixels a second) on a pavement or
 PAVE_AGAIN      = 150                   ; a plaza where the police see it is a crime, at most every 3 seconds
+PAINT_X         = (1 * 12 + 7) * 16     ; the paint shop, PAINT & PRAY: where the browser game has it (its PAINT)
+PAINT_Y         = (6 * 12 + 2) * 16 + 8
+PAINT_NEAR      = 16                    ; driving this near it either way with heat ...
+PAINT_COST      = $0200                 ; ... costs $200 (binary-coded decimal) ...
+PAINT_AGAIN     = 200                   ; ... at most every 4 seconds
 SHOT_HURT       = 11                    ; ... and a shot that hits takes this much health
 STATION_X       = (6 * 12 + 7) * 16     ; the police station: where the browser game has it (its COPS)
 STATION_Y       = (2 * 12 + 2) * 16 + 8
@@ -276,6 +281,7 @@ next            dex
 sound           jsr boxed_in            ; (with heat: busted, after long enough boxed in)
                 jsr cruiser             ; (and in a stolen police car, the heat to 2)
                 jsr pave_look           ; (and driving on the pavement)
+                jsr paint_look          ; (and the paint shop)
                 lda status.heat         ; the siren: with heat and the police near
                 beq quiet
                 lda around
@@ -528,6 +534,39 @@ init            lda #15                 ; the siren's voice (the first): full vo
                 sta flash
                 rts
 
+                .send
+
+                .section tile_room2     ; (where there is room: main.asm)
+; Once a frame with heat (watch): at the wheel within PAINT_NEAR of the paint shop, no sooner than PAINT_AGAIN
+; frames after the last time, the paint shop (paint_io).
+paint_look      lda paint_wait
+                beq +
+                dec paint_wait
+                rts
++               lda foot.on
+                bne +
+                lda #PAINT_NEAR
+                sta reach
+                sec
+                lda player_at
+                sbc #<PAINT_X
+                tay
+                lda player_at + 1
+                sbc #>PAINT_X
+                jsr close
+                bcs +
+                sec
+                lda player_at + 2
+                sbc #<PAINT_Y
+                tay
+                lda player_at + 3
+                sbc #>PAINT_Y
+                jsr close
+                bcs +
+                jmp gate_paint
++               rts
+paint_wait      .byte 0                 ; frames before the paint shop can be used again
+gate_paint      #io_gate paint_io
                 .send
 
                 .section police_high
@@ -969,6 +1008,49 @@ pave_io         lda #PAVE_AGAIN
                 tax
                 jmp status.say
 +               rts
+; The paint shop (paint_look, the gate): with $200 or more, $200 less, no heat, and a new colour, at random,
+; unless the car is a police car; else nothing but the line that says so.
+paint_io        lda #PAINT_AGAIN
+                sta paint_wait
+                lda status.money + 2    ; $200 or more?
+                bne +
+                lda status.money + 1
+                cmp #>PAINT_COST
+                bcs +
+                ldx #status.MSG_NO_CASH
+                jmp status.say
++               sed
+                sec
+                lda status.money + 1
+                sbc #>PAINT_COST
+                sta status.money + 1
+                lda status.money + 2
+                sbc #0
+                sta status.money + 2
+                cld
+                lda #0
+                sta status.heat
+                sta status.points
+                sta status.points + 1
+                lda #1
+                sta status.stars_shown
+                sta status.changed
+                lda stolen              ; (a police car stays one)
+                bne painted
+                jsr people.rnd
+                and #7
+                tax
+                lda traffic.colours,x
+                cmp car.colour          ; (a new colour: not the one it has)
+                bne +
+                inx
+                txa
+                and #7
+                tax
+                lda traffic.colours,x
++               sta car.colour
+painted         ldx #status.MSG_PAINTED
+                jmp status.say
 ; Patrol car looked joins the chase (patrols, with heat, the gate): a chasing police car, at COP_CRUISE.
 join_io         ldx looked
                 lda #1

@@ -63,6 +63,7 @@ SQUARES_START   = SQUARES - 255         ; (1.5K, from here up to the screen copi
                 .cerror SQUARES - 255 + 767 > SQUARES_HI - 255, "the halves of the quarter squares overlap"
 HIGH_CODE       = video.COLOUR_END       ; code that runs from just above the colour routines,
 IO_CODE         = $d000                 ; under the I/O area: run only through a gate (below), copied at start
+IO_TEXT         = $d800                 ; and the panel's messages there, which status.say copies out
 MORE_CODE       = $c8e0                 ; from after the screen copies,
 TOP_CODE        = $f300                 ; and from the top of memory: all copied there at start
 EXTRA_CODE      = $e000                 ; and from under the KERNAL ROM, which is switched out, up to TOP_CODE
@@ -232,6 +233,7 @@ boot            cld
                 lda #$34                ; (all RAM, to write under the I/O area)
                 sta CPU_PORT
                 #raise io_image, IO_CODE, IO_PAGES
+                #raise text_image, IO_TEXT, TEXT_PAGES
                 lda #$35
                 sta CPU_PORT
                 #lay_down stack_image, $0100, stack_end - $0100      ; (last: what waits after the map is all up now)
@@ -657,7 +659,7 @@ io_image
                 .dsection io_code
 io_end
                 .endlogical
-                .cerror io_end > $e000, "the code under the I/O area runs into EXTRA_CODE"
+                .cerror io_end > IO_TEXT, "the code under the I/O area runs into its texts"
 IO_PAGES        = (io_end - IO_CODE + 255) / 256
 boot_end
                 .cerror * > charset, "what start runs once has run into the character set"

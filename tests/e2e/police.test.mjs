@@ -6,7 +6,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { assemble, readPanel, withProgram } from './game.mjs';
-import { BUSTED, HURT, OFFICERS, World, assertPicture, missed, pass, putCar, putOnFoot, putTrafficCar } from './play.mjs';
+import { BUSTED, HURT, OFFICERS, PAINT, World, assertPicture, missed, pass, putCar, putOnFoot, putTrafficCar } from './play.mjs';
 import { P, putPerson } from './people-model.mjs';
 import { DONUT } from './pickups-model.mjs';
 import { JOY } from './vice.mjs';
@@ -530,4 +530,31 @@ test('with heat, a chasing police car sees it too; standing still on the pavemen
     }
     await drive(vice, w, 2 * 8);
     assert.equal(w.heat.points, 2 * 12, '4 heat more');
+  }));
+
+// ---------- the paint shop ----------
+test('the paint shop: with heat, $200 for no heat and a new colour, at most every 4 seconds; with less, nothing', () =>
+  quietRun(async (vice, w) => {
+    const [x, y] = PAINT.AT;
+    await putCar(vice, Q, w, x, y, 0);
+    for (let i = 1; i <= 3; i++) await pass(vice, Q, w, 0, `put by the paint shop, ${i} frames`);
+    w.money = 150;
+    await vice.write(Q['status.money'], bcd(150));
+    await putHeat(vice, Q, w.heat, { level: 1, points: 2 * 8, cool: 60000 });
+    await pass(vice, Q, w, 0, 'at the paint shop with $150');
+    assert.equal(w.heat.level, 1, 'not enough money: still heat');
+    for (let k = 1; k <= 3; k++) await pass(vice, Q, w, 0, `the line, ${k} frames`);
+    assert.ok((await readPanel(vice)).some((r) => r.startsWith('PAINT & PRAY: NO CASH, NO ABSOLUTION.')));
+    w.money = 450;
+    await vice.write(Q['status.money'], bcd(450));
+    const colour = w.car.colour;
+    let i = 0;
+    while (w.heat.level && i < 250) await pass(vice, Q, w, 0, `waiting at the paint shop, ${++i} frames`);
+    assert.equal(i, 201 - 3, 'again 4 seconds after the first time (the 200 frames, then the next; 3 of them passed above)');
+    assert.equal(w.heat.level, 0, 'no heat');
+    assert.equal(unbcd([...(await vice.read(Q['status.money'], 3))]), 250, '$200 less');
+    assert.notEqual(w.car.colour, colour, 'a new colour');
+    for (let k = 1; k <= 3; k++) await pass(vice, Q, w, 0, `the line, ${k} frames`);
+    assert.ok((await readPanel(vice)).some((r) => r.startsWith('PAINT & PRAY: NEW COLOUR, SAME SINS.')));
+    await assertPicture(vice, Q, w, 'in a new colour');
   }));
