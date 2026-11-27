@@ -229,6 +229,9 @@ boot            cld
                 #raise people_image, PEOPLE_FRAMES, (size(people_image) + 255) / 256
                 #raise punch_image, PUNCH_FRAMES, 2
                 #raise panel_image, PANEL_CODE, 1     ; (before video.init clears round it)
+                #lay_down stack_image, $0100, stack_end - $0100      ; (last: what waits after the map is all up now)
+                #lay_down gap_image, map_end, gap_end - map_end
+                #lay_down basic_image, $0800, basic_end - $0800
 .endif
                 lda #<ignore            ; RESTORE does nothing (after the copy, which can run over the vectors)
                 sta $fffa
@@ -277,6 +280,16 @@ raise           .macro image, home, pages
                 beq +                   ; (nothing to copy in a build that leaves it all out)
                 jsr copy_up
 +
+                .endm
+; Copy `size` bytes (1-255; none: nothing) from image to home, by the byte (the stack page's top is in use).
+lay_down        .macro image, home, size
+.if \size > 0
+                ldx #\size
+-               lda \image - 1,x
+                sta @w \home - 1,x      ; (a full address: $00ff,x in zero page would wrap round in it)
+                dex
+                bne -
+.endif
                 .endm
 ; Move the packed part of the program file up out of the way, to PACK_HOME, and unpack it to where it belongs,
 ; from city_map up (tools/pack.mjs says how). It runs once, before anything else is set up, so it can use any

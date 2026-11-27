@@ -71,7 +71,31 @@ panel_end
                 .endlogical
                 .cerror panel_end > PANEL_CLEAR, "the code in the panel's screen is more than a page"
                 .cerror PANEL_CLEAR > PANEL_SCREEN + ROWS * 40, "video.init would not clear all the panel's rows"
-                .cerror PANEL_CLEAR + $100 > CAR_FRAMES, "video.init would clear the car's frames"
+                .cerror PANEL_CLEAR + PANEL_CLEARED > $0800, "video.init would clear where the BASIC line was"
+; Three more places for code, each copied there at start, as the panel's is (main.asm, lay_down), by the byte:
+; - the stack page but its top STACK_KEPT bytes (the stack goes 16 deep at most, measured 27 November 2026);
+; - from the end of the map to the first colour routine (once what waits from there has been copied up);
+; - where the BASIC line was, up to the car's frames.
+STACK_KEPT      = 64
+stack_image
+                .logical $0100
+                .dsection stack_code
+stack_end
+                .endlogical
+                .cerror stack_end > $0200 - STACK_KEPT, "the code in the stack page reaches the stack"
+gap_image
+                .logical map_end
+                .dsection gap_code
+gap_end
+                .endlogical
+                .cerror gap_end > video.COLOUR_11, "the code after the map runs into the first colour routine"
+basic_image
+                .logical $0800
+                .dsection basic_code
+basic_end
+                .endlogical
+                .cerror basic_end > CAR_FRAMES, "the code where the BASIC line was runs into the car's frames"
+                .cerror stack_image < video.COLOUR_11, "what is copied after the map would be written over"
 HIGH_PAGES      = (high_end - HIGH_CODE + 255) / 256
 MORE_PAGES      = (more_end - MORE_CODE + 255) / 256
 TOP_PAGES       = (top_end - TOP_CODE + 255) / 256
@@ -84,6 +108,8 @@ EXTRA_PAGES     = (extra_end - EXTRA_CODE + 255) / 256
                 .cerror more_end > $d000, "the code at MORE_CODE runs into the I/O area"
                 .cerror EXTRA_CODE + EXTRA_PAGES * 256 > TOP_CODE, "the code at EXTRA_CODE runs into TOP_CODE"
                 .cerror * > HIGH_CODE, "what waits after the map reaches where it is copied to"
+once_start
+                .cerror once_start < video.COLOUR_11, "car.init would be written over by the code after the map"
                 .dsection once          ; car.init runs once, from here, before video.init writes over this
 .endif
 program_end

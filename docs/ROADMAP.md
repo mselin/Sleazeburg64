@@ -173,8 +173,11 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
     them (the browser game's rule, mselin/gta-c64#108); within 13 of the player's car going slower than 22 pixels a second, for 0.7
     seconds on end, too. Each count to an arrest goes back to 0 when the player is free of it, and with no heat.
     Knocking one down is 14 heat, killing one 28. The design's white cap cannot be shown in a sprite's colours.
-    Still to come: officers shooting from heat 3, the siren's sound, the stolen police car, patrol cars joining
-    in (here every police car chases).
+    **The siren's sound** (done): with the siren on, the SID's first voice wails every 0.7 seconds, a square
+    wave, 620 Hz for 17 frames then 830 Hz for 17, then a frame of nothing; it stops the moment the police are
+    out of range, and starts afresh, from the low note, when they come back (`police.wailing`). It is the
+    game's first sound. Still to come: officers shooting from heat 3, the stolen police car, patrol cars
+    joining in (here every police car chases).
   - **The siren and the flashing border.** The border flashes red and blue (`$D020`, every 25 frames) only while
     the siren sounds: the police near, in play. It never flashes with nobody about, on the busted screen or
     while paused. The browser game got this wrong and kept flashing as long as there was any heat
