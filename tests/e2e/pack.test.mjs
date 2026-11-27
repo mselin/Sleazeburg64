@@ -24,11 +24,15 @@ test('start unpacks it in place, byte for byte, before anything else is set up',
     // waiting area, which reaches into the BASIC ROM's addresses, which run as the program loads.)
     await vice.runTo(L.unpack);
     await vice.runTo(L['car.init']);
+    // (Bar the code copied in after the map by then, from its place further on, which is checked after.)
     const wanted = region(game.unpacked, L.city_map, L.program_end);
     const got = await vice.read(L.city_map, wanted.length);
+    const copied = (i) => L.city_map + i >= L.map_end && L.city_map + i < L.gap_end;
     let first = -1;
-    for (let i = 0; i < wanted.length && first < 0; i++) if (got[i] !== wanted[i]) first = i;
+    for (let i = 0; i < wanted.length && first < 0; i++) if (!copied(i) && got[i] !== wanted[i]) first = i;
     assert.equal(first, -1, `the first difference at $${(L.city_map + first).toString(16)}`);
+    const gap = region(game.unpacked, L.gap_image, L.gap_image + (L.gap_end - L.map_end));
+    assert.ok((await vice.read(L.map_end, gap.length)).equals(gap), 'the code after the map, copied in');
     // And the code copied up from it is the same as the build that was not packed would copy.
     const top = region(game.unpacked, L.top_image, L.top_image + 64);
     assert.ok((await vice.read(L.TOP_CODE, 64)).equals(top), 'the traffic\'s code, copied to $f300');
