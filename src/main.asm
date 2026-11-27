@@ -623,6 +623,7 @@ char_of         lda cam_hi,x
 .if CROWD != 0
                 .include "gun.asm"
 .endif
+                .dsection low_code      ; (more, where there is room)
 .if TITLE != 0
                 .include "title-page.asm"
 .endif

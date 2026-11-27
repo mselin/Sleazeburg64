@@ -370,3 +370,55 @@ test('wasted with the police about: the police take the weapons, and go; a bill 
     const rows = await readPanel(vice);
     assert.ok(rows.some((r) => r.startsWith('AMBULANCE RIDE BILLED. THE POLICE KEPT')), `the line says so (${rows.join(' | ')})`);
   }));
+
+// ---------- officers shoot ----------
+/** On foot in the street, heat `level`, an officer 60 pixels east, coming; the player walking west, away. */
+async function officerAfter(vice, w, level) {
+  await putOnFoot(vice, Q, w, 200, 24, 4);
+  for (let i = 1; i <= 3; i++) await pass(vice, Q, w, 0, `put there, ${i} frames`);
+  await putHeat(vice, Q, w.heat, { level, points: [0, 8, 25, 60][level] * 2, cool: 60000 });
+  return putPerson(vice, Q, w.people, 3, { x: 260, y: 24, way: 2, spd: P.COP_PACE, col: P.OFFICER, officer: 1 });
+}
+const ownBullets = (w) => w.people.bullets.filter((b) => b.ticks && b.own);
+
+test('from heat 3 an officer within 95 pixels shoots at the player: 11 health a hit, and again 1.1 to 1.7 seconds later', () =>
+  quietRun(async (vice, w) => {
+    await officerAfter(vice, w, 3);
+    let i = 0;
+    while (!ownBullets(w).length && i < 20) await pass(vice, Q, w, JOY.LEFT, `the officer comes, ${++i} frames`);
+    assert.equal(ownBullets(w).length, 1, `a shot (${i} frames)`);
+    assert.ok(w.aim[3] >= 55 && w.aim[3] <= 86, `the next in 55 to 86 frames (${w.aim[3]})`);
+    while (ownBullets(w).length && i < 60) await pass(vice, Q, w, JOY.LEFT, `the shot flies, ${++i} frames`);
+    assert.equal(w.hp, 100 - 11, 'it hits: 11 health');
+    assert.equal(await hp(vice), 89);
+    let shots = 1;
+    for (let k = 1; k <= 90 && shots < 2; k++) {
+      await pass(vice, Q, w, JOY.LEFT, `walking away, ${k} frames`);
+      if (ownBullets(w).length) shots++;
+    }
+    assert.equal(shots, 2, 'and another');
+  }));
+
+test('below heat 3, officers do not shoot', () =>
+  quietRun(async (vice, w) => {
+    await officerAfter(vice, w, 2);
+    for (let i = 1; i <= 40; i++) {
+      await pass(vice, Q, w, JOY.LEFT, `the officer comes, ${i} frames`);
+      assert.equal(ownBullets(w).length, 0);
+    }
+  }));
+
+test('shot dead by an officer, the player is wasted and the police keep the weapons', () =>
+  quietRun(async (vice, w) => {
+    await officerAfter(vice, w, 3);
+    w.hp = 5;
+    await vice.write(Q['status.hp'], [5]);
+    await vice.write(Q['status.ammo'], bcd(7));
+    await vice.write(Q['status.knife'], [1]);
+    Object.assign(w.pickups, { ammo: 7, knife: 1 });
+    let i = 0;
+    while (w.heat.level && i < 60) await pass(vice, Q, w, JOY.LEFT, `shot at, ${++i} frames`);
+    assert.deepEqual([w.player.x >> 8, w.player.y >> 8], HURT.HOSPITAL, `wasted (${i} frames)`);
+    assert.equal((await vice.read(Q['status.ammo'], 1))[0], 0, 'the ammo taken');
+    assert.equal((await vice.read(Q['status.knife'], 1))[0], 0, 'and the knife');
+  }));

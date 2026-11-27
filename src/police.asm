@@ -67,6 +67,10 @@ HURT_WAIT       = 20                    ; ... and nothing more does for this man
 HOSPITAL_X      = (1 * 12 + 7) * 16     ; the hospital: where the browser game has it (its HOSP)
 HOSPITAL_Y      = (1 * 12 + 2) * 16 + 8
 BILL            = $0500                 ; the most the hospital bills, in binary-coded decimal
+SHOOT_HEAT      = 3                     ; officers shoot from this heat ...
+SHOOT_RANGE     = 95                    ; ... at the player this near either way ...
+AIM_MIN         = 55                    ; ... every 55 to 86 frames (the design's 1.1 to 1.7 seconds) ...
+SHOT_HURT       = 11                    ; ... and a shot that hits takes this much health
 STATION_X       = (6 * 12 + 7) * 16     ; the police station: where the browser game has it (its COPS)
 STATION_Y       = (2 * 12 + 2) * 16 + 8
 
@@ -326,6 +330,8 @@ dyh             .byte 0
 first           .byte 0                 ; the ways that close the gaps, the longer's first
 second          .byte 0
 looked          .byte 0                 ; watch: the car looked at
+aim             .fill CROWD, 0          ; an officer's frames before they can shoot again (by people's places)
+shot            .byte 0                 ; 1: the player is being hurt by an officer's shot
 stolen          .byte 0                 ; 1: the player's car is a police car (foot.take; foot.out_here ends it)
 wail            .byte 0                 ; frames into the siren's wail
 tone            .byte 0                 ; what the siren's voice plays: 0 nothing, 1 the low note, 2 the high
@@ -453,11 +459,15 @@ each_officer    stx looked
                 beq next_officer
                 lda people.down,x
                 bne next_officer
-                lda #FOOT_NOTICE
+                lda aim,x               ; (the time to their next shot)
+                beq +
+                dec aim,x
++               lda #FOOT_NOTICE
                 jsr officer_near
                 bcs next_officer
                 lda #1
                 sta around
+                jsr may_shoot
                 lda foot.on
                 beq at_car
                 lda #ARREST
@@ -592,6 +602,18 @@ officers_go     ldx #CROWD - 1
                 .send
 
                 .section panel_code
+; Officer looked, near (on_foot): with heat SHOOT_HEAT or more, within SHOOT_RANGE, and ready, they shoot.
+may_shoot       lda status.heat
+                cmp #SHOOT_HEAT
+                bcc +
+                ldx looked
+                lda aim,x
+                bne +
+                lda #SHOOT_RANGE
+                jsr officer_near
+                bcs +
+                jmp gate_shoot
++               rts
 ; C clear if officer looked is within A of the player either way.
 officer_near    sta reach
                 ldx looked
@@ -688,6 +710,8 @@ officer_out     jsr people.set_up
                 sta people.col,x
                 lda #people.COP_PACE
                 sta people.spd,x
+                lda #0
+                sta aim,x               ; (ready to shoot)
                 lda #1
                 sta people.officer,x
                 ldx looked
@@ -720,6 +744,113 @@ unseen          stx people.who
                 jsr people.in_sight
 +               ldx people.who
                 rts
+; Officer looked shoots (may_shoot, the gate), unless in the water: a bullet, an officer's (gun.own), from
+; their middle at the gun's speed, the one of eight ways nearest the player's; and the next shot in AIM_MIN to
+; AIM_MIN + 31 frames. With all the gun's bullets flying, no shot yet.
+shoot_io        ldx looked
+                lda people.xl,x
+                sta car.px
+                lda people.xh,x
+                sta car.px + 1
+                lda people.yl,x
+                sta car.py
+                lda people.yh,x
+                sta car.py + 1
+                jsr car.kind_at
+                cmp #WATER_KIND
+                beq no_shot
+                ldy #gun.BULLETS - 1    ; a place for it
+-               lda gun.ticks,y
+                beq +
+                dey
+                bpl -
+no_shot         rts
++               sty bullet
+                ldx looked
+                lda #1
+                sta gun.own,y
+                lda #gun.LIFE
+                sta gun.ticks,y
+                lda #$80
+                sta gun.xf,y
+                sta gun.yf,y
+                lda people.xl,x
+                sta gun.xl,y
+                lda people.xh,x
+                sta gun.xh,y
+                lda people.yl,x
+                sta gun.yl,y
+                lda people.yh,x
+                sta gun.yh,y
+                sec                     ; the way to the player: across, down or a diagonal
+                lda player_at
+                sbc people.xl,x
+                sta dxl
+                lda player_at + 1
+                sbc people.xh,x
+                sta dxh
+                sec
+                lda player_at + 2
+                sbc people.yl,x
+                sta dyl
+                lda player_at + 3
+                sbc people.yh,x
+                sta dyh
+                sta second              ; (the signs, kept)
+                bpl +
+                jsr negate_y
++               lda dxh
+                sta first
+                bpl +
+                jsr negate_x
++               lda dyl                 ; |dx| over twice |dy|: across
+                asl
+                bcs +
+                cmp dxl
+                bcs +
+                ldy #0
+                beq across
++               lda dxl                 ; |dy| over twice |dx|: down
+                asl
+                bcs +
+                cmp dyl
+                bcs +
+                ldy #2
+                bne down
++               ldy #1                  ; else a diagonal
+                lda first
+                bpl +
+                ldy #3
++               lda second
+                bpl aimed
+                tya
+                eor #6                  ; (1 to 7, 3 to 5)
+                tay
+                bne aimed
+across          lda first
+                bpl aimed
+                ldy #4
+                bne aimed
+down            lda second
+                bpl aimed
+                ldy #6
+aimed           ldx bullet
+                lda gun.vx_lo,y
+                sta gun.vxl,x
+                lda gun.vx_hi,y
+                sta gun.vxh,x
+                lda gun.vy_lo,y
+                sta gun.vyl,x
+                lda gun.vy_hi,y
+                sta gun.vyh,x
+                jsr people.rnd          ; the next shot
+                and #31
+                clc
+                adc #AIM_MIN
+                ldx looked
+                sta aim,x
+                rts
+bullet          .byte 0
 ; Busted (busted, the gate).
 ; Busted.
 busted_io       lda #0                  ; the weapons go, always
@@ -784,6 +915,8 @@ station_at      ldy #0                  ; and on foot at the police station, the
                 ldx #status.MSG_BUSTED
 ; On foot at place Y of places (0 the police station, 9 the hospital), the window there; message X.
 put_at          stx said
+                lda #0                  ; (a fraction of a pixel across: none)
+                sta foot.pos
                 ldx #0
 -               lda places,y
                 sta foot.pos + 1,x
@@ -835,7 +968,8 @@ calm            lda #0
 ; Wasted (wasted, the gate): the police take the weapons if they are about; the police and the heat go; full
 ; health; the hospital bills up to $500; and the player is at the hospital, the window there.
 wasted_io       ldx #status.MSG_WASTED
-                lda around
+                lda around              ; (the police about, or shot by an officer)
+                ora shot
                 beq +
                 lda #0
                 sta status.ammo
@@ -874,6 +1008,7 @@ billed          ldy #9
 gate_officer    #io_gate seat_officer
 busted          #io_gate busted_io
 wasted          #io_gate wasted_io
+gate_shoot      #io_gate shoot_io
 
 ; On foot, once a frame (foot.update): a car on the move hits the player, for its speed * 0.28 (in pixels a
 ; second: the traffic's speed * 7/64), unless one has in the last HURT_WAIT frames; at no health left, wasted.
@@ -923,21 +1058,56 @@ struck          ldx looked
                 eor #$ff
                 sec
                 adc hurt
-                sta hurt
+                ldx #HURT_WAIT
+                stx hit_wait
+; A health less; at none left, wasted (and no siren).
+harm            sta hurt
                 lda status.hp
                 sec
                 sbc hurt
                 beq +
                 bcs ++
-+               jsr wasted              ; (no health left)
-                jmp quiet               ; (and no siren)
++               jsr wasted
+                jmp quiet
 +               sta status.hp
                 lda #1
                 sta status.changed
-                lda #HURT_WAIT
-                sta hit_wait
                 rts
 hit_wait        .byte 0                 ; frames before a car can hurt the player again
 hurt            .byte 0
+                .send
+
+                .section low_code       ; (where there is room: main.asm)
+; Bullet gun.who, an officer's, not spent on a wall (gun.hits): it hits the player if it is within
+; gun.HIT_PERSON of their middle either way, in a car or on foot: SHOT_HURT, and wasted by it, the police take
+; the weapons.
+cop_bullet      lda #gun.HIT_PERSON
+                sta reach
+                ldx gun.who
+                sec
+                lda gun.xl,x
+                sbc player_at
+                tay
+                lda gun.xh,x
+                sbc player_at + 1
+                jsr close
+                bcs +
+                ldx gun.who
+                sec
+                lda gun.yl,x
+                sbc player_at + 2
+                tay
+                lda gun.yh,x
+                sbc player_at + 3
+                jsr close
+                bcs +
+                lda #1
+                sta shot
+                lda #SHOT_HURT
+                jsr harm
+                lda #0
+                sta shot
+                jmp gun.spent
++               rts
                 .send
                 .bend
