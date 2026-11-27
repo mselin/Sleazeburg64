@@ -357,7 +357,18 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
     colour on a square of another is two colours in one cell, which hires characters cannot do; how (multicolour
     characters, extended background colour or sprites) is the C64 version's choice.
   - **Banners that fit the screen.** BUSTED, FLATLINED and the job banners put big text across the middle of the
-    screen with a line or more under it. By the design's
+    screen with a line or more under it. **BUSTED and FLATLINED** (done, the owner's choice of how): going down,
+    everything stops for 3.2 seconds (160 frames), then the player is back at the police station or the
+    hospital. The title, BUSTED in light blue or FLATLINED in red, is in letters twice the font's size, drawn as
+    hi-res sprites (four or six, 24 pixels each) into the screen not shown, which is free while nothing
+    scrolls; across the screen shown, a band of five rows, blank, with the reason in white in its middle (the
+    design's black box would need a character the full character set has no room for, so it is the city's
+    background colour). The reasons are the browser game's: BOXED IN. LIKE YOUR CAREER PROSPECTS., PLEASE
+    STEP OUT OF THE STOLEN VEHICLE, YOU HAVE THE RIGHT TO REMAIN BROKE (on foot), A PEDESTRIAN. IN THIS
+    ECONOMY? (a car), RESISTING ARREST. ALLEGEDLY. (a shot). The weapons, the police and the heat go the moment
+    the player goes down; the fine or the bill, and where they are, when the pause ends. Only the title's
+    sprites are shown in the pause, and the frame that goes down is late (drawing the title, with interrupts
+    off). The job banners are still to come. By the design's
     [Banners](https://github.com/mselin/gta-c64/blob/main/specs/design.md#banners): a title of at most 19
     characters in double-size letters, and the text under it broken into even lines of at most 38 of the 40
     columns. The browser game used to let lines over 40 characters run off both sides (mselin/gta-c64#14). On

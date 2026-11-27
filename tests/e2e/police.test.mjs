@@ -5,7 +5,7 @@
 // to it frame by frame, as everywhere else.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { assemble, readPanel, withProgram } from './game.mjs';
+import { assemble, readPanel, screenText, withProgram } from './game.mjs';
 import { BUSTED, HURT, OFFICERS, PAINT, World, assertPicture, missed, pass, putCar, putOnFoot, putTrafficCar } from './play.mjs';
 import { P, putPerson } from './people-model.mjs';
 import { DONUT } from './pickups-model.mjs';
@@ -132,7 +132,9 @@ test('boxed in by a police car for two seconds, the player is busted: on foot at
     }
     assert.equal(await missed(vice, Q) - late, 0, 'no frame was late before');
     await pass(vice, Q, w, 0, 'busted');
-    // (That frame draws the screen at the station afresh, as when the tests put the window somewhere, and is late.)
+    await bannerAndPause(vice, w, 'BUSTED', 'BOXED IN. LIKE YOUR CAREER PROSPECTS.');
+    // (The pass the pause ends in draws the screen at the station afresh, as when the tests put the window
+    // somewhere, and is late.)
     const after = await missed(vice, Q);
     const [x, y] = BUSTED.STATION;
     assert.equal(w.player.on, 1, 'out of the car');
@@ -166,6 +168,28 @@ test('not busted: a police car too far, or driving off before two seconds', () =
     for (let k = 1; k <= 40; k++) await pass(vice, Q, w, 0, `rolling on, ${k} frames`);
     assert.equal(w.player.on, 0, 'not busted');
   }));
+
+
+// ---------- going down: the banner and the pause ----------
+/**
+ * Just gone down (busted or wasted): the banner (its title's sprites, BUSTED light blue in four, FLATLINED red in six,
+ * and the reason across the screen shown), then the pause, everything still, to the pass it ends in.
+ */
+async function bannerAndPause(vice, w, title, reason) {
+  const [n] = await vice.read(Q['police.banner_n'], 1), [colour] = await vice.read(Q['police.banner_colour'], 1);
+  assert.deepEqual([n, colour], title === 'BUSTED' ? [4, 14] : [6, 2], `${title}: its sprites and colour`);
+  const [front] = await vice.read(Q['video.front'], 1);
+  const row = screenText(await vice.read((front ? Q.SCREEN_B : Q.SCREEN_A) + 12 * 40, 40)).trim();
+  assert.equal(row, reason, 'the reason under it');
+  assert.equal((await vice.read(Q['police.paused'], 1))[0], BUSTED.DOWN, 'the pause begins');
+  const still = JSON.stringify(w.player.state);
+  let i = 0;
+  while (w.paused && i < 200) {
+    await pass(vice, Q, w, 0, `${title}: the pause, ${++i} frames`);
+    if (w.paused) assert.equal(JSON.stringify(w.player.state), still, 'everything still');
+  }
+  assert.equal(i, BUSTED.DOWN, '3.2 seconds');
+}
 
 // ---------- officers on foot ----------
 const officers = (w) => w.people.people.filter((p) => p.on && p.officer);
@@ -227,6 +251,7 @@ test('an officer at the window of the player\'s slow car arrests them after 0.7 
       assert.equal(w.window, k);
     }
     await pass(vice, Q, w, 0, 'arrested');
+    await bannerAndPause(vice, w, 'BUSTED', 'PLEASE STEP OUT OF THE STOLEN VEHICLE');
     assert.equal(w.player.on, 1, 'busted: out of the car');
     assert.deepEqual([w.player.x >> 8, w.player.y >> 8], BUSTED.STATION, 'at the police station');
     assert.equal(officers(w).length, 0, 'the officers gone');
@@ -239,6 +264,7 @@ test('on foot, an officer arrests the player when they reach them', () =>
     await copNear(vice, w, 30, { onFoot: true });
     let i = 0;
     while (w.heat.level && i < 400) await pass(vice, Q, w, 0, `the officer comes, ${++i} frames`);
+    await bannerAndPause(vice, w, 'BUSTED', 'YOU HAVE THE RIGHT TO REMAIN BROKE');
     assert.equal(w.heat.level, 0, `busted (${i} frames)`);
     assert.deepEqual([w.player.x >> 8, w.player.y >> 8], BUSTED.STATION, 'at the police station');
     assert.ok(w.traffic.cars.every((c) => !c.on || !c.cop), 'the police car gone');
@@ -329,13 +355,16 @@ test('with no health left the player is wasted: at the hospital, healed, billed 
     await carOnThem(vice, w);
     const late = await missed(vice, Q);
     await pass(vice, Q, w, 0, 'wasted');
+    await bannerAndPause(vice, w, 'FLATLINED', 'A PEDESTRIAN. IN THIS ECONOMY?');
     assert.deepEqual([w.player.x >> 8, w.player.y >> 8], HURT.HOSPITAL, 'at the hospital');
     assert.equal(await hp(vice), 100, 'healed');
     assert.equal(unbcd([...(await vice.read(Q['status.money'], 3))]), 734, '$500 billed');
     assert.equal(unbcd([...(await vice.read(Q['status.ammo'], 1)), 0, 0]), 7, 'the ammo kept');
     assert.equal((await vice.read(Q['status.knife'], 1))[0], 1, 'and the knife');
     for (let i = 1; i <= 3; i++) await pass(vice, Q, w, 0, `at the hospital, ${i} frames`);
-    assert.equal(await missed(vice, Q) - late, 1, 'only the frame that draws the screen there afresh is late');
+    // (Late: the frame that goes down, which draws the banner's title, a letter at a time, before the pause; and the
+    // one the pause ends in, which draws the screen at the hospital afresh.)
+    assert.equal(await missed(vice, Q) - late, 2, 'only the frames that go down and come back are late');
     await assertPicture(vice, Q, w, 'at the hospital');
     assert.ok((await readPanel(vice)).some((r) => r.startsWith('ST. INVOICE HOSPITAL: AMBULANCE RIDE')), 'the bill');
   }));
@@ -359,6 +388,7 @@ test('wasted with the police about: the police take the weapons, and go; a bill 
     Object.assign(w.pickups, { ammo: 7, knife: 1 });
     await carOnThem(vice, w);
     await pass(vice, Q, w, 0, 'wasted');
+    await bannerAndPause(vice, w, 'FLATLINED', 'A PEDESTRIAN. IN THIS ECONOMY?');
     assert.deepEqual([w.player.x >> 8, w.player.y >> 8], HURT.HOSPITAL);
     assert.equal(unbcd([...(await vice.read(Q['status.money'], 3))]), 0, 'all of it');
     assert.equal((await vice.read(Q['status.ammo'], 1))[0], 0, 'the ammo taken');
@@ -418,6 +448,7 @@ test('shot dead by an officer, the player is wasted and the police keep the weap
     Object.assign(w.pickups, { ammo: 7, knife: 1 });
     let i = 0;
     while (w.heat.level && i < 60) await pass(vice, Q, w, JOY.LEFT, `shot at, ${++i} frames`);
+    await bannerAndPause(vice, w, 'FLATLINED', 'RESISTING ARREST. ALLEGEDLY.');
     assert.deepEqual([w.player.x >> 8, w.player.y >> 8], HURT.HOSPITAL, `wasted (${i} frames)`);
     assert.equal((await vice.read(Q['status.ammo'], 1))[0], 0, 'the ammo taken');
     assert.equal((await vice.read(Q['status.knife'], 1))[0], 0, 'and the knife');
