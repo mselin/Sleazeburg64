@@ -391,16 +391,21 @@ not_this        dex
                 bpl take
                 rts
 ; Car X of the traffic's tables becomes the player's: heat 4, if it is taken from its driver (one driving: a car
-; left standing has none).
-take            lda traffic.cruise,x
-                beq +
+; left standing has none), and 16 for a police car's; a police car, driven, is a stolen one (police.cruiser).
+take            lda police.cop,x
+                sta police.stolen
+                lda traffic.cruise,x
+                beq taken
                 txa
                 pha
                 lda #2 * 4
-                jsr status.add_heat
+                ldy police.stolen
+                beq +
+                lda #2 * 16
++               jsr status.add_heat
                 pla
                 tax
-+               lda traffic.pf,x
+taken           lda traffic.pf,x
                 sta car.pos_x
                 lda traffic.pl,x
                 sta car.pos_x + 1
@@ -601,7 +606,10 @@ out_here        lda #0
                 sta traffic.held,x
                 sta traffic.ghost,x
                 sta traffic.blocked,x
-                sta police.cop,x        ; (even where a police car was: the player's is not one)
+                lda police.stolen       ; (a police car the player drove is one still, empty; no other is)
+                sta police.cop,x
+                lda #0
+                sta police.stolen
                 sta car.vel_x
                 sta car.vel_x + 1
                 sta car.vel_y

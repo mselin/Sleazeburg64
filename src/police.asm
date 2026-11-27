@@ -25,6 +25,9 @@
 ; high one for NOTE, then a frame of nothing, over and over; quiet the moment the siren stops (quiet). `tone`
 ; says what it plays, for the tests: the SID's registers cannot be read back.
 ;
+; A stolen police car (cruiser): the player at the wheel of a police car (foot.take sets `stolen`, foot.out_here
+; clears it and leaves the car a police car still), with heat 1 and the police around: heat 2, from its start.
+;
 ; Officers on foot (get_out, on_foot): a police car slower than CAR_STILL and the player slower than STILL (or
 ; on foot), within OUT_NEAR of each other either way, and an officer gets out BESIDE pixels to its side, up to
 ; OFFICERS, in a passer-by's place (people.asm); the car is left empty, a wreck that keeps its cop mark. Within
@@ -258,6 +261,7 @@ next            dex
                 lda status.heat
                 beq quiet               ; (busted)
 sound           jsr boxed_in            ; (with heat: busted, after long enough boxed in)
+                jsr cruiser             ; (and in a stolen police car, the heat to 2)
                 lda status.heat         ; the siren: with heat and the police near
                 beq quiet
                 lda around
@@ -316,6 +320,7 @@ dyh             .byte 0
 first           .byte 0                 ; the ways that close the gaps, the longer's first
 second          .byte 0
 looked          .byte 0                 ; watch: the car looked at
+stolen          .byte 0                 ; 1: the player's car is a police car (foot.take; foot.out_here ends it)
 wail            .byte 0                 ; frames into the siren's wail
 tone            .byte 0                 ; what the siren's voice plays: 0 nothing, 1 the low note, 2 the high
 boxed_for       .byte 0                 ; frames boxed in (here: watch clears it in any build)
@@ -563,6 +568,25 @@ next_officer    ldx looked
                 cmp #WINDOW_AFTER
                 bcc +
                 jmp busted
++               rts
+                .send
+
+                .section basic_code     ; (where there is room: waiting.asm)
+; A stolen police car (watch, after boxed_in): driven with heat 1, the police around, the heat goes up to 2 (no
+; crime: straight to the level's start), and the panel says they know it. Again whenever that holds.
+cruiser         lda stolen
+                beq +
+                lda around
+                beq +
+                lda status.heat
+                cmp #1
+                bne +
+                sec
+                lda status.level_lo + 2
+                sbc status.points
+                jsr status.add_heat
+                ldx #status.MSG_CRUISER
+                jmp status.say
 +               rts
                 .send
 

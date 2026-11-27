@@ -11,7 +11,7 @@ import { F, Player, readPlayer } from './foot-model.mjs';
 import { waterStep } from './water-model.mjs';
 import { P, People, inSight, readPeople, WALL } from './people-model.mjs';
 import { Pickups, readPickups } from './pickups-model.mjs';
-import { Heat, readHeat } from './heat-model.mjs';
+import { H, Heat, readHeat } from './heat-model.mjs';
 
 export const START = [9 * 16, 8 * 16]; // the window's top left corner at start; the car is in its middle
 /** Busted (police.boxed_in, police.busted): slower than SLOW, a police car within BOXED, for AFTER frames. */
@@ -43,9 +43,9 @@ export async function readTraffic(vice, L, n) {
   const seed = await get('seed', 2);
   const [tick, rot, wait, turns, mine] = await Promise.all([get('tick', 1), get('rot', 1), get('spawn_wait', 1), get('turns', 1), get('mine', 1)]);
   const cop = await vice.read(L['police.cop'], n), [chaseWait] = await vice.read(L['police.chase_wait'], 1), [around] = await vice.read(L['police.around'], 1);
-  const [wail] = await vice.read(L['police.wail'], 1), [tone] = await vice.read(L['police.tone'], 1);
+  const [wail] = await vice.read(L['police.wail'], 1), [tone] = await vice.read(L['police.tone'], 1), [stolen] = await vice.read(L['police.stolen'], 1);
   cars.forEach((c, i) => c.on && (c.cop = cop[i]));
-  return { cars, seed: [seed[0], seed[1]], tick: tick[0], turns: turns[0], rot: rot[0], spawnWait: wait[0], mine: mine[0], chaseWait, around, wail, tone };
+  return { cars, seed: [seed[0], seed[1]], tick: tick[0], turns: turns[0], rot: rot[0], spawnWait: wait[0], mine: mine[0], chaseWait, around, wail, tone, stolen };
 }
 
 /** The same, from the model. */
@@ -58,7 +58,7 @@ export function modelTraffic(t) {
     car.cop = c.cop;
     return car;
   });
-  return { cars, seed: [t.rnd.lo, t.rnd.hi], tick: t.tick, turns: t.turns, rot: t.rot, spawnWait: t.spawnWait, mine: t.mine, chaseWait: t.chaseWait, around: t.around, wail: t.wail, tone: t.tone };
+  return { cars, seed: [t.rnd.lo, t.rnd.hi], tick: t.tick, turns: t.turns, rot: t.rot, spawnWait: t.spawnWait, mine: t.mine, chaseWait: t.chaseWait, around: t.around, wail: t.wail, tone: t.tone, stolen: t.stolen };
 }
 
 const signed = (lo, hi) => ((hi << 8) | lo) << 16 >> 16;
@@ -138,7 +138,11 @@ export class World {
       this.boxed = this.window = 0; // (the counts to an arrest start again)
       return;
     }
-    if (!this.onFoot() && this.heat.level) this.boxedIn(); // (unless busted)
+    if (!this.onFoot() && this.heat.level) { // (unless busted)
+      this.boxedIn();
+      // police.cruiser: a stolen police car, the police around, heat 1: straight to level 2's start.
+      if (t.stolen && t.around && this.heat.level === 1) this.heat.add(H.LEVELS[2] - this.heat.points);
+    }
     // The siren's sound (police.wailing): the low note, the high, a frame of nothing; with the siren off, quiet.
     if (this.heat.level && t.around) {
       t.wail = (t.wail + 1) % SIREN.WAIL;

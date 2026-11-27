@@ -257,3 +257,37 @@ test('knocking an officer down is 14 heat, killing one 28; one who is down arres
     assert.equal(w.player.on, 1, 'not arrested');
     assert.ok(w.heat.level >= 1);
   }));
+
+// ---------- a stolen police car ----------
+test('a police car taken from its driver is 16 heat; driving it near the police at heat 1 puts the heat up to 2; out of it, it is an empty police car', () =>
+  quietRun(async (vice, w) => {
+    // On foot in the street, a police car coming west at them: it stops for them, and they walk up and get in.
+    await putOnFoot(vice, Q, w, 200, 24, 0);
+    for (let i = 1; i <= 3; i++) await pass(vice, Q, w, 0, `put there, ${i} frames`);
+    const cop = await putTrafficCar(vice, Q, w, 0, { x: 250, y: 24, dir: 2, cruise: 255, col: WHITE });
+    cop.cop = 1;
+    await vice.write(Q['police.cop'], [1]);
+    let i = 0;
+    while (w.player.on && i < 200) {
+      const near = Math.abs(cop.px - w.player.px) < 16;
+      await pass(vice, Q, w, near ? (i & 1 ? JOY.FIRE : 0) : JOY.RIGHT, `up to the police car and in, ${++i} frames`);
+    }
+    assert.equal(w.player.on, 0, `in the police car (${i} frames)`);
+    assert.equal(w.traffic.stolen, 1, 'a stolen police car');
+    assert.deepEqual([w.heat.level, w.heat.points], [1, 2 * 16], '16 heat for taking it from its driver');
+    // Another police car comes near (60 pixels off, standing): the heat goes straight up to 2, and the panel says so.
+    const other = await putTrafficCar(vice, Q, w, 1, { x: w.car.px + 60, y: 24, dir: 2, cruise: 0, col: WHITE });
+    other.cop = 1;
+    await vice.write(Q['police.cop'] + 1, [1]);
+    await pass(vice, Q, w, 0, 'the police see it');
+    assert.deepEqual([w.heat.level, w.heat.points], [2, 2 * 25], 'heat 2, from its start');
+    for (let k = 1; k <= 5; k++) await pass(vice, Q, w, 0, `the message, ${k} frames`);
+    assert.ok((await readPanel(vice)).some((r) => r.startsWith('THE COPS KNOW THAT CRUISER.')), 'the panel says they know it');
+    // Out of it: no longer stolen, and the car is an empty police car.
+    i = 0;
+    while (!w.player.on && i < 60) await pass(vice, Q, w, i++ & 1 ? JOY.FIRE : 0, `getting out, ${i} frames`);
+    assert.equal(w.player.on, 1, 'out');
+    assert.equal(w.traffic.stolen, 0);
+    const left = w.traffic.cars[w.traffic.mine];
+    assert.deepEqual([left.cop, left.wreck, left.col], [1, 1, WHITE], 'an empty police car');
+  }));
