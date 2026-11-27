@@ -72,7 +72,7 @@ redraw3         .byte ?                 ; 1: draw row 3 again
 row3_ink        .byte ?                 ; the colour row 3 has in colour memory now ...
 want_ink        .byte ?                 ; ... and the one it is to have
 ink_due         .byte ?                 ; 1: write that, in the next frame with the time
-text            .word ?                 ; the message: where its text is ...
+text            .word ?                 ; the message: where its text is (msg_buf) ...
 most            .byte ?                 ; ... how far along it can scroll ...
 left            .word ?                 ; ... frames before it goes, or 0 for none ...
 offset          .byte ?                 ; ... how far it has scrolled ...
@@ -125,12 +125,33 @@ init            lda #0
                 jmp write_ink
 
 ; Show message X in row 3, from the next frame that has the time.
-say             lda msg_lo,x
-                sta text
+say             lda msg_lo,x            ; its text, copied out from under the I/O area (where it waits) to msg_buf
+                sta copy + 1
                 lda msg_hi,x
+                sta copy + 2
+                lda #<msg_buf
+                sta text
+                lda #>msg_buf
                 sta text + 1
                 lda msg_most,x
                 sta most
+                clc
+                adc #40
+                tay
+                php                     ; (as the gate does, but keeping the port as it was: say is called from
+                sei                     ; under the I/O area too)
+                lda CPU_PORT
+                pha
+                lda #$34
+                sta CPU_PORT
+-               dey
+copy            lda $ffff,y             ; (the address is written above)
+                sta msg_buf,y
+                cpy #0
+                bne -
+                pla
+                sta CPU_PORT
+                plp
                 lda msg_left_lo,x
                 sta left
                 lda msg_left_hi,x
@@ -569,44 +590,35 @@ MSG_CRUISER     = 9
 MSG_WASTED      = 10
 MSG_SEIZED      = 11                    ; (wasted with the police about)
 MSG_PAVE        = 12                    ; and on: the police's four lines for driving on the pavement
-MESSAGES        = ("fire: handbrake. standing still: get out", "stand by a car and press fire to get in", "the car is gone. swim for it. the warranty does not cover this.", "a stern letter is being drafted", "police dispatched. eventually.", "shoot first, paperwork never", "overtime has been approved", "the homeowners association has been notified", 'busted. your weapons are now evidence', "the cops know that cruiser. they do not know you.", "st. invoice hospital: ambulance ride (out of network)", "ambulance ride billed. the police kept your weapons", "officer: that is a sidewalk, not a shortcut.", "police: sidewalks are for pedestrians and parking tickets.", "the cops saw that. the pavement is not a lane.", "driving on the sidewalk. in front of the police. bold.")
+MSG_PAINTED     = 16
+MSG_NO_CASH     = 17
+MESSAGES        = ("fire: handbrake. standing still: get out", "stand by a car and press fire to get in", "the car is gone. swim for it. the warranty does not cover this.", "a stern letter is being drafted", "police dispatched. eventually.", "shoot first, paperwork never", "overtime has been approved", "the homeowners association has been notified", 'busted. your weapons are now evidence', "the cops know that cruiser. they do not know you.", "st. invoice hospital: ambulance ride (out of network)", "ambulance ride billed. the police kept your weapons", "officer: that is a sidewalk, not a shortcut.", "police: sidewalks are for pedestrians and parking tickets.", "the cops saw that. the pavement is not a lane.", "driving on the sidewalk. in front of the police. bold.", "paint & pray: new colour, same sins. -$200", "paint & pray: no cash, no absolution.")
                 .send                   ; (the messages: in the room the tables by tile leave, main.asm)
-                .section tile_room1
+                .section io_text        ; (the texts, under the I/O area: say copies one out; main.asm)
 m0              .text format("%-40s", MESSAGES[0])
 m1              .text format("%-40s", MESSAGES[1])
 m3              .text format("%-40s", MESSAGES[3])
-                .send
-                .section tile_room2
 m2              .text format("%-40s", MESSAGES[2])
 m4              .text format("%-40s", MESSAGES[4])
-                .send
-                .section tile_room3
 m5              .text format("%-40s", MESSAGES[5])
 m6              .text format("%-40s", MESSAGES[6])
 m7              .text format("%-40s", MESSAGES[7])
-                .send
-                .section tile_room4
 m8              .text format("%-40s", MESSAGES[8])
-                .send
-                .section gap_code       ; (waiting.asm)
 m9              .text format("%-40s", MESSAGES[9])
-                .send
-                .section tile_room5
 m12             .text format("%-40s", MESSAGES[12])
-                .send
-                .section tile_room6
 m13             .text format("%-40s", MESSAGES[13])
 m14             .text format("%-40s", MESSAGES[14])
-                .send
-                .section tile_room4
 m15             .text format("%-40s", MESSAGES[15])
-                .send
-                .section status
+m16             .text format("%-40s", MESSAGES[16])
+m17             .text format("%-40s", MESSAGES[17])
 m10             .text format("%-40s", MESSAGES[10])
 m11             .text format("%-40s", MESSAGES[11])
                 .send
+                .section tile_room1     ; (where there is room: main.asm)
+msg_buf         .fill 64                ; the message being shown, copied here by say
+                .send
                 .section status
-MSG_AT          = (m0, m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, m11, m12, m13, m14, m15)
+MSG_AT          = (m0, m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, m11, m12, m13, m14, m15, m16, m17)
 msg_lo          .byte <MSG_AT
 msg_hi          .byte >MSG_AT
 most_of         .function m
@@ -617,7 +629,8 @@ msg_most        .byte most_of(MESSAGES[0]), most_of(MESSAGES[1]), most_of(MESSAG
                 .byte most_of(MESSAGES[4]), most_of(MESSAGES[5]), most_of(MESSAGES[6]), most_of(MESSAGES[7])
                 .byte most_of(MESSAGES[8]), most_of(MESSAGES[9]), most_of(MESSAGES[10]), most_of(MESSAGES[11])
                 .byte most_of(MESSAGES[12]), most_of(MESSAGES[13]), most_of(MESSAGES[14]), most_of(MESSAGES[15])
-MSG_FRAMES      = (frames_of(MESSAGES[0]), frames_of(MESSAGES[1]), frames_of(MESSAGES[2]), frames_of(MESSAGES[3]), frames_of(MESSAGES[4]), frames_of(MESSAGES[5]), frames_of(MESSAGES[6]), frames_of(MESSAGES[7]), frames_of(MESSAGES[8]), frames_of(MESSAGES[9]), frames_of(MESSAGES[10]), frames_of(MESSAGES[11]), frames_of(MESSAGES[12]), frames_of(MESSAGES[13]), frames_of(MESSAGES[14]), frames_of(MESSAGES[15]))
+                .byte most_of(MESSAGES[16]), most_of(MESSAGES[17])
+MSG_FRAMES      = (frames_of(MESSAGES[0]), frames_of(MESSAGES[1]), frames_of(MESSAGES[2]), frames_of(MESSAGES[3]), frames_of(MESSAGES[4]), frames_of(MESSAGES[5]), frames_of(MESSAGES[6]), frames_of(MESSAGES[7]), frames_of(MESSAGES[8]), frames_of(MESSAGES[9]), frames_of(MESSAGES[10]), frames_of(MESSAGES[11]), frames_of(MESSAGES[12]), frames_of(MESSAGES[13]), frames_of(MESSAGES[14]), frames_of(MESSAGES[15]), frames_of(MESSAGES[16]), frames_of(MESSAGES[17]))
 msg_left_lo     .byte <MSG_FRAMES
 msg_left_hi     .byte >MSG_FRAMES
                 .enc "none"

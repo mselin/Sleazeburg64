@@ -18,6 +18,9 @@ export const START = [9 * 16, 8 * 16]; // the window's top left corner at start;
 export const BUSTED = { SLOW: 61, BOXED: 24, AFTER: 100, STATION: [(6 * 12 + 7) * 16, (2 * 12 + 2) * 16 + 8] };
 /** The siren's sound (police.wailing): a wail every WAIL frames, two notes of NOTE frames; `tone` 1 low, 2 high. */
 export const SIREN = { WAIL: 35, NOTE: 17 };
+/** The paint shop (police.paint_look): where, how near, frames between. */
+export const PAINT = { AT: [(1 * 12 + 7) * 16, (6 * 12 + 2) * 16 + 8], NEAR: 16, AGAIN: 200 };
+const TRAFFIC_COLOURS = [4, 5, 8, 10, 13, 14, 3, 7]; // (traffic.colours)
 /** The police and the pavement (police.pave_look): a tile's kind, the speed (1/256 pixel a frame), frames between. */
 export const PAVE = { KIND: 4, FAST: 77, AGAIN: 150 };
 /** Hurt, and wasted (police.hits, police.wasted). */
@@ -112,6 +115,7 @@ export class World {
     this.aim = [0, 0, 0, 0]; // (police.aim: an officer's frames before they can shoot again)
     this.hitWait = 0;
     this.paveWait = 0; // (police.pave_wait)
+    this.paintWait = 0; // (police.paint_wait)
     this.money = 0; // (only for busted's fine: the tests that use it put it in)
   }
   /** One pass of the main loop with the joystick held as given. */
@@ -168,6 +172,7 @@ export class World {
       this.boxedIn();
       this.cruiser();
       this.paveLook();
+      this.paintLook();
     }
     // The siren's sound (police.wailing): the low note, the high, a frame of nothing; with the siren off, quiet.
     if (this.heat.level && t.around) {
@@ -194,6 +199,24 @@ export class World {
     const level = this.heat.level;
     this.heat.add(2 * 4);
     if (this.heat.level === level) this.people.rnd();
+  }
+  /**
+   * police.paint_look and paint_io, with heat: at the wheel within PAINT.NEAR of the paint shop, no sooner than
+   * PAINT.AGAIN frames after the last time: with $200, $200 less, no heat, and a new colour (from the passers-by's
+   * random numbers: not the one it has) unless it is a police car; else only the line that says so.
+   */
+  paintLook() {
+    if (this.paintWait) return void this.paintWait--;
+    const [x, y] = this.at, near = World.near;
+    if (this.player.on || !near(x - PAINT.AT[0], PAINT.NEAR) || !near(y - PAINT.AT[1], PAINT.NEAR)) return;
+    this.paintWait = PAINT.AGAIN;
+    if (this.money < 200) return;
+    this.money -= 200;
+    Object.assign(this.heat, { level: 0, points: 0 });
+    if (this.traffic.stolen) return;
+    let i = this.people.rnd() & 7;
+    if (TRAFFIC_COLOURS[i] === this.car.colour) i = (i + 1) & 7;
+    this.car.colour = TRAFFIC_COLOURS[i];
   }
   /** police.cruiser: a stolen police car, the police around or a patrol car near, heat below 2: level 2's start. */
   cruiser() {
