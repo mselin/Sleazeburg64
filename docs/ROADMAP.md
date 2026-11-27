@@ -183,6 +183,15 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
     patrol cars yet, there are no police about at heat 0, so the rule only ever acts at heat 1. Still to come:
     officers shooting from heat 3 (with the player shot, and wasted), patrol cars joining in (here every police
     car chases).
+  - **Hurt, and wasted** (done, the first part: cars). On foot, a car going faster than 45 pixels a second with
+    its middle within 9 pixels of the player's either way hurts them, by its speed × 0.28 (the design's),
+    and nothing hurts them again for 0.4 seconds; the browser game also pushes them along, which is not done
+    here yet. At no health left they are wasted: the police and the heat go, health is full again, the
+    hospital bills $500 (or all there is) and the player is at the hospital (where the browser game has it).
+    The police take the knife and the ammo if they were about; the message is ST. INVOICE HOSPITAL:
+    AMBULANCE RIDE (OUT OF NETWORK), or AMBULANCE RIDE BILLED. THE POLICE KEPT YOUR WEAPONS (the panel's
+    messages are fixed: no amount). Still to come: the FLATLINED banner and the pause, officers' shots, a car
+    blowing up with the player in it.
   - **The siren and the flashing border.** The border flashes red and blue (`$D020`, every 25 frames) only while
     the siren sounds: the police near, in play. It never flashes with nobody about, on the busted screen or
     while paused. The browser game got this wrong and kept flashing as long as there was any heat

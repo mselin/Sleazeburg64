@@ -61,6 +61,12 @@ ARREST          = 7                     ; an officer this near either way arrest
 AT_WINDOW       = 13                    ; ... or this near the player's car ...
 WINDOW_SLOW     = 113                   ; ... going slower than this (22 pixels a second) ...
 WINDOW_AFTER    = 35                    ; ... for this many frames on end (0.7 seconds)
+HURT_FAST       = 115                   ; a car going faster than this (45 pixels a second, the traffic's units) ...
+HURT_REACH      = 9                     ; ... with its middle this near the player on foot either way hurts them,
+HURT_WAIT       = 20                    ; ... and nothing more does for this many frames (0.4 seconds)
+HOSPITAL_X      = (1 * 12 + 7) * 16     ; the hospital: where the browser game has it (its HOSP)
+HOSPITAL_Y      = (1 * 12 + 2) * 16 + 8
+BILL            = $0500                 ; the most the hospital bills, in binary-coded decimal
 STATION_X       = (6 * 12 + 7) * 16     ; the police station: where the browser game has it (its COPS)
 STATION_Y       = (2 * 12 + 2) * 16 + 8
 
@@ -423,97 +429,6 @@ how_slow            .byte 0                 ; slower: how slow
                 .send
 
                 .section low_more       ; (where there is room: main.asm)
-; Busted.
-busted          lda #0
-                sta boxed_for
-                ldx #SLOTS - 1          ; the police go
--               lda cop,x
-                beq +
-                lda #0
-                sta cop,x
-                sta traffic.on,x
-+               dex
-                bpl -
-                lda #0                  ; so do the heat and the weapons
-                sta status.heat
-                sta status.points
-                sta status.points + 1
-                sta status.ammo
-                sta status.knife
-                lda #1
-                sta status.stars_shown
-                sta status.changed
-                sed                     ; and a fifth of the money: twice it, a digit less
-                clc
-                ldx #0
--               lda status.money,x
-                adc status.money,x
-                sta fine,x
-                inx
-                txa
-                eor #3
-                bne -
-                ldy #4                  ; (the carry: the digit twice the money has beyond six)
--               ror fine + 2
-                ror fine + 1
-                ror fine
-                clc
-                dey
-                bne -
-                sec
-                ldx #0
--               lda status.money,x
-                sbc fine,x
-                sta status.money,x
-                inx
-                txa
-                eor #3
-                bne -
-                cld
-                jsr officers_go         ; the officers on foot go too
-                lda foot.on             ; (on foot already: straight to the station)
-                bne station_at
-                ldx #SLOTS - 1          ; out of the car, as getting out does, where it is, into a free place
--               lda traffic.on,x
-                beq +
-                dex
-                bpl -
-+               stx foot.slot           ; (one is free: a police car has gone)
-                lda car.angle + 1
-                clc
-                adc #8
-                lsr
-                lsr
-                lsr
-                lsr
-                sta foot.k
-                lda #0
-                sta foot.sinking
-                lda car.pos_x + 1
-                sta foot.tx
-                lda car.pos_x + 2
-                sta foot.tx + 1
-                lda car.pos_y + 1
-                sta foot.ty
-                lda car.pos_y + 2
-                sta foot.ty + 1
-                jsr foot.out_here
-station_at      ldx #4                  ; and on foot at the police station, the window there
--               lda station,x
-                sta foot.pos + 1,x
-                dex
-                bpl -
-                ldx #3
--               lda window,x
-                sta cam_lo,x
-                dex
-                bpl -
-                ldx #status.MSG_BUSTED
-                jmp status.say
-station         .byte <STATION_X, >STATION_X, 0, <STATION_Y, >STATION_Y       ; (pos + 3, a fraction: 0)
-window          .byte <(STATION_X - CENTRE_X), <(STATION_Y - CENTRE_Y), >(STATION_X - CENTRE_X), >(STATION_Y - CENTRE_Y)
-                .cerror cam_hi - cam_lo != 2, "busted expects cam_hi two bytes after cam_lo"
-
                 .send
 
                 .section stack_code     ; (where there is room: waiting.asm)
@@ -652,53 +567,11 @@ get_out         lda traffic.sp,x
                 sbc player_at + 3
                 jsr close
                 bcs no_officer
-                ldy #0                  ; how many are out, and a place
-                ldx #CROWD - 1
--               lda people.on,x
-                beq to_place
-                lda people.officer,x
-                beq +
-                iny
-+               dex
-                bpl -
-                cpy #OFFICERS
-                bcs no_officer
-                ldx #CROWD - 1          ; none free: a passer-by out of sight
--               lda people.officer,x
-                bne +
-                lda people.down,x
-                bne +
-                jsr unseen
-                bcs to_place
-+               dex
-                bpl -
+                jmp gate_officer        ; (seat_officer, from under the I/O area: main.asm)
 no_officer      rts
-to_place        jmp free_place
                 .send
 
                 .section tile_room4
-; Person X: C set if out of sight (in no part of the window or 12 pixels round it). X kept.
-unseen          stx people.who
-                sec
-                lda people.xl,x
-                sbc cam_lo
-                tay
-                lda people.xh,x
-                sbc cam_hi
-                ldx #0
-                jsr people.in_sight
-                bcs +
-                ldx people.who
-                sec
-                lda people.yl,x
-                sbc cam_lo + 1
-                tay
-                lda people.yh,x
-                sbc cam_hi + 1
-                ldx #1
-                jsr people.in_sight
-+               ldx people.who
-                rts
                 .send
                 .section tile_room2
 ; Busted: the officers on foot go.
@@ -713,69 +586,9 @@ officers_go     ldx #CROWD - 1
                 .send
 
                 .section police_extra   ; (where there is room: waiting.asm)
-; The officer stands at people.nx, ny, in place people.who; police car looked is left empty.
-officer_out     jsr people.set_up
-                lda #LIGHT_BLUE
-                sta people.col,x
-                lda #people.COP_PACE
-                sta people.spd,x
-                lda #1
-                sta people.officer,x
-                ldx looked
-                sta traffic.wreck,x
-                lda #0
-                sta traffic.sp,x
-                sta traffic.cruise,x
-                sta traffic.dlo,x
-                sta traffic.dhi,x
-                rts
                 .send
 
                 .section tile_room6     ; (where there is room: main.asm)
-free_place      stx people.who
-                ldx looked              ; beside the car: across its way, one side, else the other
-                lda traffic.pl,x
-                sta people.nx
-                lda traffic.ph,x
-                sta people.nx + 1
-                lda traffic.pl + N1,x
-                sta people.ny
-                lda traffic.ph + N1,x
-                sta people.ny + 1
-                lda traffic.dir,x
-                and #1
-                eor #1
-                asl
-                tax                     ; 0: nx, 2: ny
-                lda #BESIDE
-                jsr side_by
-                cmp #WALL
-                bne +
-                lda #-2 * BESIDE
-                jsr side_by
-                cmp #WALL
-                bne +
-                rts
-+               jmp officer_out
-; people.nx (X = 0) or ny (X = 2) moved by A, a signed byte; A = the kind of tile there. X kept.
-side_by         ldy #0
-                cmp #$80
-                bcc +
-                dey
-+               clc
-                adc people.nx,x
-                sta people.nx,x
-                tya
-                adc people.nx + 1,x
-                sta people.nx + 1,x
-                txa
-                pha
-                jsr people.kind
-                sta reach               ; (spare)
-                pla
-                tax
-                lda reach
-                rts
                 .send
 
                 .section panel_code
@@ -799,5 +612,332 @@ officer_near    sta reach
                 sbc player_at + 3
                 jmp close
 +               rts
+                .send
+
+                .section io_code        ; (under the I/O area: main.asm, run through a gate there)
+; An officer gets out (get_out, all else holding): a place for them among the passers-by's, and where.
+seat_officer
+                ldy #0                  ; how many are out, and a place
+                ldx #CROWD - 1
+-               lda people.on,x
+                beq free_place
+                lda people.officer,x
+                beq +
+                iny
++               dex
+                bpl -
+                cpy #OFFICERS
+                bcs none_out
+                ldx #CROWD - 1          ; none free: a passer-by out of sight
+-               lda people.officer,x
+                bne +
+                lda people.down,x
+                bne +
+                jsr unseen
+                bcs free_place
++               dex
+                bpl -
+none_out        rts
+free_place      stx people.who
+                ldx looked              ; beside the car: across its way, one side, else the other
+                lda traffic.pl,x
+                sta people.nx
+                lda traffic.ph,x
+                sta people.nx + 1
+                lda traffic.pl + N1,x
+                sta people.ny
+                lda traffic.ph + N1,x
+                sta people.ny + 1
+                lda traffic.dir,x
+                and #1
+                eor #1
+                asl
+                tax                     ; 0: nx, 2: ny
+                lda #BESIDE
+                jsr side_by
+                cmp #WALL
+                bne officer_out
+                lda #-2 * BESIDE
+                jsr side_by
+                cmp #WALL
+                bne officer_out
+                rts
+
+; people.nx (X = 0) or ny (X = 2) moved by A, a signed byte; A = the kind of tile there. X kept.
+side_by         ldy #0
+                cmp #$80
+                bcc +
+                dey
++               clc
+                adc people.nx,x
+                sta people.nx,x
+                tya
+                adc people.nx + 1,x
+                sta people.nx + 1,x
+                txa
+                pha
+                jsr people.kind
+                sta reach               ; (spare)
+                pla
+                tax
+                lda reach
+                rts
+; The officer stands at people.nx, ny, in place people.who; police car looked is left empty.
+officer_out     jsr people.set_up
+                lda #LIGHT_BLUE
+                sta people.col,x
+                lda #people.COP_PACE
+                sta people.spd,x
+                lda #1
+                sta people.officer,x
+                ldx looked
+                sta traffic.wreck,x
+                lda #0
+                sta traffic.sp,x
+                sta traffic.cruise,x
+                sta traffic.dlo,x
+                sta traffic.dhi,x
+                rts
+; Person X: C set if out of sight (in no part of the window or 12 pixels round it). X kept.
+unseen          stx people.who
+                sec
+                lda people.xl,x
+                sbc cam_lo
+                tay
+                lda people.xh,x
+                sbc cam_hi
+                ldx #0
+                jsr people.in_sight
+                bcs +
+                ldx people.who
+                sec
+                lda people.yl,x
+                sbc cam_lo + 1
+                tay
+                lda people.yh,x
+                sbc cam_hi + 1
+                ldx #1
+                jsr people.in_sight
++               ldx people.who
+                rts
+; Busted (busted, the gate).
+; Busted.
+busted_io       lda #0                  ; the weapons go, always
+                sta status.ammo
+                sta status.knife
+                jsr calm
+                sed                     ; and a fifth of the money: twice it, a digit less
+                clc
+                ldx #0
+-               lda status.money,x
+                adc status.money,x
+                sta fine,x
+                inx
+                txa
+                eor #3
+                bne -
+                ldy #4                  ; (the carry: the digit twice the money has beyond six)
+-               ror fine + 2
+                ror fine + 1
+                ror fine
+                clc
+                dey
+                bne -
+                sec
+                ldx #0
+-               lda status.money,x
+                sbc fine,x
+                sta status.money,x
+                inx
+                txa
+                eor #3
+                bne -
+                cld
+                lda foot.on             ; (on foot already: straight to the station)
+                bne station_at
+                ldx #SLOTS - 1          ; out of the car, as getting out does, where it is, into a free place
+-               lda traffic.on,x
+                beq +
+                dex
+                bpl -
++               stx foot.slot           ; (one is free: a police car has gone)
+                lda car.angle + 1
+                clc
+                adc #8
+                lsr
+                lsr
+                lsr
+                lsr
+                sta foot.k
+                lda #0
+                sta foot.sinking
+                lda car.pos_x + 1
+                sta foot.tx
+                lda car.pos_x + 2
+                sta foot.tx + 1
+                lda car.pos_y + 1
+                sta foot.ty
+                lda car.pos_y + 2
+                sta foot.ty + 1
+                jsr foot.out_here
+station_at      ldy #0                  ; and on foot at the police station, the window there
+                ldx #status.MSG_BUSTED
+; On foot at place Y of places (0 the police station, 9 the hospital), the window there; message X.
+put_at          stx said
+                ldx #0
+-               lda places,y
+                sta foot.pos + 1,x
+                iny
+                inx
+                cpx #5
+                bne -
+                ldx #0
+-               lda places,y
+                sta cam_lo,x
+                iny
+                inx
+                cpx #4
+                bne -
+                lda foot.pos + 1        ; (and where the window follows them to, this frame too)
+                sta player_at
+                lda foot.pos + 2
+                sta player_at + 1
+                lda foot.pos + 4
+                sta player_at + 2
+                lda foot.pos + 5
+                sta player_at + 3
+                ldx said
+                jmp status.say
+place           .function px, py        ; pos + 1 to + 5 (pos + 3, a fraction: 0), then cam_lo to cam_hi + 1
+                .endf (<px, >px, 0, <py, >py, <(px - CENTRE_X), <(py - CENTRE_Y), >(px - CENTRE_X), >(py - CENTRE_Y))
+places          .byte place(STATION_X, STATION_Y), place(HOSPITAL_X, HOSPITAL_Y)
+                .cerror cam_hi - cam_lo != 2, "put_at expects cam_hi two bytes after cam_lo"
+said            .byte 0
+; Busted or wasted: the police go, and the heat, and the counts to an arrest.
+calm            lda #0
+                sta boxed_for
+                ldx #SLOTS - 1          ; the police cars ...
+-               lda cop,x
+                beq +
+                lda #0
+                sta cop,x
+                sta traffic.on,x
++               dex
+                bpl -
+                lda #0                  ; ... and the heat
+                sta status.heat
+                sta status.points
+                sta status.points + 1
+                lda #1
+                sta status.stars_shown
+                sta status.changed
+                jmp officers_go         ; and the officers on foot
+; Wasted (wasted, the gate): the police take the weapons if they are about; the police and the heat go; full
+; health; the hospital bills up to $500; and the player is at the hospital, the window there.
+wasted_io       ldx #status.MSG_WASTED
+                lda around
+                beq +
+                lda #0
+                sta status.ammo
+                sta status.knife
+                ldx #status.MSG_SEIZED
++               stx said
+                jsr calm
+                lda #100
+                sta status.hp
+                lda status.money + 2    ; the bill: $500, or what there is
+                bne pay
+                lda status.money + 1
+                cmp #>BILL
+                bcs pay
+                lda #0
+                sta status.money
+                sta status.money + 1
+                beq billed
+pay             sed
+                sec
+                lda status.money + 1
+                sbc #>BILL
+                sta status.money + 1
+                lda status.money + 2
+                sbc #0
+                sta status.money + 2
+                cld
+billed          ldy #9
+                ldx said
+                jmp put_at
+
+                .send
+
+                .section low_more       ; (where there is room: main.asm)
+; The gates to what runs from under the I/O area (seat_officer, busted_io).
+gate_officer    #io_gate seat_officer
+busted          #io_gate busted_io
+wasted          #io_gate wasted_io
+
+; On foot, once a frame (foot.update): a car on the move hits the player, for its speed * 0.28 (in pixels a
+; second: the traffic's speed * 7/64), unless one has in the last HURT_WAIT frames; at no health left, wasted.
+hits            lda hit_wait
+                beq +
+                dec hit_wait
+                rts
++               lda #HURT_REACH
+                sta reach
+                ldx #SLOTS - 1
+each_hitter     stx looked
+                lda traffic.on,x
+                beq next_hitter
+                lda traffic.sp,x
+                cmp #HURT_FAST + 1
+                bcc next_hitter
+                sec
+                lda traffic.pl,x
+                sbc player_at
+                tay
+                lda traffic.ph,x
+                sbc player_at + 1
+                jsr close
+                bcs next_hitter
+                ldx looked
+                sec
+                lda traffic.pl + N1,x
+                sbc player_at + 2
+                tay
+                lda traffic.ph + N1,x
+                sbc player_at + 3
+                jsr close
+                bcc struck
+next_hitter     ldx looked
+                dex
+                bpl each_hitter
+                rts
+struck          ldx looked
+                lda traffic.sp,x        ; speed / 8 - speed / 64
+                lsr
+                lsr
+                lsr
+                sta hurt
+                lsr
+                lsr
+                lsr
+                eor #$ff
+                sec
+                adc hurt
+                sta hurt
+                lda status.hp
+                sec
+                sbc hurt
+                beq +
+                bcs ++
++               jsr wasted              ; (no health left)
+                jmp quiet               ; (and no siren)
++               sta status.hp
+                lda #1
+                sta status.changed
+                lda #HURT_WAIT
+                sta hit_wait
+                rts
+hit_wait        .byte 0                 ; frames before a car can hurt the player again
+hurt            .byte 0
                 .send
                 .bend

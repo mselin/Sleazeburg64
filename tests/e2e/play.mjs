@@ -18,6 +18,8 @@ export const START = [9 * 16, 8 * 16]; // the window's top left corner at start;
 export const BUSTED = { SLOW: 61, BOXED: 24, AFTER: 100, STATION: [(6 * 12 + 7) * 16, (2 * 12 + 2) * 16 + 8] };
 /** The siren's sound (police.wailing): a wail every WAIL frames, two notes of NOTE frames; `tone` 1 low, 2 high. */
 export const SIREN = { WAIL: 35, NOTE: 17 };
+/** Hurt, and wasted (police.hits, police.wasted). */
+export const HURT = { FAST: 115, REACH: 9, WAIT: 20, HOSPITAL: [(1 * 12 + 7) * 16, (1 * 12 + 2) * 16 + 8] };
 /** Officers on foot (police.get_out, police.on_foot). */
 export const OFFICERS = { NEAR: 36, CAR_STILL: 77, STILL: 154, MOST: 4, BESIDE: 12, NOTICE: 120, ARREST: 7, WINDOW: 13, WINDOW_SLOW: 113, WINDOW_AFTER: 35 };
 const TRAFFIC_FIELDS = ['dir', 'sp', 'cruise', 'face', 'col', 'turn', 'held', 'ghost', 'blocked', 'entered', 'wreck', 'sink'];
@@ -97,6 +99,8 @@ export class World {
     this.list = [];
     this.boxed = 0; // frames boxed in by the police
     this.window = 0; // frames with an officer at the window
+    this.hp = 100; // (status.hp: only hits and wasted change it here)
+    this.hitWait = 0;
     this.money = 0; // (only for busted's fine: the tests that use it put it in)
   }
   /** One pass of the main loop with the joystick held as given. */
@@ -105,6 +109,7 @@ export class World {
     const busy = this.cam.busy; // this pass works out colour memory if the last one swapped the screens
     this.people.knife = this.pickups?.knife ?? 0;
     this.player.step(bits, this.traffic, busy, this.people);
+    if (this.player.on) this.hits();
     this.cam.follow(this.player.px, this.player.py);
     this.traffic.step(this.player.px, this.player.py, this.cam, busy);
     this.policeWatch();
@@ -217,17 +222,59 @@ export class World {
    */
   busted() {
     const { traffic, player, car } = this;
-    this.boxed = 0;
-    for (const c of traffic.cars) if (c.on && c.cop) Object.assign(c, { on: 0, cop: 0 });
-    for (const p of this.people.people) if (p.officer) p.on = 0; // the officers on foot go too
-    Object.assign(this.heat, { level: 0, points: 0 });
     if (this.pickups) Object.assign(this.pickups, { ammo: 0, knife: 0 });
+    this.calm();
     this.money -= Math.floor(this.money / 5);
     if (!player.on) player.out(traffic, Player.place(traffic), [car.px, car.py], 0);
-    const [x, y] = BUSTED.STATION;
-    Object.assign(player, { x: x << 8, y: y << 8 });
+    this.putAt(BUSTED.STATION);
+  }
+  /** police.calm: busted or wasted, the police go, and the heat, and the count to being boxed in. */
+  calm() {
+    this.boxed = 0;
+    for (const c of this.traffic.cars) if (c.on && c.cop) Object.assign(c, { on: 0, cop: 0 });
+    for (const p of this.people.people) if (p.officer) p.on = 0; // the officers on foot go too
+    Object.assign(this.heat, { level: 0, points: 0 });
+  }
+  /** police.put_at: the player on foot at pixel (x, y), the window there, the program drawing the screen afresh. */
+  putAt([x, y], early = false) {
+    Object.assign(this.player, { x: x << 8, y: y << 8 });
+    const { cell, busy } = this.cam;
     this.cam = new Camera(x - CENTRE_X, y - CENTRE_Y);
-    this.cam.busy = true; // (the program draws the new screen at the end of this pass: the next goes on colour memory)
+    // The program draws the new screen at the end of this pass, and the next goes on colour memory. Put there
+    // early in a pass (wasted, from foot.update), the window then follows them as ever, from the character it
+    // was in: as putWindow has it.
+    if (early) Object.assign(this.cam, { cell, busy });
+    else this.cam.busy = true;
+  }
+  /**
+   * police.hits, on foot after the rest of foot.update: a car going faster than HURT.FAST with its middle within
+   * HURT.REACH of the player's hurts them, its speed / 8 - its speed / 64, unless one has in the last HURT.WAIT
+   * frames; at no health left, wasted.
+   */
+  hits() {
+    if (this.hitWait) return void this.hitWait--;
+    const near = World.near, [x, y] = this.at, t = this.traffic;
+    for (let k = t.n - 1; k >= 0; k--) {
+      const c = t.cars[k];
+      if (!c.on || c.sp <= HURT.FAST || !near(c.px - x, HURT.REACH) || !near(c.py - y, HURT.REACH)) continue;
+      const hp = this.hp - ((c.sp >> 3) - (c.sp >> 6));
+      if (hp <= 0) return this.wasted();
+      this.hp = hp;
+      this.hitWait = HURT.WAIT;
+      return;
+    }
+  }
+  /**
+   * police.wasted: the police take the weapons if they are about (as of the last frame's police.watch); the
+   * police and the heat go; full health; the hospital bills up to $500; the player is at the hospital; no siren.
+   */
+  wasted() {
+    if (this.traffic.around && this.pickups) Object.assign(this.pickups, { ammo: 0, knife: 0 });
+    this.calm();
+    this.hp = 100;
+    this.money = Math.max(0, this.money - 500);
+    this.putAt(HURT.HOSPITAL, true);
+    this.traffic.wail = this.traffic.tone = 0;
   }
   /** Every sprite that should be on screen, the one in front first: sprite 0, then sprites 1-7 as shared out. */
   sprites() {

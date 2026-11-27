@@ -96,6 +96,15 @@ basic_end
                 .endlogical
                 .cerror basic_end > CAR_FRAMES, "the code where the BASIC line was runs into the car's frames"
                 .cerror stack_image < video.COLOUR_11, "what is copied after the map would be written over"
+; Code under the I/O area (IO_CODE, the RAM at $d000-$dfff): what runs now and then and does nothing with the
+; video chip, the SID, the CIAs or colour memory, run through a gate (main.asm) with interrupts off.
+io_image
+                .logical IO_CODE
+                .dsection io_code
+io_end
+                .endlogical
+                .cerror io_end > $e000, "the code under the I/O area runs into EXTRA_CODE"
+IO_PAGES        = (io_end - IO_CODE + 255) / 256
 HIGH_PAGES      = (high_end - HIGH_CODE + 255) / 256
 MORE_PAGES      = (more_end - MORE_CODE + 255) / 256
 TOP_PAGES       = (top_end - TOP_CODE + 255) / 256

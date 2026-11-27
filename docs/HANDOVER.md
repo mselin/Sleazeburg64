@@ -148,7 +148,13 @@ A briefing for whoever picks this project up next, person or assistant. Written 
     routine (`.section gap_code`, `$6c84`-`$6cff`, 124 bytes, empty); and where the BASIC line was
     (`.section basic_code`, `$0800`-`$083f`, 64 bytes, empty: `video.init` now clears the panel's screen only
     up to `$07ff`). Mind that a store to `$00ff,x` is a zero-page store that wraps round in page 0: copying
-    into the stack page needs a full address (`sta @w`). Other room measured and not used: 4K of RAM under the I/O area, for code only with every interrupt setting the
+    into the stack page needs a full address (`sta @w`). Code under the I/O area since 27 November 2026 (the owner's choice): `.section io_code`, at `IO_CODE`
+    (`$d000`-`$dfff`, 4K, about 3.5K left), copied there at start with the I/O area switched out. It runs only
+    through a gate (`io_gate` in `src/main.asm`): interrupts off and the I/O area out while it runs, so it must
+    touch nothing there (no video chip, SID, CIAs or colour memory; no routine that does), and it must be what
+    happens now and then, never every frame: busted, wasted, an officer getting out are there. The frames it
+    runs in were measured with the tests' frame counts: none late but the one that draws the screen afresh.
+    Other room measured and not used: all of RAM under the I/O area for any code, for code only with every interrupt setting the
     port back (a few raster lines a frame); and two of the four colour routines (about 8.4K), at a cost in
     raster lines not yet measured.
   - A timing edge (26 November 2026): `tests/e2e/screen.test.mjs`, "whatever is on the screen not shown ...",

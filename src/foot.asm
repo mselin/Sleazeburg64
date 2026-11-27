@@ -166,7 +166,7 @@ where           lda on
                 sta player_at + 2
                 lda pos + 5
                 sta player_at + 3
-                rts
+                jmp police.hits         ; (on foot: a car may hit them)
 
 ; A frame on foot.
 walk            lda pos + 1             ; in the water?
