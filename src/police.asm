@@ -71,6 +71,8 @@ BILL            = $0500                 ; the most the hospital bills, in binary
 SHOOT_HEAT      = 3                     ; officers shoot from this heat ...
 SHOOT_RANGE     = 95                    ; ... at the player this near either way ...
 AIM_MIN         = 55                    ; ... every 55 to 86 frames (the design's 1.1 to 1.7 seconds) ...
+PAVE_FAST       = 77                    ; driving faster than this either way (15 pixels a second) on a pavement or
+PAVE_AGAIN      = 150                   ; a plaza where the police see it is a crime, at most every 3 seconds
 SHOT_HURT       = 11                    ; ... and a shot that hits takes this much health
 STATION_X       = (6 * 12 + 7) * 16     ; the police station: where the browser game has it (its COPS)
 STATION_Y       = (2 * 12 + 2) * 16 + 8
@@ -223,14 +225,16 @@ watch           lda chase_wait
 +               lda #0
                 sta around
                 ldx status.heat         ; (with no heat, nothing more: whether they are near matters only with it,
-                bne with_heat           ; and the counts to an arrest start again)
-                sta boxed_for
-                sta window_for
-                lda stolen              ; (but for a stolen police car a patrol car sees)
+                bne with_heat           ; but for a patrol car that sees a stolen police car, or driving on the
+                lda stolen              ; pavement: car.ground is the last the car was on)
                 bne +
+                lda car.ground
+                cmp #PAVEMENT
+                beq +
                 rts
 +               jsr patrols
-                jmp cruiser
+                jsr cruiser
+                jmp pave_look
 with_heat       jsr patrols             ; (a patrol car near joins the chase)
                 ldx #SLOTS - 1
 each            stx looked
@@ -271,6 +275,7 @@ next            dex
                 beq quiet               ; (busted)
 sound           jsr boxed_in            ; (with heat: busted, after long enough boxed in)
                 jsr cruiser             ; (and in a stolen police car, the heat to 2)
+                jsr pave_look           ; (and driving on the pavement)
                 lda status.heat         ; the siren: with heat and the police near
                 beq quiet
                 lda around
@@ -289,6 +294,8 @@ sound           jsr boxed_in            ; (with heat: busted, after long enough 
 quiet           lda #0                  ; (afresh when they come back)
                 sta siren
                 sta flash
+                sta boxed_for           ; (and the counts to an arrest, with nobody near to arrest the player)
+                sta window_for
                 sta VIC_BORDER          ; (black)
                 sta wail
                 sta tone
@@ -330,6 +337,7 @@ first           .byte 0                 ; the ways that close the gaps, the long
 second          .byte 0
 looked          .byte 0                 ; watch: the car looked at
 patrol          .fill SLOTS, 0          ; 1: a police car on patrol in ordinary traffic
+pave_wait       .byte 0                 ; frames before driving on the pavement is a crime again
 patrol_near     .byte 0                 ; 1: one of them within PATROL_NOTICE of the player, this frame
 roll            .byte 0                 ; new_car
 aim             .fill CROWD, 0          ; an officer's frames before they can shoot again (by people's places)
@@ -523,6 +531,27 @@ init            lda #15                 ; the siren's voice (the first): full vo
                 .send
 
                 .section police_high
+gate_join       #io_gate join_io        ; (gates to under the I/O area: main.asm)
+gate_pave       #io_gate pave_io
+; Once a frame with heat, or on the pavement (watch): driving on it faster than PAVE_FAST either way, the police
+; around or a patrol car near, is a crime (pave_io), no sooner than PAVE_AGAIN frames after the last.
+pave_look       lda pave_wait
+                beq +
+                dec pave_wait
+                rts
++               lda foot.on
+                bne +
+                lda car.ground
+                cmp #PAVEMENT
+                bne +
+                lda around
+                ora patrol_near
+                beq +
+                lda #PAVE_FAST
+                jsr car_slow
+                bcc +
+                jmp gate_pave
++               rts
 ; Once a frame with heat, or with a stolen police car (watch): the patrol cars. One within PATROL_NOTICE of the
 ; player either way (not a wreck) notices them (patrol_near); with heat it joins the chase, a chasing police car
 ; from now on, at COP_CRUISE.
@@ -922,6 +951,24 @@ aimed           ldx bullet
                 sta aim,x
                 rts
 bullet          .byte 0
+; Driving on the pavement where the police see it (pave_look, the gate): 4 heat, and one of the police's four
+; lines, unless the heat goes up a level, whose own announcement is the line then.
+pave_io         lda #PAVE_AGAIN
+                sta pave_wait
+                lda status.heat
+                pha
+                lda #2 * 4
+                jsr status.add_heat
+                pla
+                cmp status.heat
+                bne +
+                jsr people.rnd
+                and #3
+                clc
+                adc #status.MSG_PAVE
+                tax
+                jmp status.say
++               rts
 ; Patrol car looked joins the chase (patrols, with heat, the gate): a chasing police car, at COP_CRUISE.
 join_io         ldx looked
                 lda #1
@@ -1090,7 +1137,6 @@ gate_officer    #io_gate seat_officer
 busted          #io_gate busted_io
 wasted          #io_gate wasted_io
 gate_shoot      #io_gate shoot_io
-gate_join       #io_gate join_io
 
 ; On foot, once a frame (foot.update): a car on the move hits the player, for its speed * 0.28 (in pixels a
 ; second: the traffic's speed * 7/64), unless one has in the last HURT_WAIT frames; at no health left, wasted.

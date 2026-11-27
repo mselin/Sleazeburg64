@@ -482,3 +482,52 @@ test('with no heat, a patrol car sees a stolen police car: heat 2, and they say 
     for (let k = 1; k <= 5; k++) await pass(vice, Q, w, 0, `the message, ${k} frames`);
     assert.ok((await readPanel(vice)).some((r) => r.startsWith('THE COPS KNOW THAT CRUISER.')));
   }));
+
+// ---------- the police and the pavement ----------
+const PAVE_LINES = ['OFFICER: THAT IS A SIDEWALK, NOT A SHORTCUT.', 'POLICE: SIDEWALKS ARE FOR PEDESTRIANS AND PARKING TICKETS.',
+  'THE COPS SAW THAT. THE PAVEMENT IS NOT A LANE.', 'DRIVING ON THE SIDEWALK. IN FRONT OF THE POLICE. BOLD.'].map((l) => l.slice(0, 40));
+
+/** The player's car on the pavement down the west side of the first block, facing south; a police car by it. */
+async function onThePavement(vice, w, { patrol, level }) {
+  await putCar(vice, Q, w, 40, 60, 0x4000);
+  for (let i = 1; i <= 3; i++) await pass(vice, Q, w, 0, `put there, ${i} frames`);
+  const c = await putTrafficCar(vice, Q, w, 0, { x: 24, y: 120, dir: 1, cruise: 0, col: WHITE });
+  if (patrol) {
+    c.patrol = 1;
+    await vice.write(Q['police.patrol'], [1]);
+  } else {
+    c.cop = 1;
+    await vice.write(Q['police.cop'], [1]);
+  }
+  if (level) await putHeat(vice, Q, w.heat, { level, points: 2 * 8, cool: 60000 });
+}
+async function drive(vice, w, before) {
+  let i = 0;
+  while (w.heat.points === before && i < 60) await pass(vice, Q, w, JOY.UP, `driving down the pavement, ${++i} frames`);
+  return i;
+}
+
+test('driving on the pavement where a patrol car sees it, even with no heat: 4 heat, and a line from the police', () =>
+  quietRun(async (vice, w) => {
+    await onThePavement(vice, w, { patrol: true });
+    const i = await drive(vice, w, 0);
+    assert.equal(w.heat.points, 2 * 4, `4 heat (${i} frames)`);
+    for (let k = 1; k <= 3; k++) await pass(vice, Q, w, JOY.UP, `on, ${k} frames`);
+    const rows = await readPanel(vice);
+    assert.ok(rows.some((r) => PAVE_LINES.includes(r)), `a line from the police (${rows[2]})`);
+    for (let k = 1; k <= 40; k++) {
+      await pass(vice, Q, w, JOY.UP, `still on the pavement, ${k} frames`);
+      assert.equal(w.heat.points, 2 * 4, 'no more than once every 3 seconds');
+    }
+  }));
+
+test('with heat, a chasing police car sees it too; standing still on the pavement is nothing', () =>
+  quietRun(async (vice, w) => {
+    await onThePavement(vice, w, { patrol: false, level: 1 });
+    for (let k = 1; k <= 5; k++) {
+      await pass(vice, Q, w, 0, `standing on the pavement, ${k} frames`);
+      assert.equal(w.heat.points, 2 * 8, 'standing still: nothing');
+    }
+    await drive(vice, w, 2 * 8);
+    assert.equal(w.heat.points, 2 * 12, '4 heat more');
+  }));

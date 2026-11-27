@@ -18,6 +18,8 @@ export const START = [9 * 16, 8 * 16]; // the window's top left corner at start;
 export const BUSTED = { SLOW: 61, BOXED: 24, AFTER: 100, STATION: [(6 * 12 + 7) * 16, (2 * 12 + 2) * 16 + 8] };
 /** The siren's sound (police.wailing): a wail every WAIL frames, two notes of NOTE frames; `tone` 1 low, 2 high. */
 export const SIREN = { WAIL: 35, NOTE: 17 };
+/** The police and the pavement (police.pave_look): a tile's kind, the speed (1/256 pixel a frame), frames between. */
+export const PAVE = { KIND: 4, FAST: 77, AGAIN: 150 };
 /** Hurt, and wasted (police.hits, police.wasted). */
 export const HURT = { FAST: 115, REACH: 9, WAIT: 20, HOSPITAL: [(1 * 12 + 7) * 16, (1 * 12 + 2) * 16 + 8] };
 /** Officers on foot (police.get_out, police.on_foot). */
@@ -109,6 +111,7 @@ export class World {
     this.hp = 100; // (status.hp: only hits and wasted change it here)
     this.aim = [0, 0, 0, 0]; // (police.aim: an officer's frames before they can shoot again)
     this.hitWait = 0;
+    this.paveWait = 0; // (police.pave_wait)
     this.money = 0; // (only for busted's fine: the tests that use it put it in)
   }
   /** One pass of the main loop with the joystick held as given. */
@@ -136,7 +139,7 @@ export class World {
     this.people.tick(this.cam, this.car);
     this.list = [...this.traffic.show(this.cam), ...(this.honk ? this.honk.show(this.cam) : []), ...this.people.show(this.cam),
       ...(this.pickups ? this.pickups.show(this.cam, [this.player.px, this.player.py], busy) : []), ...this.people.shown(this.cam)].slice(0, 16); // the multiplexer lists sixteen
-    if (level && !this.heat.level) this.traffic.wail = this.traffic.tone = 0; // (a donut: police.quiet)
+    if (level && !this.heat.level) this.quiet(); // (a donut: police.quiet)
   }
   /**
    * police.watch, after the traffic has moved: with heat, an officer gets out of each police car that may; the
@@ -146,10 +149,12 @@ export class World {
     const t = this.traffic;
     if (!this.heat.level) {
       t.watch();
-      this.boxed = this.window = 0; // (the counts to an arrest start again)
-      if (t.stolen) { // (but for a stolen police car a patrol car sees)
+      // (But for a patrol car that sees a stolen police car, or driving on the pavement: car.ground is the last
+      // the car was on.)
+      if (t.stolen || this.car.ground === PAVE.KIND) {
         t.patrols();
         this.cruiser();
+        this.paveLook();
       }
       return;
     }
@@ -162,12 +167,33 @@ export class World {
     if (!this.onFoot() && this.heat.level) { // (unless busted)
       this.boxedIn();
       this.cruiser();
+      this.paveLook();
     }
     // The siren's sound (police.wailing): the low note, the high, a frame of nothing; with the siren off, quiet.
     if (this.heat.level && t.around) {
       t.wail = (t.wail + 1) % SIREN.WAIL;
       t.tone = t.wail >= 2 * SIREN.NOTE ? 0 : t.wail >= SIREN.NOTE ? 2 : 1;
-    } else t.wail = t.tone = 0;
+    } else this.quiet();
+  }
+  /** police.quiet: no siren, and the counts to an arrest start again. */
+  quiet() {
+    this.traffic.wail = this.traffic.tone = 0;
+    this.boxed = this.window = 0;
+  }
+  /**
+   * police.pave_look: driving faster than PAVE.FAST either way on a pavement or plaza, the police around or a
+   * patrol car near, is 4 heat (pave_io), no sooner than PAVE.AGAIN frames after the last; a line of the police's
+   * (from the passers-by's random numbers) unless the heat goes up a level.
+   */
+  paveLook() {
+    if (this.paveWait) return void this.paveWait--;
+    const { car, player, traffic: t } = this;
+    if (player.on || car.ground !== PAVE.KIND || !(t.around || t.patrolNear)) return;
+    if (Math.abs(car.vx) < PAVE.FAST && Math.abs(car.vy) < PAVE.FAST) return;
+    this.paveWait = PAVE.AGAIN;
+    const level = this.heat.level;
+    this.heat.add(2 * 4);
+    if (this.heat.level === level) this.people.rnd();
   }
   /** police.cruiser: a stolen police car, the police around or a patrol car near, heat below 2: level 2's start. */
   cruiser() {
@@ -321,7 +347,7 @@ export class World {
     this.hp = 100;
     this.money = Math.max(0, this.money - 500);
     this.putAt(HURT.HOSPITAL, !shot); // (a car's hit comes in foot.update, early in the pass; a shot in gun.update)
-    this.traffic.wail = this.traffic.tone = 0;
+    this.quiet();
   }
   /** Every sprite that should be on screen, the one in front first: sprite 0, then sprites 1-7 as shared out. */
   sprites() {

@@ -568,7 +568,8 @@ MSG_BUSTED      = 8
 MSG_CRUISER     = 9
 MSG_WASTED      = 10
 MSG_SEIZED      = 11                    ; (wasted with the police about)
-MESSAGES        = ("fire: handbrake. standing still: get out", "stand by a car and press fire to get in", "the car is gone. swim for it. the warranty does not cover this.", "a stern letter is being drafted", "police dispatched. eventually.", "shoot first, paperwork never", "overtime has been approved", "the homeowners association has been notified", 'busted. your weapons are now evidence', "the cops know that cruiser. they do not know you.", "st. invoice hospital: ambulance ride (out of network)", "ambulance ride billed. the police kept your weapons")
+MSG_PAVE        = 12                    ; and on: the police's four lines for driving on the pavement
+MESSAGES        = ("fire: handbrake. standing still: get out", "stand by a car and press fire to get in", "the car is gone. swim for it. the warranty does not cover this.", "a stern letter is being drafted", "police dispatched. eventually.", "shoot first, paperwork never", "overtime has been approved", "the homeowners association has been notified", 'busted. your weapons are now evidence', "the cops know that cruiser. they do not know you.", "st. invoice hospital: ambulance ride (out of network)", "ambulance ride billed. the police kept your weapons", "officer: that is a sidewalk, not a shortcut.", "police: sidewalks are for pedestrians and parking tickets.", "the cops saw that. the pavement is not a lane.", "driving on the sidewalk. in front of the police. bold.")
                 .send                   ; (the messages: in the room the tables by tile leave, main.asm)
                 .section tile_room1
 m0              .text format("%-40s", MESSAGES[0])
@@ -590,12 +591,22 @@ m8              .text format("%-40s", MESSAGES[8])
                 .section gap_code       ; (waiting.asm)
 m9              .text format("%-40s", MESSAGES[9])
                 .send
+                .section tile_room5
+m12             .text format("%-40s", MESSAGES[12])
+                .send
+                .section tile_room6
+m13             .text format("%-40s", MESSAGES[13])
+m14             .text format("%-40s", MESSAGES[14])
+                .send
+                .section tile_room4
+m15             .text format("%-40s", MESSAGES[15])
+                .send
                 .section status
 m10             .text format("%-40s", MESSAGES[10])
 m11             .text format("%-40s", MESSAGES[11])
                 .send
                 .section status
-MSG_AT          = (m0, m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, m11)
+MSG_AT          = (m0, m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, m11, m12, m13, m14, m15)
 msg_lo          .byte <MSG_AT
 msg_hi          .byte >MSG_AT
 most_of         .function m
@@ -605,7 +616,8 @@ frames_of       .function m             ; 50 * max(4, 0.14 * its length + 1.5), 
 msg_most        .byte most_of(MESSAGES[0]), most_of(MESSAGES[1]), most_of(MESSAGES[2]), most_of(MESSAGES[3])
                 .byte most_of(MESSAGES[4]), most_of(MESSAGES[5]), most_of(MESSAGES[6]), most_of(MESSAGES[7])
                 .byte most_of(MESSAGES[8]), most_of(MESSAGES[9]), most_of(MESSAGES[10]), most_of(MESSAGES[11])
-MSG_FRAMES      = (frames_of(MESSAGES[0]), frames_of(MESSAGES[1]), frames_of(MESSAGES[2]), frames_of(MESSAGES[3]), frames_of(MESSAGES[4]), frames_of(MESSAGES[5]), frames_of(MESSAGES[6]), frames_of(MESSAGES[7]), frames_of(MESSAGES[8]), frames_of(MESSAGES[9]), frames_of(MESSAGES[10]), frames_of(MESSAGES[11]))
+                .byte most_of(MESSAGES[12]), most_of(MESSAGES[13]), most_of(MESSAGES[14]), most_of(MESSAGES[15])
+MSG_FRAMES      = (frames_of(MESSAGES[0]), frames_of(MESSAGES[1]), frames_of(MESSAGES[2]), frames_of(MESSAGES[3]), frames_of(MESSAGES[4]), frames_of(MESSAGES[5]), frames_of(MESSAGES[6]), frames_of(MESSAGES[7]), frames_of(MESSAGES[8]), frames_of(MESSAGES[9]), frames_of(MESSAGES[10]), frames_of(MESSAGES[11]), frames_of(MESSAGES[12]), frames_of(MESSAGES[13]), frames_of(MESSAGES[14]), frames_of(MESSAGES[15]))
 msg_left_lo     .byte <MSG_FRAMES
 msg_left_hi     .byte >MSG_FRAMES
                 .enc "none"
