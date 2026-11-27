@@ -187,7 +187,12 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
     rather than fewer). White, driving as traffic does. One within 127 pixels either way (the design's 130: the
     most the program's nearness test takes) sees a stolen police car, even with no heat, and counts as the
     police about when the player is wasted; with heat, it joins the chase. It does not keep the heat from
-    cooling or set the siren off, as the design has it.
+    cooling or set the siren off, as the design has it. **The police and the pavement** (done): in a car going
+    faster than 15 pixels a second either way on a pavement or plaza, with a chasing car or an officer around
+    or a patrol car near, it is 4 heat, at most once every 3 seconds (150 frames, counted only in the frames
+    that look: with heat, or on a pavement), with one of the design's four lines from the police (the
+    passers-by's random numbers pick it), unless the heat goes up a level and says so itself. Even with no
+    heat a patrol car sees it, so twice makes heat 1. The GAGGLE cameras' part is still to come.
   - **Hurt, and wasted** (done, the first part: cars). On foot, a car going faster than 45 pixels a second with
     its middle within 9 pixels of the player's either way hurts them, by its speed × 0.28 (the design's),
     and nothing hurts them again for 0.4 seconds; the browser game also pushes them along, which is not done

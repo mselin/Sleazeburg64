@@ -63,6 +63,7 @@ export class Car {
     const turn = (bits & 8 && !(bits & 4) ? 1 : 0) - (bits & 4 && !(bits & 8) ? 1 : 0);
     const hand = !!(bits & 16);
     const inside = hits(this.px, this.py, this.angle >> 8);
+    this.ground = kindAt(this.px, this.py); // (car.ground: what it is on this frame)
     let c = COS(this.angle >> 8), s = SIN[this.angle >> 8];
     let grip = null; // what the tyres hold: from the speed before turning if the car turns, as the design
     if (turn) {
