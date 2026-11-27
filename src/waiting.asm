@@ -96,15 +96,6 @@ basic_end
                 .endlogical
                 .cerror basic_end > CAR_FRAMES, "the code where the BASIC line was runs into the car's frames"
                 .cerror stack_image < video.COLOUR_11, "what is copied after the map would be written over"
-; Code under the I/O area (IO_CODE, the RAM at $d000-$dfff): what runs now and then and does nothing with the
-; video chip, the SID, the CIAs or colour memory, run through a gate (main.asm) with interrupts off.
-io_image
-                .logical IO_CODE
-                .dsection io_code
-io_end
-                .endlogical
-                .cerror io_end > $e000, "the code under the I/O area runs into EXTRA_CODE"
-IO_PAGES        = (io_end - IO_CODE + 255) / 256
 HIGH_PAGES      = (high_end - HIGH_CODE + 255) / 256
 MORE_PAGES      = (more_end - MORE_CODE + 255) / 256
 TOP_PAGES       = (top_end - TOP_CODE + 255) / 256
@@ -116,9 +107,9 @@ EXTRA_PAGES     = (extra_end - EXTRA_CODE + 255) / 256
                 .cerror MORE_CODE < video.COPIES + 9 * video.COPY_SIZE, "MORE_CODE is in the screen copies"
                 .cerror more_end > $d000, "the code at MORE_CODE runs into the I/O area"
                 .cerror EXTRA_CODE + EXTRA_PAGES * 256 > TOP_CODE, "the code at EXTRA_CODE runs into TOP_CODE"
-                .cerror * > HIGH_CODE, "what waits after the map reaches where it is copied to"
 once_start
                 .cerror once_start < video.COLOUR_11, "car.init would be written over by the code after the map"
                 .dsection once          ; car.init runs once, from here, before video.init writes over this
 .endif
+                .cerror * > HIGH_CODE, "what waits after the map (car.init included) reaches where it is copied to"
 program_end
