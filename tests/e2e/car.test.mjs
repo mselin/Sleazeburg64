@@ -204,7 +204,7 @@ test('at the south edge of the city the window stops following, and the picture 
     const m = models();
     // The south edge of the city: the window cannot follow further, so the car comes down towards its bottom.
     // (Not all the way: within the last few pixels the car's sprite would reach the black band, which is an
-    // open thread in docs/HANDOVER.md.)
+    // open thread in docs/NOTES.md.)
     const street = 97 * 16 - 9; // the bottom row of tiles
     await putCar(vice, m, 600, street - 8, 64);
     assert.equal(m.cam.y, MAX_Y);
