@@ -6,7 +6,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { assemble, readPanel, withProgram } from './game.mjs';
-import { BUSTED, OFFICERS, World, assertPicture, missed, pass, putCar, putOnFoot, putTrafficCar } from './play.mjs';
+import { BUSTED, HURT, OFFICERS, World, assertPicture, missed, pass, putCar, putOnFoot, putTrafficCar } from './play.mjs';
 import { P, putPerson } from './people-model.mjs';
 import { DONUT } from './pickups-model.mjs';
 import { JOY } from './vice.mjs';
@@ -290,4 +290,83 @@ test('a police car taken from its driver is 16 heat; driving it near the police 
     assert.equal(w.traffic.stolen, 0);
     const left = w.traffic.cars[w.traffic.mine];
     assert.deepEqual([left.cop, left.wreck, left.col], [1, 1, WHITE], 'an empty police car');
+  }));
+
+// ---------- hurt, and wasted ----------
+/** On foot in the street, a traffic car put right on them going flat out (cruise 255): it hits them next frame. */
+async function carOnThem(vice, w, i = 0) {
+  const c = await putTrafficCar(vice, Q, w, i, { x: w.player.px - 4, y: 24, dir: 0, cruise: 255, col: 5 });
+  return c;
+}
+const hp = async (vice) => (await vice.read(Q['status.hp'], 1))[0];
+
+test('a car going fast hurts the player on foot for its speed, and not again for 0.4 seconds', () =>
+  quietRun(async (vice, w) => {
+    await putOnFoot(vice, Q, w, 200, 24, 0);
+    for (let i = 1; i <= 3; i++) await pass(vice, Q, w, 0, `put there, ${i} frames`);
+    assert.equal(await hp(vice), 100);
+    await carOnThem(vice, w);
+    await pass(vice, Q, w, 0, 'hit');
+    assert.equal(w.hp, 100 - ((255 >> 3) - (255 >> 6)), 'its speed * 0.28, in pixels a second');
+    assert.equal(await hp(vice), w.hp);
+    for (let i = 1; i <= HURT.WAIT; i++) {
+      await pass(vice, Q, w, 0, `just hit, ${i} frames`);
+      assert.equal(await hp(vice), 72, 'nothing more for 0.4 seconds');
+    }
+  }));
+
+test('with no health left the player is wasted: at the hospital, healed, billed $500, the weapons kept with no police about', () =>
+  quietRun(async (vice, w) => {
+    await putOnFoot(vice, Q, w, 200, 24, 0);
+    for (let i = 1; i <= 3; i++) await pass(vice, Q, w, 0, `put there, ${i} frames`);
+    w.hp = 20;
+    await vice.write(Q['status.hp'], [20]);
+    w.money = 1234;
+    await vice.write(Q['status.money'], bcd(1234));
+    await vice.write(Q['status.ammo'], bcd(7));
+    await vice.write(Q['status.knife'], [1]);
+    Object.assign(w.pickups, { ammo: 7, knife: 1 });
+    await carOnThem(vice, w);
+    const late = await missed(vice, Q);
+    await pass(vice, Q, w, 0, 'wasted');
+    assert.deepEqual([w.player.x >> 8, w.player.y >> 8], HURT.HOSPITAL, 'at the hospital');
+    assert.equal(await hp(vice), 100, 'healed');
+    assert.equal(unbcd([...(await vice.read(Q['status.money'], 3))]), 734, '$500 billed');
+    assert.equal(unbcd([...(await vice.read(Q['status.ammo'], 1)), 0, 0]), 7, 'the ammo kept');
+    assert.equal((await vice.read(Q['status.knife'], 1))[0], 1, 'and the knife');
+    for (let i = 1; i <= 3; i++) await pass(vice, Q, w, 0, `at the hospital, ${i} frames`);
+    assert.equal(await missed(vice, Q) - late, 1, 'only the frame that draws the screen there afresh is late');
+    await assertPicture(vice, Q, w, 'at the hospital');
+    assert.ok((await readPanel(vice)).some((r) => r.startsWith('ST. INVOICE HOSPITAL: AMBULANCE RIDE')), 'the bill');
+  }));
+
+test('wasted with the police about: the police take the weapons, and go; a bill bigger than the money takes it all', () =>
+  quietRun(async (vice, w) => {
+    await putOnFoot(vice, Q, w, 200, 24, 0);
+    for (let i = 1; i <= 3; i++) await pass(vice, Q, w, 0, `put there, ${i} frames`);
+    const cop = await putTrafficCar(vice, Q, w, 1, { x: 300, y: 24, dir: 2, cruise: 0, col: WHITE });
+    cop.cop = 1;
+    await vice.write(Q['police.cop'] + 1, [1]);
+    await putHeat(vice, Q, w.heat, { level: 1, points: 2 * 8, cool: 60000 });
+    await pass(vice, Q, w, 0, 'the police about');
+    assert.equal(w.traffic.around, 1);
+    w.hp = 10;
+    await vice.write(Q['status.hp'], [10]);
+    w.money = 120;
+    await vice.write(Q['status.money'], bcd(120));
+    await vice.write(Q['status.ammo'], bcd(7));
+    await vice.write(Q['status.knife'], [1]);
+    Object.assign(w.pickups, { ammo: 7, knife: 1 });
+    await carOnThem(vice, w);
+    await pass(vice, Q, w, 0, 'wasted');
+    assert.deepEqual([w.player.x >> 8, w.player.y >> 8], HURT.HOSPITAL);
+    assert.equal(unbcd([...(await vice.read(Q['status.money'], 3))]), 0, 'all of it');
+    assert.equal((await vice.read(Q['status.ammo'], 1))[0], 0, 'the ammo taken');
+    assert.equal((await vice.read(Q['status.knife'], 1))[0], 0, 'and the knife');
+    assert.equal(w.heat.level, 0, 'no heat');
+    assert.ok(w.traffic.cars.every((c) => !c.on || !c.cop), 'the police gone');
+    assert.equal(await border(vice), 0, 'no siren');
+    for (let i = 1; i <= 5; i++) await pass(vice, Q, w, 0, `at the hospital, ${i} frames`);
+    const rows = await readPanel(vice);
+    assert.ok(rows.some((r) => r.startsWith('AMBULANCE RIDE BILLED. THE POLICE KEPT')), `the line says so (${rows.join(' | ')})`);
   }));

@@ -62,6 +62,7 @@ SQUARES_HI      = $c200                 ; low and high bytes of n * n / 4 for n 
 SQUARES_START   = SQUARES - 255         ; (1.5K, from here up to the screen copies)
                 .cerror SQUARES - 255 + 767 > SQUARES_HI - 255, "the halves of the quarter squares overlap"
 HIGH_CODE       = video.COLOUR_END       ; code that runs from just above the colour routines,
+IO_CODE         = $d000                 ; under the I/O area: run only through a gate (below), copied at start
 MORE_CODE       = $c8e0                 ; from after the screen copies,
 TOP_CODE        = $f300                 ; and from the top of memory: all copied there at start
 EXTRA_CODE      = $e000                 ; and from under the KERNAL ROM, which is switched out, up to TOP_CODE
@@ -229,6 +230,11 @@ boot            cld
                 #raise people_image, PEOPLE_FRAMES, (size(people_image) + 255) / 256
                 #raise punch_image, PUNCH_FRAMES, 2
                 #raise panel_image, PANEL_CODE, 1     ; (before video.init clears round it)
+                lda #$34                ; (all RAM, to write under the I/O area)
+                sta CPU_PORT
+                #raise io_image, IO_CODE, IO_PAGES
+                lda #$35
+                sta CPU_PORT
                 #lay_down stack_image, $0100, stack_end - $0100      ; (last: what waits after the map is all up now)
                 #lay_down gap_image, map_end, gap_end - map_end
                 #lay_down basic_image, $0800, basic_end - $0800
@@ -280,6 +286,19 @@ raise           .macro image, home, pages
                 beq +                   ; (nothing to copy in a build that leaves it all out)
                 jsr copy_up
 +
+                .endm
+; A gate to `target`, under the I/O area: interrupts off and the I/O area out while it runs (it must touch
+; nothing there), and as they were after. X and Y go through; A does not.
+io_gate         .macro target
+                php
+                sei
+                lda #$34
+                sta CPU_PORT
+                jsr \target
+                lda #$35
+                sta CPU_PORT
+                plp
+                rts
                 .endm
 ; Copy `size` bytes (1-255; none: nothing) from image to home, by the byte (the stack page's top is in use).
 lay_down        .macro image, home, size
