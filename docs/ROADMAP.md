@@ -242,6 +242,11 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
     arrow with an S at the edge of the view points to the paint shop, PAINT & PRAY, where the heat goes. The
     design now describes the paint shop itself as well. And the stolen police car's rise to heat 2 is no longer a
     crime a GAGGLE camera adds to (mselin/gta-c64#100).
+  - **Answered in the design: officers on foot and the traffic mix** (#108 and #111 in mselin/gta-c64, by
+    mselin/gta-c64#116; no change to the browser game's play). "Officers on foot" under "The response" now gives
+    their pace (47 × PERSON), their way (straight at the player, stopping within 6 × PERSON) and the arrest of a
+    player on foot (within 7 × PERSON, at once). The design's [Cars](https://github.com/mselin/gta-c64/blob/main/specs/design.md#cars)
+    now gives the traffic's mix: sedan 50 %, van 15 %, taxi 15 %, sports car 13 %, police car on patrol 7 %.
 - Fighting on foot, by the design's
   [Fighting on foot](https://github.com/mselin/gta-c64/blob/main/specs/design.md#fighting-on-foot): fire uses
   the gun while there is ammo, then the knife if the player has one, otherwise fists. A punch knocks someone
