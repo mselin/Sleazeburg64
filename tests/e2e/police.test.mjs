@@ -210,6 +210,9 @@ test('an officer gets out of a slow police car near the player, in light blue, a
 
 test('an officer at the window of the player\'s slow car arrests them after 0.7 seconds', () =>
   quietRun(async (vice, w) => {
+    // (The officers' check runs from the stack page, copied there at start: the stack never reaches it.)
+    assert.ok(Q['police.on_foot'] >= 0x100 && Q['police.on_foot'] < Q.stack_end && Q.stack_end <= 0x1c0);
+    const code = await vice.read(0x100, Q.stack_end - 0x100);
     await copNear(vice, w, 30);
     let i = 0;
     while (!w.window && i < 300) await pass(vice, Q, w, 0, `the officer walks up, ${++i} frames`);
@@ -224,6 +227,7 @@ test('an officer at the window of the player\'s slow car arrests them after 0.7 
     assert.deepEqual([w.player.x >> 8, w.player.y >> 8], BUSTED.STATION, 'at the police station');
     assert.equal(officers(w).length, 0, 'the officers gone');
     assert.equal(w.heat.level, 0);
+    assert.ok((await vice.read(0x100, Q.stack_end - 0x100)).equals(code), 'the code in the stack page as it was');
   }));
 
 test('on foot, an officer arrests the player when they reach them', () =>

@@ -117,7 +117,7 @@ A briefing for whoever picks this project up next, person or assistant. Written 
     give the game the room the in-game test tune had, then drawing the city (`src/video.asm`, which left room
     for the passers-by's frames at `$2000`) and the passers-by: about 115 bytes are left there, since the officers on foot came (26 November 2026; about 170 when the messages moved out that day; the
     steering limit and grip moved to `TOP_CODE` when jaywalking came in). `HIGH_CODE`
-    (`$aef2`-`$be00`, right after the colour routines: Big Honk, the player on foot, the passers-by's test for a car in their way, their arriving, punches and running) has about 20 left since the officers on foot came (26 November 2026), about 240 when the heat messages moved out, about 40 after the police came (25 November 2026: `src/police.asm`, about 460 bytes, and busted), and had about 520
+    (`$aef2`-`$be00`, right after the colour routines: Big Honk, the player on foot, the passers-by's test for a car in their way, their arriving, punches and running) has about 140 left since the officers' check moved to the stack page (27 November 2026), about 20 when the officers on foot came (26 November 2026), about 240 when the heat messages moved out, about 40 after the police came (25 November 2026: `src/police.asm`, about 460 bytes, and busted), and had about 520
     since the multiplication's two tables became one (25 November 2026: n * n / 4 for n = -255..511, 1.5K at
     `$be01`, where the second table, moved along by 255, had taken 1K; dropping that half altogether, working
     out |a - b| in each multiplication, cost 19 raster lines in the worst screen-crossing frame of the long
@@ -140,10 +140,15 @@ A briefing for whoever picks this project up next, person or assistant. Written 
     `tools/assets.mjs` refuses more than 128): the rest of six of the seven pages is `.section tile_room1`-`6`,
     128 bytes each (26 November 2026, measured as the one room with no cost left). The panel's messages are in
     rooms 1-4; the officers on foot have room 5, room 6 and what was left of 2 and 4 (only a few bytes are left in each). Any code or data can go there:
-    it is in the program file where it runs, and nothing is copied. Other room measured then and not used: 124
-    bytes from the end of the map (`$6c84`) to the colour routines (the code waiting there would have to be
-    copied in after the rest is copied up); the 64 bytes of the BASIC line (`$0800`-`$083f`, which
-    `video.init` now clears); 4K of RAM under the I/O area, for code only with every interrupt setting the
+    it is in the program file where it runs, and nothing is copied. Three more places for code since 27 November 2026, each copied in by the byte at the end of start's
+    copying (`lay_down` in `src/main.asm`; `src/waiting.asm` has them): the stack page but its top 64 bytes
+    (`.section stack_code`, `$0100`-`$01bf`: the stack went 16 bytes deep at most in 6000 frames of random
+    play with heat, officers and arrests, measured then; the officers' check `police.on_foot` is there, about
+    75 bytes left, and a test checks the stack never reaches it); from the end of the map to the first colour
+    routine (`.section gap_code`, `$6c84`-`$6cff`, 124 bytes, empty); and where the BASIC line was
+    (`.section basic_code`, `$0800`-`$083f`, 64 bytes, empty: `video.init` now clears the panel's screen only
+    up to `$07ff`). Mind that a store to `$00ff,x` is a zero-page store that wraps round in page 0: copying
+    into the stack page needs a full address (`sta @w`). Other room measured and not used: 4K of RAM under the I/O area, for code only with every interrupt setting the
     port back (a few raster lines a frame); and two of the four colour routines (about 8.4K), at a cost in
     raster lines not yet measured.
   - A timing edge (26 November 2026): `tests/e2e/screen.test.mjs`, "whatever is on the screen not shown ...",

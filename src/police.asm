@@ -281,58 +281,6 @@ far             sec
                 rts
 siren_colours   .byte RED, BLUE
 
-; In watch, with heat: the officers on foot who are not down. One within FOOT_NOTICE is the police around; one
-; within ARREST of the player on foot arrests them; one within AT_WINDOW of the player's car going slower than
-; WINDOW_SLOW, for WINDOW_AFTER frames on end, however many, arrests them too.
-on_foot         ldy #0                  ; (1: the car is slow enough)
-                lda foot.on
-                bne +
-                lda #WINDOW_SLOW
-                jsr car_slow
-                bcs +
-                iny
-+               sty slow_car
-                lda #0
-                sta windowed
-                ldx #CROWD - 1
-each_officer    stx looked
-                lda people.on,x
-                beq next_officer
-                lda people.officer,x
-                beq next_officer
-                lda people.down,x
-                bne next_officer
-                lda #FOOT_NOTICE
-                jsr officer_near
-                bcs next_officer
-                lda #1
-                sta around
-                lda foot.on
-                beq at_car
-                lda #ARREST
-                jsr officer_near
-                bcs next_officer
-                jmp busted
-at_car          lda slow_car
-                beq next_officer
-                lda #AT_WINDOW
-                jsr officer_near
-                bcs next_officer
-                lda #1
-                sta windowed
-next_officer    ldx looked
-                dex
-                bpl each_officer
-                lda windowed
-                bne +
-                sta window_for
-                rts
-+               inc window_for
-                lda window_for
-                cmp #WINDOW_AFTER
-                bcc +
-                jmp busted
-+               rts
 slow_car        .byte 0                 ; on_foot: 1 if the player's car is slow enough to be arrested in
 windowed        .byte 0                 ; 1: an officer at its window this frame
 
@@ -539,6 +487,61 @@ station         .byte <STATION_X, >STATION_X, 0, <STATION_Y, >STATION_Y       ; 
 window          .byte <(STATION_X - CENTRE_X), <(STATION_Y - CENTRE_Y), >(STATION_X - CENTRE_X), >(STATION_Y - CENTRE_Y)
                 .cerror cam_hi - cam_lo != 2, "busted expects cam_hi two bytes after cam_lo"
 
+                .send
+
+                .section stack_code     ; (where there is room: waiting.asm)
+; In watch, with heat: the officers on foot who are not down. One within FOOT_NOTICE is the police around; one
+; within ARREST of the player on foot arrests them; one within AT_WINDOW of the player's car going slower than
+; WINDOW_SLOW, for WINDOW_AFTER frames on end, however many, arrests them too.
+on_foot         ldy #0                  ; (1: the car is slow enough)
+                lda foot.on
+                bne +
+                lda #WINDOW_SLOW
+                jsr car_slow
+                bcs +
+                iny
++               sty slow_car
+                lda #0
+                sta windowed
+                ldx #CROWD - 1
+each_officer    stx looked
+                lda people.on,x
+                beq next_officer
+                lda people.officer,x
+                beq next_officer
+                lda people.down,x
+                bne next_officer
+                lda #FOOT_NOTICE
+                jsr officer_near
+                bcs next_officer
+                lda #1
+                sta around
+                lda foot.on
+                beq at_car
+                lda #ARREST
+                jsr officer_near
+                bcs next_officer
+                jmp busted
+at_car          lda slow_car
+                beq next_officer
+                lda #AT_WINDOW
+                jsr officer_near
+                bcs next_officer
+                lda #1
+                sta windowed
+next_officer    ldx looked
+                dex
+                bpl each_officer
+                lda windowed
+                bne +
+                sta window_for
+                rts
++               inc window_for
+                lda window_for
+                cmp #WINDOW_AFTER
+                bcc +
+                jmp busted
++               rts
                 .send
 
                 .section tile_room5     ; (where there is room: main.asm)
