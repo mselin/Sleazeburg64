@@ -262,20 +262,22 @@ place           sta pos_x + 1
 ; The car's driver assistance (the design's "Cursed driver assistance"), from the traffic's tables as the
 ; player takes it (traffic.assist, foot.take_io, back with foot.out_here; police.fit rolls it). For now only
 ; anti-theft: 0 none; 1 the car stopped for good; else the 32-frame steps left until it does, counted while
-; the player drives (update), with traffic.tick.
+; the player drives (update), with traffic.tick. Bit 7: lane assist (lane).
 assist          .byte 0
 ; update, before the engine (the steering has had the stick's throttle): the steps counted down, and the car
 ; stopped at the last one, with its message; and once it is, the throttle does nothing and down is held while
 ; the forward speed is more than BRAKING, so that it brakes to a stop and never backs away.
 anti            lda assist
-                beq a_done
-                cmp #1
+                beq a_done              ; (none: nothing more to do, the commonest)
+                bmi a_lane              ; bit 7: lane assist first, which comes back to a_back
+a_low           cmp #1
                 beq a_stop
                 lda traffic.tick
                 and #31
                 bne a_done
                 dec assist
                 lda assist
+                and #$7f
                 cmp #1
                 bne a_done
                 ldx #status.MSG_THEFT
@@ -290,13 +292,79 @@ a_stop          lda #0
                 bcc a_done
 +               dec thr
 a_done          rts
+a_lane          jmp lane
+a_back          lda assist              ; after lane assist: anti-theft, from its 7 bits
+                and #$7f
+                bne a_low
+                rts
+                .send
+
+                .section tile_room1     ; (where there is room: main.asm)
+; Cursed lane assist (bit 7 of assist), in the car the player drives: after wait steps of 16 frames going
+; forward at 256 (50 px/s) or more, it holds the wheel for 40 frames, hard one way (pull), and every 8 frames it
+; may change its mind, 2 times in 3. foot.park clears the three when the player gets out.
+wait            .byte 0                 ; the steps left; 0: rolled at the next step, 16 to 48
+swerve          .byte 0                 ; the frames it still holds the wheel
+pull            .byte 0                 ; and which way (only the sign counts, as in turn): 0 while it does not
+                .send
+                .section tile_room5     ; (where there is room: main.asm)
+; From anti, in a car with lane assist (fwd is this frame's): lane assist, then back to anti-theft.
+lane            lda swerve
+                bne l_hold1
+                lda fwd + 1             ; going forward at 256 or more
+                beq l_out1
+                bmi l_out1
+                lda traffic.tick
+                and #15
+                bne l_out1
+                jmp l_step
+l_hold1         jmp l_hold
+l_out1          jmp a_back
+                .send
+                .section tile_room2     ; (where there is room: main.asm)
+l_step          lda wait                ; a step of 16 frames, rolling the steps first
+                bne +
+                jsr traffic.rnd         ; 16 to 48 steps: 5 to 15 seconds
+                and #31
+                adc #16
+                sta wait
++               dec wait
+                bne l_out2
+                jmp l_take
+l_out2          jmp a_back
+                .send
+                .section tile_room4     ; (where there is room: main.asm)
+l_take          lda #40                 ; it takes the wheel, one way or the other
+                sta swerve
+                ldx #status.MSG_LANE
+                jsr status.say
+                jsr traffic.rnd
+                and #$80                ; $40 or $c0: the stick's inc or dec in update leaves its sign
+                ora #$40
+                sta pull
+                jmp a_back
+                .send
+                .section tile_room6     ; (where there is room: main.asm; low_code was full for the autopilot build)
+l_hold          dec swerve              ; holding the wheel
+                lda swerve
+                beq l_end
+                and #7
+                bne l_out
+                jsr traffic.rnd         ; changing its mind 2 times in 3
+                cmp #171
+                bcs l_out
+                lda pull                ; the other way round
+                eor #$fe
+l_end           sta pull                ; (0 at the end)
+l_out           jmp a_back
                 .send
 
 ; One frame of driving. In: A = joystick bits.
 update          tay
+                lda pull                ; (lane assist's hands on the wheel, while it holds it: only the sign counts)
+                sta turn
                 lda #0
                 sta thr
-                sta turn
                 sta hand
                 tya
                 and #JOY_UP | JOY_DOWN
@@ -348,7 +416,7 @@ update          tay
 +               #mul vel_y, cs, lat     ; sideways = vy cos - vx sin
                 #mul vel_x, sn, mr
                 #sub16 lat, mr, lat
-                jsr anti                ; (anti-theft may take the throttle, now that fwd is this frame's)
+                jsr anti                ; (lane assist and anti-theft, which may take the throttle, now that fwd is this frame's)
                 jsr engine
                 jsr tyres
                 #sub16 nf, fwd, nf      ; the changes ...

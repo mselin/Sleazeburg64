@@ -42,6 +42,7 @@ export class Rnd {
     this.lo = a; //         sta seed
     a ^= this.hi; //        eor seed + 1
     this.hi = a; //         sta seed + 1
+    this.carry = c2; // (the carry it leaves: the second ror's)
     return a;
   }
 }
@@ -319,10 +320,14 @@ export class Traffic {
     if (this.heat?.level) [cruise, col, cop, this.chaseWait] = [255, 1, 1, 110]; // a police car (police.new_car)
     else if (r3 >= 0xc0 && r1 & 0x80) [col, patrol] = [1, 1]; // on patrol: one time in eight
     // police.fit: on modern, anti-theft in every police car and one car in five else, 10-25 s of 32-frame steps.
+    // And lane assist (bit 7) in one car in five that is not a police car.
     let assist = 0;
-    if (this.modern && (cop || patrol || this.rnd.next() < 51)) {
-      const r4 = this.rnd.next();
-      assist = 17 + (r4 >> 4) + (r4 >> 5);
+    if (this.modern) {
+      if (cop || patrol || this.rnd.next() < 51) {
+        const r4 = this.rnd.next();
+        assist = 17 + (r4 >> 4) + (r4 >> 5);
+      }
+      if (!cop && !patrol && this.rnd.next() < 51) assist |= 0x80;
     }
     this.cars[slot] = new TrafficCar({ x: nx << 8, y: ny << 8, dir, sp: cruise, cruise, face: dir * 4, col, cop, patrol, assist });
     this.spawnWait = T.SPAWN_GAP;

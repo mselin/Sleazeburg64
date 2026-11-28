@@ -27,9 +27,9 @@ Then three PRs, each merged when green:
 1. PR C (anti-theft first, the owner's choice). Which cars (three bits a car, from `rnd` as it appears, modern only; never the hospital car; a police car
    always has anti-theft and never the other two, by the design now, not the ROADMAP) and anti-theft: the time while
    driving, stopped for good, the two messages, the bits travelling with the car. Check: a test where a car
-   with anti-theft stops after its time and will not go again. Status: code and tests done
-   (`tests/e2e/assist.test.mjs`, 3 pass); full `make test` and the PR next.
-2. PR D. Lane assist. Check: a test of the swerve and its message.
+   with anti-theft stops after its time and will not go again. Status: merged (#120).
+2. PR D. Lane assist. Check: a test of the swerve and its message. Status: code and tests done
+   (`tests/e2e/assist.test.mjs`, 4 pass; both builds fit); full `make test` and the PR next.
 3. PR E. Emergency braking. Check: tests stopping for a person and a car.
 (The alarm's sound waits for sound, milestone 4; its lights flash the car's sprite yellow.)
 Difficulty done: #118 (riders), #119 (title page, D).
@@ -67,10 +67,12 @@ Difficulty done: #118 (riders), #119 (title page, D).
 
 ## Changes
 
-- PR C (branch, not merged): anti-theft. `src/car.asm` (`assist`, `anti`), `src/police.asm` (`fit`),
-  `src/traffic.asm` (`assist` in tile_room1), `src/foot.asm` (`park`, `got`), `src/status.asm` (MSG_THEFT,
-  MSG_NO); models car/foot/traffic, `play.mjs`; `tests/e2e/assist.test.mjs`; ROADMAP, NOTES.
-- PR R reverted on the branch (3c1fa91 has it); NOTES records the cost.
+- PR D (branch, not merged): lane assist. `TILE_ROOM` 96 (`src/main.asm`, `tools/assets.mjs` + test);
+  `src/car.asm` (`wait`/`swerve`/`pull`; `anti` goes to `lane` for bit 7 and lane comes back to `a_back`;
+  `lane` in pieces over rooms 1, 2, 4, 5, 6; `update` starts `turn` from `pull`, $40/$c0), `src/police.asm` (`fit`: bit 7), `src/foot.asm` (`park` clears it, `got`
+  masks), `src/status.asm` (MSG_LANE in room 1); models car (`lane`), traffic (roll; `Rnd.carry`), foot,
+  `play.mjs` (reads wait/swerve/pull); `tests/e2e/assist.test.mjs`; ROADMAP, NOTES.
+- Merged #120, PR C: anti-theft (`car.anti`, `police.fit`, `traffic.assist`, `foot.park`/`got`).
 - Merged #119, PR B: the title page's difficulty. `src/title-page.asm`
   (`.section title_code`, D, `turn`), `src/main.asm` (TITLE_HOME, PACK_ABOVE), `tools/picture.mjs` (`title()`,
   the line, the stash at `$c800`), `tests/e2e/vice.mjs` (`setRegisters`), `tests/e2e/title-page.test.mjs`;
@@ -83,7 +85,7 @@ Difficulty done: #118 (riders), #119 (title page, D).
 
 ## Verification
 
-- Last full `make test` (PR 2, #114): 153 pass, tools 25 pass (28 November 2026).
+- Last full `make test` (PR 2, #114): 153 pass, tools 25 pass (28 November 2026). PR D's first run: 163/164, the long traffic drive's frame 355 late (lane assist's 27 cycles a frame; main had 17 to spare there). Fixed (no cost without assist). Second full run: e2e 164/164, tools 26, but the autopilot screenshot build ran 13 bytes into the passers-by's frames (`low_code`); `l_hold` moved to room 6: screenshots ok, assist + traffic + car tests 37/37.
 - PR B: full `make test`: e2e 160/160 (after fixing disk.test, which compared the title page without its line), tools 26, emulator screenshots ok; the 16-car build; loader picture unchanged (cmp).
 - Unverified anywhere: the C64 program on real hardware (owner's to try).
 
@@ -91,6 +93,10 @@ Difficulty done: #118 (riders), #119 (title page, D).
 ## Dead ends
 
 - Two colour routines (3c1fa91): 20 raster lines too slow, 3 late frames. Do not retry for room.
+- `low_code` holds only about 6 bytes in the default build and fewer in the autopilot one (`tools/emulator-test.sh`, last step of `make test`): do not put code there.
+- Lane assist as a detour in every frame (`wheel` round steer, `lane` round anti): 27 cycles, a late frame.
+- `TOP` really has 4 bytes (a 400-byte fill test overflowed it); zero page is full to `$df`. Branches cannot
+  cross between sections in different rooms: glue pieces with `jmp`.
 
 - A store to `$00ff,x` is a zero-page store that wraps round in page 0: it overwrote the CPU port at start.
   Copying into the stack page needs `sta @w` (`src/main.asm`, `lay_down`).
@@ -114,8 +120,9 @@ Difficulty done: #118 (riders), #119 (title page, D).
 
 ## Next
 
-Merge PR C when green. Then PR D (lane assist): find room (the tile rooms have 14-43 bytes each, NOTES), a
-second bit per car beside `traffic.assist` (bits 6-7 are free: the count needs 6).
+Full `make test` for PR D, open the PR (refs #61), merge when green. Then PR E (emergency braking): room in
+NOTES (rooms 5-32 bytes; room 6 1); time is the harder part: the long traffic drive's frame 355 has about 13 cycles left
+(NOTES, frame budget), so emergency braking must cost nothing in a car without it, as lane assist does.
 
 ## Subagent files
 

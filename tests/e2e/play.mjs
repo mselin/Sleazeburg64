@@ -80,13 +80,16 @@ const signed = (lo, hi) => ((hi << 8) | lo) << 16 >> 16;
 export async function readCar(vice, L) {
   if (L['car.colour'] - L['car.pos_x'] !== 13) throw new Error('readCar expects pos, vel, angle, inside and colour in a row');
   const b = await vice.read(L['car.pos_x'], 14);
+  if (L['car.pull'] - L['car.wait'] !== 2) throw new Error('readCar expects wait, swerve and pull in a row');
+  const lane = await vice.read(L['car.wait'], 3);
   return {
     x: b[0] | (b[1] << 8) | (b[2] << 16), y: b[3] | (b[4] << 8) | (b[5] << 16),
     vx: signed(b[6], b[7]), vy: signed(b[8], b[9]), angle: b[10] | (b[11] << 8), colour: b[13],
     wet: (await vice.read(L['water.wet'], 1))[0], assist: (await vice.read(L['car.assist'], 1))[0],
+    wait: lane[0], swerve: lane[1], pull: lane[2],
   };
 }
-export const carState = (c) => ({ x: c.x, y: c.y, vx: c.vx, vy: c.vy, angle: c.angle, colour: c.colour, wet: c.wet, assist: c.assist });
+export const carState = (c) => ({ x: c.x, y: c.y, vx: c.vx, vy: c.vy, angle: c.angle, colour: c.colour, wet: c.wet, assist: c.assist, wait: c.wait, swerve: c.swerve, pull: c.pull });
 
 /**
  * The models of everything that moves, starting as the program does. `honk` false leaves Big Honk out (a

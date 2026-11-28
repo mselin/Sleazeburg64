@@ -148,6 +148,7 @@ export class Player {
     traffic.stolen = 0;
     traffic.mine = slot;
     car.vx = car.vy = 0;
+    car.wait = car.swerve = car.pull = 0; // (foot.park: lane assist starts afresh in the next car)
   }
   /** Which of the 42 frames (tools/assets.mjs) the player on foot is drawn with, or -1 punching: `tick` is the traffic's, after its step. */
   frame(tick) {

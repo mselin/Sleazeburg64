@@ -165,7 +165,7 @@ fit             pha
                 bne arm
                 jsr traffic.rnd
                 cmp #51
-                bcs +
+                bcs f_lane
 arm             jsr traffic.rnd
                 lsr
                 lsr
@@ -176,6 +176,15 @@ arm             jsr traffic.rnd
                 clc
                 adc #17
                 adc traffic.assist,x
+                sta traffic.assist,x
+f_lane          lda cop,x               ; lane assist (bit 7): one car in five, never a police car
+                ora patrol,x
+                bne +
+                jsr traffic.rnd
+                cmp #51
+                bcs +
+                lda traffic.assist,x
+                ora #$80
                 sta traffic.assist,x
 +               pla
                 rts

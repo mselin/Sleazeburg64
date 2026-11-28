@@ -298,6 +298,13 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
     assist rather than the stick, so the swerve is held to the grip like any steering: flat out it is a sharp
     wiggle, not a spin. `CURSED LANE ASSIST TOOK OVER` is 28 characters, and a chime goes with it once there is
     sound.
+    - Done (PR D): bit 7 of `traffic.assist` (and `car.assist`), rolled in `police.fit` on modern for a car that
+      is not a police car. `car.lane` counts steps of 16 frames going forward at 256 or more (`wait`, rolled
+      16 + r & 31, 16 to 48: 5 to 15 seconds), then holds the wheel 40 frames (`swerve`, `pull`), changing its
+      mind every 8 frames, 2 times in 3; `update` starts `turn` from `pull`, and `car.anti` goes to `lane` only
+      for bit 7, so a car without it pays nothing. Unlike the design, the time belongs
+      to the player's driving, not the car: getting out (`foot.park`) clears it, and every 8 frames rather than
+      10 is what fitted. Tests: `tests/e2e/assist.test.mjs`.
   - **Emergency braking.** It looks out only from 154 (30 px/s), the speed `people.RUN_OVER` runs someone over
     at, so below it nobody can be hurt and there is nothing to look for. It looks as far ahead as the car needs
     to stop braking half as hard again as its own brakes (60 where `BRAKE` is 40), with 3 frames to notice and 4
