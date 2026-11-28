@@ -21,7 +21,7 @@ with heat (ROADMAP, the paint shop; `specs/design.md` there, "The paint shop", a
    ways copied into `ARROW_FRAME` ($0f40) by `arrow_copy` (I/O area), hooks `paint_skip`/`paint_hook`/
    `paint_tail`; model `arrowRound` in `tests/e2e/pickups-model.mjs`; test "with heat, at the wheel ...".
    Done in the working tree; pickups tests pass. Check: `make test` passes.
-4. PR 2 opened, green, merged. Check: merged on GitHub.
+4. PR 2: mselin/Sleazeburg64#114, opened 28 November 2026; merge when green. Check: merged on GitHub.
 
 ## Established
 
@@ -56,7 +56,7 @@ with heat (ROADMAP, the paint shop; `specs/design.md` there, "The paint shop", a
 
 ## Changes
 
-- Sleazeburg64, branch `claude/confident-euler-70sqzi` (PR 2): the arrow and S as in plan step 3;
+- Sleazeburg64, branch `claude/confident-euler-70sqzi` (PR 2, #114): the arrow and S as in plan step 3;
   `pickups.drop` and `place` under the I/O area; `tools/assets.mjs` `signPixels`, `arrowRows`; the pack test
   checks only up to `HIGH_CODE` (what waits past it, the rest of `io_more`, is copied up first, then written
   over); `play.mjs` and `traffic.test.mjs` pass the player's place and on-foot flag to the pickups model.
@@ -85,8 +85,8 @@ with heat (ROADMAP, the paint shop; `specs/design.md` there, "The paint shop", a
 
 ## Next
 
-When `make test` passes: commit, push, open PR 2 (closes the arrow's issue, if one; else name the ROADMAP
-item), subscribe, merge when green. Then the next roadmap item (jobs, mselin/gta-c64#117; push-aside, #110).
+Wait for #114's checks (and the local `make test`), then merge it (a merge commit). The send_later safety
+net trig_01HLGhD4SsTPKBUAk8znAE8d is set: delete it after the merge. Then the next roadmap item (jobs, mselin/gta-c64#117; push-aside, #110).
 
 ## Subagent files
 
