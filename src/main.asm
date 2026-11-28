@@ -109,6 +109,8 @@ tmp             .byte ?
                 .cerror * != SCOOTER_FRAMES, "the scooter riders' frames follow the pickups'"
                 .binary "scooters.bin"
 .endif
+MARKER_FRAMES                           ; the paint shop's marker, a P (pickups.show_paint), after those
+                .binary "marker.bin"
 .endif
 
 start           sei

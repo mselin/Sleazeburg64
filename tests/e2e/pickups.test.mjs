@@ -126,6 +126,29 @@ test('what each does: ammo, cash, a donut, a bandage, a knife and a spare knife'
     assert.equal((await status(vice)).heat, 0, 'nothing');
   }));
 
+test('the paint shop is marked on the map with a P, flashing cyan and white, heat or not', () =>
+  run(async (vice, w) => {
+    assert.ok((await vice.read(L.MARKER_FRAMES, 64)).equals(assets.marker), 'its frame, as tools/assets.mjs draws it');
+    assert.equal(L.MARKER_FRAMES / 64, K.MARKER);
+    assert.ok(!w.pickups.paint && !w.list.some((s) => s.pointer === K.MARKER), 'not near at the start');
+    await putOnFoot(vice, L, w, K.PAINT_X, K.PAINT_Y + 40, 6);
+    await hold(vice, w, 0, 3, 'by the paint shop');
+    assert.ok(w.pickups.paint, 'near');
+    const late = await missed(vice, L), colours = new Set();
+    for (let i = 1; i <= 40; i++) {
+      await pass(vice, L, w, 0, `by the paint shop, ${i} frames`);
+      const m = w.list.find((s) => s.pointer === K.MARKER);
+      assert.ok(m, `shown, ${i} frames`);
+      colours.add(m.colour);
+      if (i === 8 || i === 24) await assertPicture(vice, L, w, `the marker, ${i} frames`);
+    }
+    assert.deepEqual([...colours].sort(), [0x81, 0x83], 'white and cyan');
+    assert.equal(await missed(vice, L) - late, 0, 'no frame was late');
+    await putOnFoot(vice, L, w, 2 * 16 + 8, 8 * 16 + 30, 6);
+    await hold(vice, w, 0, 3, 'far from it');
+    assert.ok(!w.pickups.paint && !w.list.some((s) => s.pointer === K.MARKER), 'not shown far from it');
+  }));
+
 test('one picked up comes back 40 to 70 seconds later, somewhere else', () =>
   run(async (vice, w) => {
     await walkOnto(vice, w, CASH, 'cash');

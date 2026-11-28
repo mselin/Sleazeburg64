@@ -368,6 +368,21 @@ export function pickupPixels(k) {
     }
   return px;
 }
+/**
+ * The paint shop's marker on the map: the browser game's `marker`, a square with its edge and letter in the
+ * sprite's own colour (which flashes) and black inside, in the pickups' square.
+ */
+export function markerPixels() {
+  const P = ['###.', '#..#', '#..#', '###.', '#...', '#...', '#...', '....'];
+  const px = new Array(12 * 21).fill(0);
+  for (let j = 0; j < 12; j++)
+    for (let m = 0; m < 6; m++) {
+      const edge = j === 0 || j === 11 || m === 0 || m === 5;
+      const g = !edge && j >= 2 && j < 10 ? P[j - 2][m - 1] : '.';
+      px[(j + 4) * 12 + m + 3] = edge || g === '#' ? 2 : 1;
+    }
+  return px;
+}
 export function pickupFrames() {
   return PICKUP_KINDS.map((_, k) => spriteBytes(pickupPixels(k)));
 }
@@ -538,6 +553,7 @@ writeFileSync(join(dir, 'people.bin'), Buffer.concat(people));
 writeFileSync(join(dir, 'punch.bin'), Buffer.concat(punchFrames()));
 writeFileSync(join(dir, 'pickups.bin'), Buffer.concat(pickupFrames()));
 writeFileSync(join(dir, 'scooters.bin'), Buffer.concat(scooterFrames()));
+writeFileSync(join(dir, 'marker.bin'), spriteBytes(markerPixels()));
 writeFileSync(join(dir, 'player.bin'), Buffer.concat(player.stored)); // what the program file holds
 writeFileSync(join(dir, 'player-made.bin'), Uint8Array.from(player.made)); // and how it makes the rest
 writeFileSync(join(dir, 'player-all.bin'), Buffer.concat(player.all)); // what it should end up with: for the tests
