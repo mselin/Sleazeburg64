@@ -121,7 +121,7 @@ Difficulty done: #118 (riders), #119 (title page, D).
 ## Next
 
 Full `make test` for PR D, open the PR (refs #61), merge when green. Then PR E (emergency braking): room in
-NOTES (rooms 5-32 bytes; room 6 now about 6); time is the harder part: the long traffic drive's frame 355 has about 13 cycles left
+NOTES (rooms 5-32 bytes; room 6 1); time is the harder part: the long traffic drive's frame 355 has about 13 cycles left
 (NOTES, frame budget), so emergency braking must cost nothing in a car without it, as lane assist does.
 
 ## Subagent files

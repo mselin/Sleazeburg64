@@ -179,7 +179,7 @@ A briefing for whoever picks this project up next, person or assistant. Written 
     2026 for lane assist, and 160 the same day for the time it cost: see the frame budget). The panel's messages
     are in rooms 1-4; the officers on foot have room 5, room 6 and what was left of 2 and 4; anti-theft (PR C)
     and lane assist (PR D) the rest. Left after lane assist, measured: room 1 32 bytes (21 in the sixteen-car
-    build: `traffic.assist` is there), 2 5, 3 30, 4 19, 5 22, 6 31; the main code's `low_code` about 6;
+    build: `traffic.assist` is there), 2 5, 3 30, 4 19, 5 22, 6 1 (lane assist's hold: `low_code` was full for the autopilot screenshot build); the main code's `low_code` about 6;
     `io_text` about 16. Zero page is full (to `$df`). The sixteen-car build had no room for the table in bss. Room 3 also holds the
     difficulty and the riders' colour and speed (`people.difficulty`: the title page sets them before anything is
     unpacked) and the passers-by's shirts (moved from `people_high`, which the sixteen-car test build ran a byte
