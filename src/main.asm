@@ -69,10 +69,9 @@ IO_LATE         = $d900                 ; and the rest (io_late, then the panel'
 MORE_CODE       = $c8e0                 ; from after the screen copies,
 TOP_CODE        = $f300                 ; and from the top of memory: all copied there at start
 EXTRA_CODE      = $e000                 ; and from under the KERNAL ROM, which is switched out, up to TOP_CODE
-PEOPLE_FRAMES   = $2000                 ; the passers-by's sprite, copied there at start: 20 frames
+PEOPLE_FRAMES   = $2000                 ; the passers-by's sprite, copied there at start: 21 frames
 PUNCH_FRAMES    = $0200                 ; the player punching, 8 frames, copied there at start (the KERNAL's
                                         ; pages, which it does not use once it is switched out)
-ARROW_FRAME     = $2500                 ; the arrow to the paint shop, its way copied in (pickups.arrow_round)
 PLAYER_BUFFERS  = $2540                 ; the player on foot's flipped frames, made when needed: two (frames.asm)
 BULLET_FRAME    = PLAYER_BUFFERS + 2 * 64 ; a bullet's sprite (gun.asm), made at start after the passers-by's
                                         ; frames are copied up (the page they come in reaches it)
@@ -114,6 +113,7 @@ tmp             .byte ?
 MARKER_FRAMES                           ; the paint shop's marker, a P (pickups.show_paint), after those, then
 SIGN_FRAME = MARKER_FRAMES + 64         ; the S beside the arrow to the shop (pickups.show_arrow)
                 .binary "marker.bin"
+ARROW_FRAME     .fill 64, 0             ; and the arrow, its way copied in when it changes (pickups.arrow_copy)
 .endif
 
 start           sei

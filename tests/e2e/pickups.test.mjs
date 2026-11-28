@@ -5,11 +5,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JOY } from './vice.mjs';
-import { PICKUP_SPRITE, assemble, assets, withProgram } from './game.mjs';
+import { ARROW_SPRITE, PICKUP_SPRITE, SIGN_SPRITE, arrowFrame, assemble, assets, withProgram } from './game.mjs';
 import { World, assertPicture, missed, pass, putCar, putOnFoot } from './play.mjs';
 import { AMMO, BANDAGE, CASH, DONUT, K, KNIFE } from './pickups-model.mjs';
 import { P, People, putPerson } from './people-model.mjs';
 import { putHeat } from './heat-model.mjs';
+import { kindAt } from './foot-model.mjs';
 
 const game = assemble('pickups', { defs: { SPAWN: 0, HONK: 0 } });
 const L = game.labels;
@@ -147,6 +148,60 @@ test('the paint shop is marked on the map with a P, flashing cyan and white, hea
     await putOnFoot(vice, L, w, 2 * 16 + 8, 8 * 16 + 30, 6);
     await hold(vice, w, 0, 3, 'far from it');
     assert.ok(!w.pickups.paint && !w.list.some((s) => s.pointer === K.MARKER), 'not shown far from it');
+  }));
+
+/** The middle of the road tile nearest pixel (x, y), looking outwards ring by ring. */
+function roadNear(x, y) {
+  for (let r = 0; r < 20; r++)
+    for (let dy = -r; dy <= r; dy++)
+      for (let dx = -r; dx <= r; dx++) {
+        const px = ((x >> 4) + dx) * 16 + 8, py = ((y >> 4) + dy) * 16 + 8;
+        if (Math.max(Math.abs(dx), Math.abs(dy)) === r && px > 0 && py > 0 && kindAt(px, py) === 0) return [px, py];
+      }
+  throw new Error(`no road near ${x}, ${y}`);
+}
+
+test('with heat, at the wheel and the paint shop off screen, an arrow at the edge of the view points to it, an S beside it', () =>
+  run(async (vice, w) => {
+    assert.equal(L.ARROW_FRAME / 64, ARROW_SPRITE);
+    await putHeat(vice, L, w.heat, { level: 2, points: 2 * 25 });
+    const ways = new Set();
+    for (const [x, y, what] of [[1500, 1200, 'east'], [300, 300, 'north'], [1200, 300, 'north-east'],
+      [900, 1540, 'south-east'], [300, 1540, 'south']]) {
+      const [px, py] = roadNear(x, y);
+      await putCar(vice, L, w, px, py, 0);
+      await hold(vice, w, 0, 4, `${what}: put there`);
+      const late = await missed(vice, L);
+      for (let i = 1; i <= 12; i++) {
+        await pass(vice, L, w, 0, `${what}, ${i} frames`);
+        const a = w.pickups.arrow;
+        assert.ok(a, `${what}: shown, ${i} frames`);
+        assert.ok(w.list.some((s) => s.pointer === ARROW_SPRITE) && w.list.some((s) => s.pointer === SIGN_SPRITE),
+          `${what}: the arrow and the S are in the list`);
+        if (i === 6) {
+          assert.deepEqual([...(await vice.read(L.ARROW_FRAME, 63))], [...arrowFrame(a.way)], `${what}: its way, ${a.way}`);
+          await assertPicture(vice, L, w, `${what}: the arrow`);
+        }
+      }
+      assert.equal(await missed(vice, L) - late, 0, `${what}: no frame was late`);
+      ways.add(w.pickups.arrow.way);
+    }
+    assert.ok(ways.size >= 4, `it points different ways: ${[...ways]}`);
+    // Not on foot, and not with the shop on screen (then the P marks it).
+    const [fx, fy] = roadNear(1500, 1200);
+    await putOnFoot(vice, L, w, fx, fy, 6);
+    await hold(vice, w, 0, 4, 'on foot');
+    assert.ok(!w.pickups.arrow && !w.list.some((s) => s.pointer === ARROW_SPRITE || s.pointer === SIGN_SPRITE), 'not on foot');
+    const [nx, ny] = roadNear(K.PAINT_X + 60, K.PAINT_Y);
+    await putCar(vice, L, w, nx, ny, 0);
+    await hold(vice, w, 0, 4, 'by the shop');
+    assert.ok(!w.pickups.arrow && !w.list.some((s) => s.pointer === ARROW_SPRITE), 'not by the shop');
+    // Not with no heat.
+    await putHeat(vice, L, w.heat, { level: 0, points: 0 });
+    const [ex, ey] = roadNear(1500, 1200);
+    await putCar(vice, L, w, ex, ey, 0);
+    await hold(vice, w, 0, 4, 'no heat');
+    assert.ok(!w.pickups.arrow && !w.list.some((s) => s.pointer === ARROW_SPRITE), 'not with no heat');
   }));
 
 test('one picked up comes back 40 to 70 seconds later, somewhere else', () =>

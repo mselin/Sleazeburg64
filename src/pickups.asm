@@ -79,10 +79,7 @@ init            ldx #COUNT - 1
                 lda #0
                 sta turn
                 sta clock
-                ldx #63                 ; the arrow's frame: nothing yet (left from start, its leftovers)
--               sta ARROW_FRAME,x
-                dex
-                bpl -
+                ldx #$ff                ; no way in the arrow's frame yet
                 stx a_shown
                 jsr window_tile
                 sta last_col
@@ -213,9 +210,9 @@ look_each       ldx turn
                 inx
                 cpx #COUNT
                 bcc +
-                ldx #0
                 inc rounds
-                jsr paint_near          ; (and the paint shop, once a round)
+                jsr paint_near          ; (and the paint shop and the arrow, once a round: X not kept)
+                ldx #0
 +               stx turn
                 dec looks
                 bne look_each
@@ -938,7 +935,7 @@ from_way        sec
                 sta a_way
                 rts
                 .send
-                .section low_code
+                .section tile_room4     ; (where there is room: main.asm)
 ; Where the arrow and the S go, on each axis X, from player_at, the way and the offsets (arrow_round).
 arrow_axes      ldx #1
 -               txa

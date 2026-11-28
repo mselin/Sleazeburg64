@@ -97,6 +97,9 @@ A briefing for whoever picks this project up next, person or assistant. Written 
     screen: row 3 about 8 lines, 16 when its colour changes, and row 1 whole about 25, which also waits for a
     frame with no colour memory. The city viewer keeps the old readout (`src/panel.asm`, `src/digits.asm`).
 - Room is short everywhere, and where things are is decided by what the video chip must see:
+  - The paint shop's sprites (28 November 2026): the P at `$0ec0`, the S at `$0f00`, the arrow at `$0f40` (its
+    way copied in when it changes, `pickups.arrow_copy`), so code starts at `$0f80`. Not `$2500`: that is the
+    passers-by's lying-down frame (`people.bin` has 21 frames, `$2000`-`$253f`). `arrow_axes` is in tile room 4.
   - Below the screens (`$0ec0`-`$1fff`, after the car's, the pickups' and the scooter riders' sprites) there
     are about 150 bytes of code left (the scooter riders' five frames took 320 at `$0d80`, 25 November 2026).
     There were about 460 bytes of

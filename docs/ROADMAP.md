@@ -201,7 +201,12 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
     a square with its edge and letter flashing cyan and white (each 16 frames, about a third of a second, near
     the browser's quarter) and black inside, always shown, heat or not, after the pickups and drops; looked
     for once a round of the pickups' nearness checks, and costing nothing in a frame while it is far. The
-    arrow to it with heat is still to come.
+    arrow to it (done): with heat, at the wheel, and the shop not on the screen (12 pixels in from its edges),
+    the browser game's `edgeArrow`: a cyan arrow at the edge of the view, one of 16 ways (11.25 and 33.75
+    degrees, from 64 × the smaller distance over the bigger), 400 pixels that way kept 10 pixels inside the
+    view, and an S on black 12 pixels back towards the player, kept 1 pixel inside. Worked out once a round
+    (every 6 frames) from tables, with no square roots; the way's 11 × 11 picture is copied into the arrow's
+    frame only when it changes; nothing is added to a frame with no heat.
   - **Hurt, and wasted** (done, the first part: cars). On foot, a car going faster than 45 pixels a second with
     its middle within 9 pixels of the player's either way hurts them, by its speed × 0.28 (the design's),
     and nothing hurts them again for 0.4 seconds; the browser game also pushes them along, which is not done

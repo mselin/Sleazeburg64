@@ -15,27 +15,13 @@ with heat (ROADMAP, the paint shop; `specs/design.md` there, "The paint shop", a
 
 ## Plan
 
-1. Room: move what a pickup does when taken (`pickups.take` .. `pay`, `take_drop`) under the I/O area, run
-   through gates (now and then only); `police.quiet` (SID, border) stays outside. Check: build passes its
-   size checks; `low_code` has 128 bytes more than the two new frames need. Done: `code_end` $1f07 from
-   $1fd0.
-2. The P marker (PR 1): a multicolour frame after the scooter riders' (edge and letter in the sprite's own
-   colour, flashing cyan/white, inside black), listed after the drops when the shop is near the window
-   (a hook written by the nearness check: no cost in other frames). Model in `pickups-model.mjs`. Check:
-   pickups, screen and play tests pass; the screen test with no heat still passes. Done in the working tree
-   (frame `MARKER_FRAMES` = $0ec0, `pickups.show_paint`, `paint_near`, `paint_hook`; `code_end` $1f93);
-   the new pickups test passes; `make test` running.
-3. PR 1: mselin/Sleazeburg64#113, merged 28 November 2026. Done.
-4. The arrow and the S (PR 2), in progress. Room: `pickups.drop` moved under the I/O area (done: `low_end`
-   $2f9a, 79 free). Once a round (`paint_near`'s end, every 6 frames): with heat and at the wheel, the
-   direction to the shop from `player_at`: |dx|, |dy| shifted under 256, r = 64 * small / big, the frame
-   (16 ways) from the octant and r (thresholds 12, 42 for tan 11.25 and 33.75 degrees), the offsets
-   (big axis +-400, small axis a table of 400r/sqrt(1+r^2), 65 bytes, capped at 255; the S's 12-pixel
-   offsets in a packed table by r/2); the 11 x 11 hi-res frame copied from `io_more` into `$2500` through a
-   gate when it changes. Each frame (hooked after the drops, no cost without heat): not if the shop is 12 px
-   inside the view; else the arrow clamped 10 px inside, the S (multicolour frame at `$0f00`, black square,
-   cyan letter) beside it. Check: model and tests; frame time with heat.
-5. PR 2 opened, green, merged; ROADMAP and NOTES updated.
+1. Room for the P (PR 1): what a pickup does when taken moved under the I/O area. Done.
+2. The P marker: mselin/Sleazeburg64#113, merged 28 November 2026. Done.
+3. The arrow and the S (PR 2): `pickups.arrow_round` (once a round, from `paint_near`), `show_arrow`, the 16
+   ways copied into `ARROW_FRAME` ($0f40) by `arrow_copy` (I/O area), hooks `paint_skip`/`paint_hook`/
+   `paint_tail`; model `arrowRound` in `tests/e2e/pickups-model.mjs`; test "with heat, at the wheel ...".
+   Done in the working tree; pickups tests pass. Check: `make test` passes.
+4. PR 2 opened, green, merged. Check: merged on GitHub.
 
 ## Established
 
@@ -70,17 +56,16 @@ with heat (ROADMAP, the paint shop; `specs/design.md` there, "The paint shop", a
 
 ## Changes
 
-- Sleazeburg64, branch `claude/confident-euler-70sqzi` (PR 2, not yet opened): `pickups.drop` and `place`
-  under the I/O area (`low_end` $2f9a, `code_end` $1f77 with the S frame); `tools/assets.mjs` `signPixels`,
-  `arrowRows` (the browser's `turned()`), `build/arrows.bin`, the S as marker.bin's second frame
-  (`SIGN_FRAME` $0f00); `tests/e2e/game.mjs` `assets.sign`, `arrowFrame`, `SIGN_SPRITE`, `ARROW_SPRITE`,
-  a list entry's own `bitmap`.
+- Sleazeburg64, branch `claude/confident-euler-70sqzi` (PR 2): the arrow and S as in plan step 3;
+  `pickups.drop` and `place` under the I/O area; `tools/assets.mjs` `signPixels`, `arrowRows`; the pack test
+  checks only up to `HIGH_CODE` (what waits past it, the rest of `io_more`, is copied up first, then written
+  over); `play.mjs` and `traffic.test.mjs` pass the player's place and on-foot flag to the pickups model.
 - Recent merged work: #113 the P marker; #112 the handover docs; #111 the banners.
 
 ## Verification
 
-- `tests/e2e/pickups.test.mjs`: 8 pass after the drop and place moves (28 November 2026). Last full
-  `make test` (PR 1): 152 pass, tools 25 pass.
+- `tests/e2e/pickups.test.mjs`: 9 pass with the arrow test (28 November 2026). `make test` running for PR 2.
+  Last full `make test` (PR 1): 152 pass, tools 25 pass.
 - Unverified anywhere: the C64 program on real hardware (owner's to try).
 
 ## Dead ends
@@ -93,11 +78,15 @@ with heat (ROADMAP, the paint shop; `specs/design.md` there, "The paint shop", a
 - 64tass labels are case-insensitive: a constant and a label of the same letters clash (`GET_OUT`/`get_out`,
   `WINDOW`/`window`, `pace`, `down`, `px`). Macros' names clash with labels too (`put`, `gate`).
 - The size check for the tile rooms names the table (0-6), not the room (1-6).
+- `ARROW_FRAME` at `$2500` (after the passers-by's frames): that is their 21st, lying-down frame, and clearing
+  it broke the picture tests. It is at `$0f40` now.
+- `paint_near` ends in `arrow_round`, which uses X: the caller in `look_each` set X before the call and
+  stored it after, so `turn` became $ff. It now loads X after the call.
 
 ## Next
 
-Write `pickups.arrow_round` (low_code), `show_arrow` (low_more), the 16 ways and their copy (io_more), the
-hooks (`paint_tail`, `paint_skip`, `paint_hook`), as in plan step 4; then the model and tests.
+When `make test` passes: commit, push, open PR 2 (closes the arrow's issue, if one; else name the ROADMAP
+item), subscribe, merge when green. Then the next roadmap item (jobs, mselin/gta-c64#117; push-aside, #110).
 
 ## Subagent files
 

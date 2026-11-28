@@ -144,7 +144,7 @@ export class World {
     const level = this.heat.level;
     // (Shot dead, the window has jumped since: pickups.update looks at it afresh.)
     const movesNow = ((this.cam.x >> 3) ^ cell[0]) & 31 || ((this.cam.y >> 3) ^ cell[1]) & 31;
-    this.pickups?.step(this.cam, !movesNow && !busy);
+    this.pickups?.step(this.cam, !movesNow && !busy, [this.player.px, this.player.py], this.player.on);
     if (this.player.on) this.player.draw(this.traffic.tick, !moves && !busy);
     else this.player.drawn = null;
     this.people.tick(this.cam, this.car);

@@ -68,7 +68,7 @@ export const PICKUP_SPRITE = 0x0c40 / 64;
 export const SCOOTER_SPRITE = 0x0d80 / 64; // scooter riders: four ways, then lying
 export const MARKER_SPRITE = 0x0ec0 / 64; // the paint shop's marker
 export const SIGN_SPRITE = 0x0f00 / 64; // the S beside the arrow
-export const ARROW_SPRITE = 0x2500 / 64; // the arrow, its way copied in
+export const ARROW_SPRITE = 0x0f40 / 64; // the arrow, its way copied in (after the S)
 export const BULLET_SPRITE = (0x2540 + 2 * 64) / 64; // a bullet (src/gun.asm): a 2 x 2 square at pixels 12-13 of lines 10-11
 assets.bullet = new Uint8Array(63);
 assets.bullet[10 * 3 + 1] = assets.bullet[11 * 3 + 1] = 0x0c;

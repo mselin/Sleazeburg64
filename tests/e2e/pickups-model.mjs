@@ -2,7 +2,7 @@
 // A model of the pickups (src/pickups.asm), worked out again here so the tests can hold the program to it frame
 // by frame: where they are, which kind, which are away and for how long, and what is shown. The rules are the
 // program's: see the comments there for why they are what they are.
-import { assets, MAP_SIZE } from './game.mjs';
+import { assets, MAP_SIZE, arrowFrame, ARROW_SPRITE, SIGN_SPRITE } from './game.mjs';
 
 export const K = {
   COUNT: 12, REACH: 11, TURN_EACH: 2, NEAR_TILES: 5, BACK_MIN: 83, BACK_SPREAD: 63, CLEAR: 2,
@@ -14,7 +14,14 @@ export const K = {
   DROPS: 3, LIFE: 1000, BLINK: 200, CASH_ODDS: 102, KNIFE_ODDS: 123, DROP_KNIFE: 10,
   // The paint shop's marker (show_paint): where (police.PAINT_X, PAINT_Y), its frame, flashing cyan and white.
   PAINT_X: 304, PAINT_Y: 1192, MARKER: 0x0ec0 / 64, FLASH: [1, 3],
+  // The arrow to it (arrow_round, arrow_axes): the view's size; r from which the offset along the smaller
+  // distance is 255; bounds by place (the arrow's x, the S's x, the arrow's y, the S's y), as sprite positions;
+  // from the view to the arrow's sprite, by axis; the colour, cyan.
+  VIEW: [304, 161], A_CAP: 53, A_LOW: [36, 31, 59, 54], A_HIGH: [320, 325, 200, 205], A_K: [26, 49], CYAN: 3,
 };
+// 400 r / sqrt(1 + r * r), r = i / 64; and the S's offsets, 12 / sqrt(1 + r * r) by 16 and 12 r / sqrt(1 + r * r), r = i / 32.
+const A_OFF = Array.from({ length: K.A_CAP }, (_, i) => Math.round((400 * i) / 64 / Math.sqrt(1 + (i / 64) ** 2)));
+const A_S = Array.from({ length: 32 }, (_, i) => Math.round(12 / Math.sqrt(1 + (i / 32) ** 2)) * 16 + Math.round((12 * i) / 32 / Math.sqrt(1 + (i / 32) ** 2)));
 export const AMMO = 0, CASH = 1, DONUT = 2, BANDAGE = 3, KNIFE = 4;
 const PAVEMENT = 4, GRASS = 2;
 const kindOfTile = (col, row) => assets.tiles[1280 + assets.map[row * MAP_SIZE + col]];
@@ -28,7 +35,7 @@ export class Pickups {
     this.items = Array.from({ length: K.COUNT }, () => ({ col: 0, row: 0, kind: 0, back: 0, near: 0 }));
     for (let i = K.COUNT - 1; i >= 0; i--) this.place(i);
     [this.lastCol, this.lastRow] = Pickups.tileOf(cam);
-    this.allNear();
+    this.allNear(cam);
     /** What picking them up did, for the tests: kinds in the order taken; and whether the player has a knife. */
     this.taken = [];
     this.knife = 0;
@@ -84,16 +91,57 @@ export class Pickups {
     }
     p.near = near;
   }
-  allNear() {
+  allNear(cam) {
     for (const p of this.items) p.near = 0;
     this.list = [];
     for (let i = K.COUNT - 1; i >= 0; i--) this.nearOne(i);
-    this.paintNear();
+    this.paintNear(cam);
   }
-  /** pickups.paint_near: whether the paint shop is near the window, as for a pickup; then it is shown. */
-  paintNear() {
+  /** pickups.paint_near: whether the paint shop is near the window, as for a pickup; then it is shown. Then the arrow. */
+  paintNear(cam) {
     const within = (d, span) => ((d + K.NEAR_TILES) & 255) <= span + 2 * K.NEAR_TILES;
     this.paint = within((K.PAINT_X >> 4) - this.lastCol, 19) && within((K.PAINT_Y >> 4) - this.lastRow, 10);
+    this.arrowRound(cam);
+  }
+  /**
+   * pickups.arrow_round and arrow_axes: with heat, at the wheel (`this.at`, `this.onFoot` as step was given
+   * them), and the shop not 12 pixels inside the view, the arrow's way and where it and the S go; else none.
+   */
+  arrowRound(cam) {
+    this.arrow = null;
+    if (!this.heat?.level || this.onFoot || !this.at) return;
+    const c = [cam.x, cam.y], shop = [K.PAINT_X, K.PAINT_Y];
+    if ([0, 1].every((x) => w16(shop[x] - 13 - c[x]) < K.VIEW[x] - 25)) return;
+    const d = [0, 1].map((x) => w16(shop[x] - this.at[x])), neg = d.map((v) => v >= 0x8000);
+    for (let x = 0; x < 2; x++) if (neg[x]) d[x] = w16(-d[x]);
+    while (d[0] > 255 || d[1] > 255) for (let x = 0; x < 2; x++) d[x] >>= 1;
+    const swap = d[0] >= d[1] ? 0 : 1, big = d[swap];
+    let a = d[1 - swap], q = 0;
+    for (let n = 0; n < 6; n++) {
+      const carry = a >> 7;
+      a = (a << 1) & 255;
+      const bit = carry || a >= big ? 1 : 0;
+      if (bit) a = (a - big) & 255;
+      q = (q << 1) | bit;
+    }
+    const r = q & 63;
+    let way = r < 13 ? 0 : r < 43 ? 1 : 2;
+    if (swap) way = 4 - way;
+    if (neg[0]) way = 8 - way;
+    if (neg[1]) way = (16 - way) & 15;
+    const off = r >= K.A_CAP ? 255 : A_OFF[r], so = A_S[r >> 1], at = [0, 0, 0, 0];
+    const clamp = (t, i) => {
+      const lo = K.A_LOW[i], hi = K.A_HIGH[i];
+      return (at[i] = t >= 0x8000 || t < lo ? lo : t > hi ? hi : t);
+    };
+    for (let x = 1; x >= 0; x--) {
+      let t;
+      if (x === swap) t = clamp(neg[x] ? 0xff00 : 0x0400, 2 * x); // (past the edge, either way)
+      else t = clamp(w16(this.at[x] - c[x] + K.A_K[x] + (neg[x] ? -off : off)), 2 * x);
+      const s = (x === swap ? so >> 4 : so) & 15;
+      clamp(w16(t + (neg[x] ? s : -s)), 2 * x + 1); // (the S: back towards the player)
+    }
+    this.arrow = { way, at };
   }
   static middle(p) {
     return [p.col * 16 + 8, p.row * 16 + 8];
@@ -102,7 +150,8 @@ export class Pickups {
    * pickups.update: once a pass, after the window `cam` has moved; nothing more in a frame that is not `quiet`
    * (one that works out colour memory or moves the screen a character).
    */
-  step(cam, quiet = true) {
+  step(cam, quiet = true, at = null, onFoot = false) {
+    Object.assign(this, { at, onFoot }); // (for the arrow, worked out with the nearness: arrowRound)
     this.clock = (this.clock + 1) & 255;
     for (const d of this.drops) if (d.kind !== K.AWAY && --d.life === 0) d.kind = K.AWAY;
     if (!quiet) return;
@@ -110,7 +159,7 @@ export class Pickups {
     const jumped = (v, last) => ((v - last + 1) & 255) >= 3;
     if (jumped(col, this.lastCol) || jumped(row, this.lastRow)) {
       [this.lastCol, this.lastRow] = [col, row];
-      this.allNear();
+      this.allNear(cam);
       return;
     }
     [this.lastCol, this.lastRow] = [col, row];
@@ -124,7 +173,7 @@ export class Pickups {
       this.turn = (this.turn + 1) % K.COUNT;
       if (!this.turn) {
         this.rounds = (this.rounds + 1) & 255;
-        this.paintNear();
+        this.paintNear(cam);
       }
     }
   }
@@ -174,6 +223,11 @@ export class Pickups {
       const t = w16(K.PAINT_Y - (cam.y - 10)), u = w16(K.PAINT_X - (cam.x - 11));
       if (t < 160 && u <= 326) list.push({ y: t + 34, x: u + 8, pointer: K.MARKER, colour: K.FLASH[(this.clock >> 4) & 1] | 0x80 });
     }
+    if (this.arrow) { // (show_arrow: the S, then the arrow)
+      const a = this.arrow.at;
+      list.push({ x: a[1], y: a[3], pointer: SIGN_SPRITE, colour: K.CYAN | 0x80 });
+      list.push({ x: a[0], y: a[2], pointer: ARROW_SPRITE, colour: K.CYAN, bitmap: arrowFrame(this.arrow.way) });
+    }
     return list;
   }
   sprite(t, u, kind) {
@@ -193,7 +247,7 @@ export class Pickups {
   get state() {
     return {
       seed: this.seed, clock: this.clock, turn: this.turn, rounds: this.rounds, lastCol: this.lastCol, lastRow: this.lastRow, list: [...this.list],
-      paint: this.paint,
+      paint: this.paint, arrow: this.arrow ? { way: this.arrow.way, at: [...this.arrow.at] } : null,
       items: this.items.map((p) => ({ ...p, back: p.kind === K.AWAY ? p.back : 0 })),
       drops: this.drops.map((d) => (d.kind === K.AWAY ? { kind: K.AWAY } : { ...d })),
     };
@@ -207,12 +261,15 @@ export async function readPickups(vice, L) {
   const [lo, hi] = await get('seed', 2), seed = lo | (hi << 8), [clock] = await get('clock', 1), [turn] = await get('turn', 1);
   const [rounds] = await get('rounds', 1), [lastCol] = await get('last_col', 1), [lastRow] = await get('last_row', 1), [listed] = await get('listed', 1);
   const list = listed ? await get('near_list', listed) : [];
-  const [hook] = await get('paint_hook', 1), paint = hook === 0x4c; // (jmp: near; rts: not)
+  const [skip] = await get('paint_skip', 1), paint = skip === 0x2c; // (bit: near; jmp, past the marker: not)
+  const [tail] = await get('paint_tail', 1), [way] = await get('a_way', 1);
+  const [lo4, hi4] = [await get('a_at_lo', 4), await get('a_at_hi', 4)];
+  const arrow = tail === 0x4c ? { way, at: lo4.map((v, i) => v | (hi4[i] << 8)) } : null; // (jmp: shown)
   const [dk, dxl, dxh, dyl, dyh, dll, dlh] = await Promise.all(['dkind', 'dx_lo', 'dx_hi', 'dy_lo', 'dy_hi', 'dlife_lo', 'dlife_hi'].map((n) => get(n, K.DROPS)));
   const drops = dk.map((kind, i) => (kind === K.AWAY ? { kind } : { kind, x: dxl[i] | (dxh[i] << 8), y: dyl[i] | (dyh[i] << 8), life: dll[i] | (dlh[i] << 8) }));
   return {
     drops,
-    seed, clock, turn, rounds, lastCol, lastRow, list, paint,
+    seed, clock, turn, rounds, lastCol, lastRow, list, paint, arrow,
     items: col.map((c, i) => ({ col: c, row: row[i], kind: kind[i], back: kind[i] === K.AWAY ? back[i] : 0, near: near[i] })),
   };
 }
