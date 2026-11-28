@@ -29,6 +29,8 @@ pickups         .block
 COUNT           = 12                    ; (the design has 34: on the C64 a third as many, for the frame time)
 REACH           = 11                    ; how near the player's middle comes to one's to pick it up, either way
 TURN_EACH       = 2                     ; looked at for nearness each frame: each every 6 frames
+PAINT_COL       = police.PAINT_X / 16   ; the paint shop's tile
+PAINT_ROW       = police.PAINT_Y / 16
 NEAR_TILES      = 5                     ; tiles round the window (19 by 10 of them) to be looked at closely: the
                                         ; window moves at most 4 pixels a frame, 68 before a pickup's turn again
 BACK_MIN        = 83                    ; back after this many of every fourth round of turns, 24 frames (40 seconds)
@@ -183,6 +185,7 @@ look_each       ldx turn
                 bcc +
                 ldx #0
                 inc rounds
+                jsr paint_near          ; (and the paint shop, once a round)
 +               stx turn
                 dec looks
                 bne look_each
@@ -245,7 +248,7 @@ all_near        lda #0
 -               jsr near_one
                 dex
                 bpl -
-                rts
+                jmp paint_near
 
 ; close,x = 1 if pickup X is within NEAR_TILES tiles of the window's tiles (from last_col, last_row), and the
 ; list of the near ones (near_list, listed of them) to match: one that comes near goes on its end; one that is
@@ -318,8 +321,22 @@ middle          lda col,x
                 sta mid_y + 1
                 rts
 
-; Pickup who is picked up: what it does, then away for 40 to 70 seconds.
-take            ldx who
+; Pickup who is picked up: what it does (take_io, under the I/O area: it happens now and then), then away
+; for 40 to 70 seconds. A donut that takes the last of the heat away quiets the police here, outside: that
+; writes the SID and the border.
+take            lda status.heat
+                pha
+                jsr gate_take
+                pla
+                beq +
+                lda status.heat
+                bne +
+                jmp police.quiet
++               rts
+gate_take       #io_gate take_io
+
+                .section io_code        ; (under the I/O area: main.asm, run through a gate there)
+take_io         ldx who
                 lda kind,x
                 pha
                 lda #AWAY
@@ -378,11 +395,8 @@ donut           ldx status.heat         ; a level of heat less, its points to th
                 lda status.level_hi,x
                 sta status.points + 1
                 lda #1
-                sta status.stars_shown
-                txa                     ; (none left: the siren stops, the police near or not)
-                beq to_quiet
+                sta status.stars_shown  ; (none left: take quiets the police, near or not)
 +               rts
-to_quiet        jmp police.quiet
 bandage         lda status.hp           ; 40 health back, to at most 100, for $20 (as far as the money goes)
                 clc
                 adc #40
@@ -423,6 +437,7 @@ pay             sty mid_hi
                 sta status.money + 2
                 cld
                 rts
+                .send
 
                 .section pickups_more   ; (where there is room: waiting.asm)
 ; The near ones: picked up if the player is on one; else listed for the multiplexer if in sight, after the
@@ -713,10 +728,55 @@ show_drops      ldx #DROPS - 1
 +               jsr sight
 next_drop       dex
                 bpl -
-                rts
+paint_hook      rts                     ; then the paint shop's marker: written JMP when it is near (paint_near),
+                .word show_paint        ; so it costs nothing while it is not
+                .send
+                .section low_code       ; (where there is room: main.asm)
 
-; Dropped one X picked up.
-take_drop       lda dkind,x
+; The paint shop's marker (the browser game's `marker`): a P, flashing cyan and white each 16 frames, at the
+; shop's middle; always shown, heat or not.
+show_paint      lda #MARKER_FRAMES / 64
+                sta sprites.sp
+                lda clock
+                and #16
+                beq +
+                lda #CYAN | $80
+                .byte $2c               ; (bit: past the next)
++               lda #WHITE | $80
+                sta sprites.sc
+                lda #<police.PAINT_X
+                sta mid_x
+                lda #>police.PAINT_X
+                sta mid_x + 1
+                lda #<police.PAINT_Y
+                sta mid_y
+                lda #>police.PAINT_Y
+                sta mid_y + 1
+                lda #0
+                jmp in_view
+
+; Whether the paint shop is near the window (as near_one has it for a pickup): show_drops then shows it.
+paint_near      sec
+                lda #(PAINT_COL + NEAR_TILES) & 255
+                sbc last_col
+                cmp #19 + 2 * NEAR_TILES + 1
+                bcs +
+                sec
+                lda #(PAINT_ROW + NEAR_TILES) & 255
+                sbc last_row
+                cmp #10 + 2 * NEAR_TILES + 1
+                lda #$4c                ; (jmp)
+                bcc ++
++               lda #$60                ; (rts)
++               sta paint_hook
+                rts
+                .send
+                .section low_more
+
+; Dropped one X picked up (take_drop_io, under the I/O area). X kept.
+take_drop       #io_gate take_drop_io
+                .section io_code
+take_drop_io    lda dkind,x
                 pha
                 lda #AWAY
                 sta dkind,x
@@ -732,6 +792,7 @@ take_drop       lda dkind,x
                 asl
                 ldy #0
                 jmp pay
+                .send
 
 dkind           .fill DROPS, AWAY
 dx_lo           .fill DROPS, 0          ; where, in pixels: where the one who dropped it was

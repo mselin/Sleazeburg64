@@ -197,8 +197,11 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
     the browser game has it, its PAINT) with heat, at most every 4 seconds: with $200 or more, $200 less, no
     heat, and a new colour at random (from the traffic's eight; a police car stays white), PAINT & PRAY: NEW
     COLOUR, SAME SINS. -$200; with less, PAINT & PRAY: NO CASH, NO ABSOLUTION. The design's other reason to
-    stop there, a damaged car, waits for the car's damage; the P on the map and the arrow to it with heat are
-    still to come.
+    stop there, a damaged car, waits for the car's damage. The P on the map (done): the browser game's `marker`,
+    a square with its edge and letter flashing cyan and white (each 16 frames, about a third of a second, near
+    the browser's quarter) and black inside, always shown, heat or not, after the pickups and drops; looked
+    for once a round of the pickups' nearness checks, and costing nothing in a frame while it is far. The
+    arrow to it with heat is still to come.
   - **Hurt, and wasted** (done, the first part: cars). On foot, a car going faster than 45 pixels a second with
     its middle within 9 pixels of the player's either way hurts them, by its speed × 0.28 (the design's),
     and nothing hurts them again for 0.4 seconds; the browser game also pushes them along, which is not done

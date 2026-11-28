@@ -12,6 +12,8 @@ export const K = {
   // What someone the player kills drops: DROPS at once, for LIFE frames, blinking in the last BLINK; a random
   // byte below CASH_ODDS is cash, else below KNIFE_ODDS a knife (if the player has none).
   DROPS: 3, LIFE: 1000, BLINK: 200, CASH_ODDS: 102, KNIFE_ODDS: 123, DROP_KNIFE: 10,
+  // The paint shop's marker (show_paint): where (police.PAINT_X, PAINT_Y), its frame, flashing cyan and white.
+  PAINT_X: 304, PAINT_Y: 1192, MARKER: 0x0ec0 / 64, FLASH: [1, 3],
 };
 export const AMMO = 0, CASH = 1, DONUT = 2, BANDAGE = 3, KNIFE = 4;
 const PAVEMENT = 4, GRASS = 2;
@@ -86,6 +88,12 @@ export class Pickups {
     for (const p of this.items) p.near = 0;
     this.list = [];
     for (let i = K.COUNT - 1; i >= 0; i--) this.nearOne(i);
+    this.paintNear();
+  }
+  /** pickups.paint_near: whether the paint shop is near the window, as for a pickup; then it is shown. */
+  paintNear() {
+    const within = (d, span) => ((d + K.NEAR_TILES) & 255) <= span + 2 * K.NEAR_TILES;
+    this.paint = within((K.PAINT_X >> 4) - this.lastCol, 19) && within((K.PAINT_Y >> 4) - this.lastRow, 10);
   }
   static middle(p) {
     return [p.col * 16 + 8, p.row * 16 + 8];
@@ -114,7 +122,10 @@ export class Pickups {
       }
       this.nearOne(this.turn);
       this.turn = (this.turn + 1) % K.COUNT;
-      if (!this.turn) this.rounds = (this.rounds + 1) & 255;
+      if (!this.turn) {
+        this.rounds = (this.rounds + 1) & 255;
+        this.paintNear();
+      }
     }
   }
   take(i) {
@@ -159,6 +170,10 @@ export class Pickups {
       if (t >= 160 || u > 326) continue;
       list.push(this.sprite(t, u, d.kind === K.DROP_KNIFE ? KNIFE : CASH));
     }
+    if (this.paint) {
+      const t = w16(K.PAINT_Y - (cam.y - 10)), u = w16(K.PAINT_X - (cam.x - 11));
+      if (t < 160 && u <= 326) list.push({ y: t + 34, x: u + 8, pointer: K.MARKER, colour: K.FLASH[(this.clock >> 4) & 1] | 0x80 });
+    }
     return list;
   }
   sprite(t, u, kind) {
@@ -178,6 +193,7 @@ export class Pickups {
   get state() {
     return {
       seed: this.seed, clock: this.clock, turn: this.turn, rounds: this.rounds, lastCol: this.lastCol, lastRow: this.lastRow, list: [...this.list],
+      paint: this.paint,
       items: this.items.map((p) => ({ ...p, back: p.kind === K.AWAY ? p.back : 0 })),
       drops: this.drops.map((d) => (d.kind === K.AWAY ? { kind: K.AWAY } : { ...d })),
     };
@@ -191,11 +207,12 @@ export async function readPickups(vice, L) {
   const [lo, hi] = await get('seed', 2), seed = lo | (hi << 8), [clock] = await get('clock', 1), [turn] = await get('turn', 1);
   const [rounds] = await get('rounds', 1), [lastCol] = await get('last_col', 1), [lastRow] = await get('last_row', 1), [listed] = await get('listed', 1);
   const list = listed ? await get('near_list', listed) : [];
+  const [hook] = await get('paint_hook', 1), paint = hook === 0x4c; // (jmp: near; rts: not)
   const [dk, dxl, dxh, dyl, dyh, dll, dlh] = await Promise.all(['dkind', 'dx_lo', 'dx_hi', 'dy_lo', 'dy_hi', 'dlife_lo', 'dlife_hi'].map((n) => get(n, K.DROPS)));
   const drops = dk.map((kind, i) => (kind === K.AWAY ? { kind } : { kind, x: dxl[i] | (dxh[i] << 8), y: dyl[i] | (dyh[i] << 8), life: dll[i] | (dlh[i] << 8) }));
   return {
     drops,
-    seed, clock, turn, rounds, lastCol, lastRow, list,
+    seed, clock, turn, rounds, lastCol, lastRow, list, paint,
     items: col.map((c, i) => ({ col: c, row: row[i], kind: kind[i], back: kind[i] === K.AWAY ? back[i] : 0, near: near[i] })),
   };
 }

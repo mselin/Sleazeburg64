@@ -9,15 +9,27 @@ in it: it is committed and public.
 
 ## Task
 
-Bootstrap only: create the handover docs in Sleazeburg64 from the design doc, roadmap and git log. No code changes. Open a PR.
+"merge when green, then continue": the next roadmap item, the paint shop's P on the map and the arrow to it
+with heat (ROADMAP, the paint shop; `specs/design.md` there, "The paint shop", and `js/render.js` `marker`,
+`edgeArrow`, `drawWorld`).
 
 ## Plan
 
-1. Move the old `docs/HANDOVER.md` (project notes, 324 lines) unchanged to `docs/NOTES.md`, and point its one
-   reference at it. Check: `git diff -M` shows a rename only; `grep -rn HANDOVER` finds no stale pointer. Done.
-2. Write `docs/HANDOVER-PROTOCOL.md`: sections 2-5 of the short-context skill, verbatim. Done.
-3. Write this file from the design doc, the roadmap and the git log, under about 150 lines. Done.
-4. Open the pull request; merge when its checks pass (`.claude/CLAUDE.md`). In progress.
+1. Room: move what a pickup does when taken (`pickups.take` .. `pay`, `take_drop`) under the I/O area, run
+   through gates (now and then only); `police.quiet` (SID, border) stays outside. Check: build passes its
+   size checks; `low_code` has 128 bytes more than the two new frames need. Done: `code_end` $1f07 from
+   $1fd0.
+2. The P marker (PR 1): a multicolour frame after the scooter riders' (edge and letter in the sprite's own
+   colour, flashing cyan/white, inside black), listed after the drops when the shop is near the window
+   (a hook written by the nearness check: no cost in other frames). Model in `pickups-model.mjs`. Check:
+   pickups, screen and play tests pass; the screen test with no heat still passes. Done in the working tree
+   (frame `MARKER_FRAMES` = $0ec0, `pickups.show_paint`, `paint_near`, `paint_hook`; `code_end` $1f93);
+   the new pickups test passes; `make test` running.
+3. PR 1 opened, green, merged.
+4. The arrow and the S (PR 2): with heat at the wheel and the shop 12 px inside the view's edge or beyond,
+   a cyan hi-res arrow (16 frames from `ARW`, kept under the I/O area, copied into the frame at `$2500` when
+   the direction changes) and the S on black beside it. Check: model and tests; frame time with heat.
+5. PR 2 opened, green, merged; ROADMAP and NOTES updated.
 
 ## Established
 
@@ -52,18 +64,16 @@ Bootstrap only: create the handover docs in Sleazeburg64 from the design doc, ro
 
 ## Changes
 
-- Sleazeburg64, branch `claude/confident-euler-70sqzi`: `docs/HANDOVER.md` renamed to `docs/NOTES.md`; this
-  file and `docs/HANDOVER-PROTOCOL.md` new; the pointer in `tests/e2e/car.test.mjs` (a comment) updated. No
-  code changes. Pull request: mselin/Sleazeburg64#112.
-- Recent merged work (git log, newest first): #111 the banners; #109 the paint shop and the messages under
-  the I/O area; #108 the pavement; #107 patrol cars; #106 officers shoot; #105 code under the I/O area, hurt
-  and wasted; #104 the stolen police car; #103 more room and the siren's sound; #101 officers on foot.
+- Sleazeburg64, branch `claude/confident-euler-70sqzi` (not yet committed): `src/pickups.asm` (take and
+  take_drop under the I/O area; the marker), `src/main.asm` (`MARKER_FRAMES`), `tools/assets.mjs`
+  (`markerPixels`, `build/marker.bin`), `tests/e2e/pickups-model.mjs`, `game.mjs`, `pickups.test.mjs`.
+- Recent merged work: #112 the handover docs; #111 the banners; #109 the paint shop.
 
 ## Verification
 
-- This change is documents only (and a comment). The pull request's CI run is the check; nothing else to run.
-- Unverified anywhere: the C64 program on real hardware (owner's to try), how the siren sounds, how the banner
-  and the walk look on a real screen.
+- `tests/e2e/pickups.test.mjs`: 8 pass, the new marker test included (frame, listed, cyan and white, the
+  picture, no late frame, gone when far). Full `make test`: running.
+- Unverified anywhere: the C64 program on real hardware (owner's to try).
 
 ## Dead ends
 
@@ -78,12 +88,8 @@ Bootstrap only: create the handover docs in Sleazeburg64 from the design doc, ro
 
 ## Next
 
-Candidate tasks, the first one first (each needs room found before it starts: see `docs/NOTES.md`):
-
-1. The job banners and the jobs themselves, starting with deliveries (ROADMAP, "Jobs").
-2. The paint shop's P on the map and the arrow to it with heat (ROADMAP, the paint shop).
-3. Cars that push people aside below 30 px/s, and running over by the whole body (ROADMAP, mselin/gta-c64#110).
-4. The police helicopter at heat 5 (ROADMAP).
+Wait for `make test`; then commit, push, open PR 1 (closes nothing: the paint shop's issue stays open for the
+arrow), subscribe, a send_later check-in; merge when green; then step 4.
 
 ## Subagent files
 

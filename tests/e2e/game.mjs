@@ -52,8 +52,10 @@ assets.people = readFileSync(join(ROOT, 'build/people.bin')); // the passers-by'
 assets.punch = readFileSync(join(ROOT, 'build/punch.bin')); // the player punching, 8 frames
 assets.pickups = readFileSync(join(ROOT, 'build/pickups.bin')); // the five pickups
 assets.scooters = readFileSync(join(ROOT, 'build/scooters.bin')); // scooter riders: four ways, then lying
+assets.marker = readFileSync(join(ROOT, 'build/marker.bin')); // the paint shop's marker, a P
 export const PICKUP_SPRITE = 0x0c40 / 64;
 export const SCOOTER_SPRITE = 0x0d80 / 64; // scooter riders: four ways, then lying
+export const MARKER_SPRITE = 0x0ec0 / 64; // the paint shop's marker
 export const BULLET_SPRITE = (0x2540 + 2 * 64) / 64; // a bullet (src/gun.asm): a 2 x 2 square at pixels 12-13 of lines 10-11
 assets.bullet = new Uint8Array(63);
 assets.bullet[10 * 3 + 1] = assets.bullet[11 * 3 + 1] = 0x0c;
@@ -62,6 +64,7 @@ export const PEOPLE_SPRITE = 0x2000 / 64;
 
 /** The 63 bytes of the sprite a pointer names: one of the car's frames, the pickups', the passers-by's, the punching or Big Honk's. */
 export function spriteData(pointer) {
+  if (pointer === MARKER_SPRITE) return assets.marker.subarray(0, 63);
   if (pointer >= SCOOTER_SPRITE && pointer < SCOOTER_SPRITE + 5) return assets.scooters.subarray((pointer - SCOOTER_SPRITE) * 64, (pointer - SCOOTER_SPRITE) * 64 + 63);
   if (pointer === BULLET_SPRITE) return assets.bullet;
   if (pointer >= HONK_SPRITE) return assets.chars.subarray(pointer * 64 - CHARSET, pointer * 64 - CHARSET + 63);
