@@ -153,9 +153,11 @@ A briefing for whoever picks this project up next, person or assistant. Written 
     directly, without the gate), and the messages' times (`status.msg_left_lo`/`_hi`) are in `io_code`, read by
     `say` while the I/O area is switched out. That filled what start runs once (`boot`, with `io_late` and the
     texts' copy, from `$3000` to the character set at `$3800`), so two of the messages (`m0`, `m1`) are in
-    `io_more` (from `$d600`, to `$d8ff`, now full). Left: `EXTRA_CODE` 25 bytes, `HIGH_CODE` 23 (1 in the build
-    with sixteen cars, which the traffic tests make: `status.digit` there overflowed it), `boot` 10, `io_more` 1,
-    `io_code` (`$d000`-`$d5eb`, waiting at `$2000`-`$25eb`, up to the player's frames at `$2600`) 20. `io_late` starts at `$d900` (the texts after it).
+    `io_more` (from `$d600`, to `$d8ff`, now full). The traffic's body hurting the player
+    (`police.hits`) took 20 more bytes of `low_more`, so `police.gate_shoot` moved to `EXTRA_CODE`. Left:
+    `EXTRA_CODE` 10 bytes, `low_more` 7, `HIGH_CODE` 23 (1 in the build with sixteen cars, which the traffic
+    tests make: `status.digit` there overflowed it), `boot` 10, `io_more` 1, `io_code` (`$d000`-`$d5eb`,
+    waiting at `$2000`-`$25eb`, up to the player's frames at `$2600`) 20. `io_late` starts at `$d900` (the texts after it).
   - The tables by tile (`$4000`-`$46ff`) have room for 128 tiles (`TILE_ROOM`; the city has 78, and
     `tools/assets.mjs` refuses more than 128): the rest of six of the seven pages is `.section tile_room1`-`6`,
     128 bytes each (26 November 2026, measured as the one room with no cost left). The panel's messages are in
