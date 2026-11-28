@@ -735,8 +735,9 @@ packed_start    = *
                 .endv
 packed_bytes    .binary PACK_FILE
 packed_end
-PACK_HOME       = (program_end + 255) & $ff00 ; where start moves it to unpack it: clear of where it unpacks to, in
-                                        ; RAM that is free until the code is copied up after it
+PACK_HOME       = (PACK_ABOVE + 255) & $ff00 ; where start moves it to unpack it: clear of where it unpacks to (and
+                                        ; of the title page's code), in RAM that is free until the code is copied
+                                        ; up after it
                 .cerror program_end > PACK_HOME, "what is unpacked runs into the packed copy"
                 .cerror PACK_HOME + (packed_end - packed_start) > $fffa, "the packed copy runs into the interrupt vectors"
                                         ; (past $d000 it is in the RAM under the I/O area and the KERNAL, which the
@@ -746,7 +747,25 @@ PACK_HOME       = (program_end + 255) & $ff00 ; where start moves it to unpack i
 .if TITLE != 0
 packed_title    .binary "title.bin"     ; the title page's picture, packed (title-page.asm): shown, then written over
 packed_title_end
-                .cerror packed_title_end > PACK_HOME, "the title picture would be overwritten as the rest is moved"
+                .cerror packed_title_end > TITLE_HOME, "the title picture runs into the title page's code"
+                .fill TITLE_HOME - *    ; (nothing, up to it)
+                .dsection title_code
+title_end
+PACK_ABOVE      = title_end
+.else
+PACK_ABOVE      = program_end
+.endif
+.endif
+.if TITLE != 0
+; The title page's code (title-page.asm), which runs first of all, waits above where the rest is unpacked to:
+; in the program file after the title picture in the build that is packed, and in the build that is not, only
+; where it would be (that build's title page is never shown).
+TITLE_HOME      = (program_end + 255) & $ff00
+.if PACKED == 0
+                .virtual TITLE_HOME
+                .dsection title_code
+title_end
+                .endv
 .endif
 .endif
 .if PACKED == 0 && VIEWER == 0

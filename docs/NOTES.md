@@ -215,6 +215,11 @@ A briefing for whoever picks this project up next, person or assistant. Written 
     unpacker is assembled in both, and called only in the packed one. At start it moves the packed bytes to
     just past where they unpack to (`PACK_HOME`) and unpacks them from `city_map` up, in about half a second;
     while it does, all of memory is RAM, as the packed copy can reach into the I/O area's (up to `$e000`).
+    The title page's code (`src/title-page.asm`, `.section title_code`) is in the file after the picture, at
+    `TITLE_HOME` (the page past `program_end`, `$b200`), and runs from there: nothing writes over it before fire.
+    `PACK_HOME` is the page past it (`$b500`), and the packed copy moved there reaches `$fa35`: about 1.4K are
+    left before the interrupt vectors, the nearer of the two limits (the file ends at `$b47e`, below the
+    loader's `$be00`; 28 November 2026, with D and the difficulty's line).
     The game file went from 33K to 25K (28K with the passers-by),
     and the music title build, which carries it, from 45K to 39K, well below the `$d000` it must LOAD under.
     The tests build the game packed too (`tests/e2e/game.mjs`), and `tests/e2e/pack.test.mjs` checks the

@@ -23,12 +23,13 @@ Two PRs: the riders by difficulty first (classic, the default, gets skaters), th
    `setDifficulty`. Check: `tests/e2e/riders.test.mjs` (was scooter.test) 6/6 pass.
 2. DONE (PR A). Skater frames: `tools/assets.mjs` `skaterFrames` -> `build/skaters.bin`, in the program file at
    SCOOTER_FRAMES; `build/scooters.bin` kept for modern. Check: `tools/assets.test.mjs` 13/13 pass.
-3. PR B. Title page (TITLE builds): its code moves out of `boot` to a fixed place before PACK_HOME (both
+3. DONE (PR B). Title page (TITLE builds): its code moves out of `boot` to a fixed place before PACK_HOME (both
    build passes must have the same labels: `tools/build-game.sh` compares them; in the unpacked pass it can be
    `.virtual`), with the scooter riders' 320 bytes. The line "DIFFICULTY: CLASSIC - PRESS D" in a character
    row (tools/picture.mjs emits both words' bitmap cells), grey 12 / yellow 7 in the screen bytes' high nybble
-   (colour 1); D (keyboard column 2, row 2) swaps it, copies the frames, sets the three bytes. Check: a title
-   test presses D.
+   (colour 1); D (keyboard column 2, row 2) swaps it, copies the frames, sets the three bytes. Check:
+   `tests/e2e/title-page.test.mjs` 3/3 (holds D five frames, D on, off, on; the frame drawn as D is pressed
+   shows the old line whole).
 4. Docs, HANDOVER; `make e2e`; PR; merge when green, each PR.
 
 ## Established
@@ -64,7 +65,11 @@ Two PRs: the riders by difficulty first (classic, the default, gets skaters), th
 
 ## Changes
 
-- PR A (branch `claude/confident-euler-70sqzi`): riders by difficulty, skaters on classic. `src/people.asm`,
+- PR B (branch `claude/confident-euler-70sqzi`): the title page's difficulty. `src/title-page.asm`
+  (`.section title_code`, D, `turn`), `src/main.asm` (TITLE_HOME, PACK_ABOVE), `tools/picture.mjs` (`title()`,
+  the line, the stash at `$c800`), `tests/e2e/vice.mjs` (`setRegisters`), `tests/e2e/title-page.test.mjs`;
+  ROADMAP, NOTES.
+- Merged #118, PR A: riders by difficulty, skaters on classic. `src/people.asm`,
   `src/pickups.asm`, `src/main.asm` (skaters.bin at SCOOTER_FRAMES), `tools/assets.mjs` (+test),
   `tests/e2e/riders.test.mjs` (renamed from scooter.test), `game.mjs` (`assets.riders`), `people-model.mjs`;
   ROADMAP (Pedestrians, Title screen), NOTES, README memory map.
@@ -73,7 +78,7 @@ Two PRs: the riders by difficulty first (classic, the default, gets skaters), th
 ## Verification
 
 - Last full `make test` (PR 2, #114): 153 pass, tools 25 pass (28 November 2026).
-- PR A: riders 6/6, assets 13/13; full `make e2e` running.
+- PR B: title page 3/3, the 16-car build, loader picture unchanged (cmp); full `make test` running.
 - Unverified anywhere: the C64 program on real hardware (owner's to try).
 
 
@@ -101,7 +106,7 @@ Two PRs: the riders by difficulty first (classic, the default, gets skaters), th
 
 ## Next
 
-Plan step 1. After the difficulty: driver assistance (modern only); jobs are blocked on mselin/gta-c64#117;
+Open PR B and merge when green. After the difficulty: driver assistance (modern only); jobs are blocked on mselin/gta-c64#117;
 check the officers' values against gta-c64#116.
 
 
