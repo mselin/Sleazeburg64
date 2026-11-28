@@ -663,7 +663,7 @@ take_io         lda police.cop,x        ; (chasing, or on patrol)
                 ldy police.stolen
                 beq +
                 lda #2 * 16
-+               jsr status.add_heat
++               jsr status.heat_a
                 pla
                 tax
 taken           lda traffic.pf,x

@@ -122,6 +122,10 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
     other side, or with no room knocks them down. See "Hit distances" and "Cars are solid for anyone on foot" in
     the design's
     [People on foot](https://github.com/mselin/gta-c64/blob/main/specs/design.md#people-on-foot).
+    - On the C64 (28 November 2026), the player's car runs over by its whole body: someone's middle within
+      12 pixels of the car's middle along it and 7.5 across (its body, 19 by 10, with their shoulders),
+      turned with the car's picture (one of 16 ways), worked out in 64ths of a pixel with the multiplication's
+      table (`people.struck`). Still to come: traffic hurting the player by its body, and the slow push aside.
 - Water: cars flood and sink, people swim (done, not yet tried on real hardware). The player's car wades,
   slower the deeper it is, floods once it is wholly in, and sinks in three colours, leaving the player swimming.
   It stops where it floods rather than drifting on, and it is out of the way from the moment it floods rather

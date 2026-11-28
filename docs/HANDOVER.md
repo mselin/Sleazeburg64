@@ -20,7 +20,8 @@ car pushing people aside (mselin/gta-c64#110; ROADMAP, Pedestrians; Sleazeburg64
    design's rules. Done.
 2. Whole-body run-over: someone's shoulders (2.5 px) touching the player's car's turned body (its length and
    width, corners included), at RUN_OVER or more; the same body test for a fast car hurting the player.
-   Check: people tests pass with a new test at several turns.
+   Check: people tests pass with a new test at several turns. Done for the player's car running people over
+   (this PR); the traffic hurting the player by its body is the next PR.
 3. Push-aside below RUN_OVER: out to the nearer side, just clear; the other side if a wall or car is there;
    else knocked down (a crime for the player's car only); Big Honk only ruffled. Check: new tests pass.
 4. Models (`tests/e2e/people-model.mjs`), ROADMAP, NOTES; `make test`; PR; merge when green.
@@ -59,7 +60,10 @@ car pushing people aside (mselin/gta-c64#110; ROADMAP, Pedestrians; Sleazeburg64
 
 ## Changes
 
-- Sleazeburg64, branch `claude/confident-euler-70sqzi`: nothing yet for #110.
+- Sleazeburg64, branch `claude/confident-euler-70sqzi`: the whole-body run-over (`src/people.asm` `struck`,
+  `term`, `turns` in `basic_code`); `status.add_heat` under the I/O area (`heat_io`/`heat_a`), `status.digit`
+  in `HIGH_CODE`, messages m0/m1 in `io_more` to make room (`docs/NOTES.md` has the figures); the people model
+  and a new test (`tests/e2e/people.test.mjs`, "the whole car runs people over").
 - Recent merged work: #114 the paint shop arrow and S; #113 the P marker; #112 the handover docs.
 
 
@@ -86,7 +90,9 @@ car pushing people aside (mselin/gta-c64#110; ROADMAP, Pedestrians; Sleazeburg64
 
 ## Next
 
-Read the car's sprite size (`src/car.asm`) and its cos/sin (`#mul`), then write the body test in `struck`.
+Run `make test`, open the PR for the whole-body run-over, merge when green. Then: traffic hurting the player by
+its body (police.asm `hits`, along 12 and across 7 by `traffic.dir`; `tests/e2e/play.mjs` `hits()`, `HURT`), then
+the push aside below RUN_OVER.
 
 
 ## Subagent files

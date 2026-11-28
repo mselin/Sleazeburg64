@@ -343,7 +343,11 @@ draw_car        lda #0
                 jmp bar
 
 ; Heat for a crime, A half points (people, foot): at most 230 points; a level higher says so.
-add_heat        clc
+add_heat        tax                     ; (the work under the I/O area: heat_a, for callers there)
+                #io_gate heat_io
+                .section io_late
+heat_io         txa
+heat_a          clc
                 adc points
                 sta points
                 bcc +
@@ -383,6 +387,7 @@ add_heat        clc
                 tax
                 jmp say
 +               rts
+                .send
 ; Once a frame with heat: a level less every COOL_FRAMES frames, the points down to its start.
 cooling         lda cool
                 bne +
@@ -549,6 +554,7 @@ idle            lda #DARK_GREY
                 rts
 
 ; Digit A at column X of row 3, and X + 1; or nothing for a leading zero.
+                .section status_high
 digit           tay
                 bne +
                 lda lead
@@ -560,6 +566,7 @@ digit           tay
                 sta lead                ; not 0
 +               rts
 
+                .send
 ; Row 3 is to be in colour A: from the next frame with the time, if it is not that already.
 row3_colour     sta want_ink
                 cmp row3_ink
@@ -594,9 +601,11 @@ MSG_PAINTED     = 16
 MSG_NO_CASH     = 17
 MESSAGES        = ("fire: handbrake. standing still: get out", "stand by a car and press fire to get in", "the car is gone. swim for it. the warranty does not cover this.", "a stern letter is being drafted", "police dispatched. eventually.", "shoot first, paperwork never", "overtime has been approved", "the homeowners association has been notified", 'busted. your weapons are now evidence', "the cops know that cruiser. they do not know you.", "st. invoice hospital: ambulance ride (out of network)", "ambulance ride billed. the police kept your weapons", "officer: that is a sidewalk, not a shortcut.", "police: sidewalks are for pedestrians and parking tickets.", "the cops saw that. the pavement is not a lane.", "driving on the sidewalk. in front of the police. bold.", "paint & pray: new colour, same sins. -$200", "paint & pray: no cash, no absolution.")
                 .send                   ; (the messages: in the room the tables by tile leave, main.asm)
-                .section io_text        ; (the texts, under the I/O area: say copies one out; main.asm)
+                .section io_more        ; (two of the texts, where there is room under the I/O area: main.asm)
 m0              .text format("%-40s", MESSAGES[0])
 m1              .text format("%-40s", MESSAGES[1])
+                .send
+                .section io_text        ; (the texts, under the I/O area: say copies one out; main.asm)
 m3              .text format("%-40s", MESSAGES[3])
 m2              .text format("%-40s", MESSAGES[2])
 m4              .text format("%-40s", MESSAGES[4])

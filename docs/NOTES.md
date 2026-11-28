@@ -147,6 +147,14 @@ A briefing for whoever picks this project up next, person or assistant. Written 
     what start runs once), since 27 November 2026: `status.say` copies the one it is to show to `msg_buf` (64 bytes, in
     tile room 1), switching the I/O area out round the copy and putting the port back as it was, so that code
     under the I/O area can call it too. A message is at most 63 characters.
+  - The whole-body run-over (28 November 2026, mselin/gta-c64#110) took about 85 bytes of `EXTRA_CODE` (its
+    cosines, `people.turns`, are in `basic_code`). To make room, `status.add_heat` runs under the I/O area
+    through a gate (`status.heat_io`, in `io_late`; code already under the I/O area calls `status.heat_a`
+    directly, without the gate), and `status.digit` is in `HIGH_CODE`. That filled what start runs once
+    (`boot`, with `io_late` and the texts' copy, from `$3000` to the character set at `$3800`), so two of the
+    messages (`m0`, `m1`) are in `io_more` (from `$d600`, to `$d8ff`, now full). Left: `EXTRA_CODE` 8 bytes,
+    `HIGH_CODE` 4, `boot` 10, `io_more` 1, `io_code` (`$d000`-`$d5c7`, waiting at `$2000`-`$25c7`, up to the
+    player's frames at `$2600`) 56. `io_late` starts at `$d900` (the texts after it).
   - The tables by tile (`$4000`-`$46ff`) have room for 128 tiles (`TILE_ROOM`; the city has 78, and
     `tools/assets.mjs` refuses more than 128): the rest of six of the seven pages is `.section tile_room1`-`6`,
     128 bytes each (26 November 2026, measured as the one room with no cost left). The panel's messages are in

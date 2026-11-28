@@ -5,6 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JOY } from './vice.mjs';
 import { PEOPLE_SPRITE, assemble, assets, withProgram } from './game.mjs';
+import { Car } from './car-model.mjs';
 import { World, assertPicture, missed, pass, putCar, putOnFoot } from './play.mjs';
 import { P, PAVEMENT, People, WALL, putPerson } from './people-model.mjs';
 
@@ -136,7 +137,7 @@ test('the player\'s car going fast runs someone over: they lie flat for 4 second
     while (!p.down && frame < 120) await pass(vice, L, w, JOY.UP, `driving at them, ${++frame} frames`);
     assert.equal(p.down, P.DOWN_TIME, 'run over');
     assert.ok(Math.abs(w.car.vx) >= P.RUN_OVER, 'going fast enough');
-    assert.ok(Math.abs(p.px - w.car.px) <= P.HIT + 6, 'by the car');
+    assert.ok(Math.abs(p.px - w.car.px) <= P.BODY_LONG / 64, 'by the car');
     await hold(vice, w, JOY.DOWN, 30, 'braking');
     assert.equal(p.pointer, PEOPLE_SPRITE + P.DOWN_FRAME, 'lying');
     await assertPicture(vice, L, w, 'someone run over, lying in the road', JOY.DOWN);
@@ -155,6 +156,34 @@ test('the player\'s car going fast runs someone over: they lie flat for 4 second
       assert.ok(Math.abs(w.car.vx) < P.RUN_OVER, 'slowly');
     }
     assert.equal(q.down, 0, 'not run over');
+  }));
+
+test('the whole car runs people over, to its back corners, at any turn; just beside it, they are missed', () =>
+  run(async (vice, w) => {
+    // Going at 300/256 of a pixel a frame, for one frame, the car turned k sixteenths of a turn; one passer-by
+    // by each back corner of the body and one by a front corner (u along it, v across, in pixels from where its
+    // middle will be after the frame, as the model has it), and one just past its side. (Two points with a
+    // square round each, as the program had before, miss the back corners.)
+    for (const k of [0, 2, 3, 5, 8, 11, 14]) {
+      const angle = k * 16 * 256, a = (k * Math.PI) / 8, c = Math.cos(a), s = Math.sin(a);
+      await putCar(vice, L, w, 216, 24, angle);
+      const vx = Math.round(300 * c), vy = Math.round(300 * s);
+      Object.assign(w.car, { vx, vy });
+      await vice.write(L['car.pos_x'] + 6, [vx & 255, (vx >> 8) & 255, vy & 255, (vy >> 8) & 255]);
+      const next = Object.assign(new Car(0, 0), w.car);
+      next.step(JOY.UP);
+      const at = (u, v) => ({ x: Math.round(next.px + u * c - v * s), y: Math.round(next.py + u * s + v * c) });
+      for (const [i, u, v] of [[0, -11, 6], [1, -11, -6], [2, 11, 6], [3, -6, 10]])
+        await putPerson(vice, L, w.people, i, { ...at(u, v), way: 1, spd: 0, col: 4, wait: 255 });
+      await pass(vice, L, w, JOY.UP, `turned ${k}, the frame`);
+      const down = w.people.people.slice(0, 4).map((p) => p.down !== 0);
+      assert.deepEqual(down, [true, true, true, false], `turned ${k}: the back corners and a front one, not beside it`);
+      for (let i = 0; i < 4; i++) {
+        w.people.people[i].on = 0;
+        await vice.write(L['people.on'] + i, [0]);
+      }
+      await hold(vice, w, JOY.DOWN, 2, `turned ${k}, after`);
+    }
   }));
 
 test('fire on foot is a punch: it knocks down the passer-by in front, who gets up after 4 seconds and runs, as does anyone near', () =>

@@ -126,7 +126,7 @@ scare           lda foot.pos + 1        ; anyone within SCARE_SHOT of the player
 +               dex
                 bpl -
                 lda #2 * 3 / 2          ; 1.5 heat (in halves)
-                jmp status.add_heat
+                jmp status.heat_a
                 .send
 
 ; A = a signed byte; high = its high byte, $ff or 0.
