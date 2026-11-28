@@ -86,7 +86,7 @@ export class Car {
     if (--this.wait) return;
     this.swerve = 40;
     this.said = 'LANE';
-    this.pull = rnd.next() | 1;
+    this.pull = (rnd.next() & 0x80) | 0x40; // ($40 or $c0: the stick leaves its sign)
   }
   /**
    * One frame with the joystick held as given (JOY bits). `traffic`, if given, is the traffic model, which the

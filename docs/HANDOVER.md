@@ -67,9 +67,9 @@ Difficulty done: #118 (riders), #119 (title page, D).
 
 ## Changes
 
-- PR D (branch, not merged): lane assist. `TILE_ROOM` 112 (`src/main.asm`, `tools/assets.mjs` + test);
-  `src/car.asm` (`wait`/`swerve`/`pull`, `wheel`, `lane` in five pieces over rooms 1, 2, 4, 5, 6 and
-  `low_code`, masks in `anti`), `src/police.asm` (`fit`: bit 7), `src/foot.asm` (`park` clears it, `got`
+- PR D (branch, not merged): lane assist. `TILE_ROOM` 96 (`src/main.asm`, `tools/assets.mjs` + test);
+  `src/car.asm` (`wait`/`swerve`/`pull`; `anti` goes to `lane` for bit 7 and lane comes back to `a_back`;
+  `lane` in pieces over rooms 1, 2, 4, 5 and `low_code`; `update` starts `turn` from `pull`, $40/$c0), `src/police.asm` (`fit`: bit 7), `src/foot.asm` (`park` clears it, `got`
   masks), `src/status.asm` (MSG_LANE in room 1); models car (`lane`), traffic (roll; `Rnd.carry`), foot,
   `play.mjs` (reads wait/swerve/pull); `tests/e2e/assist.test.mjs`; ROADMAP, NOTES.
 - Merged #120, PR C: anti-theft (`car.anti`, `police.fit`, `traffic.assist`, `foot.park`/`got`).
@@ -85,7 +85,7 @@ Difficulty done: #118 (riders), #119 (title page, D).
 
 ## Verification
 
-- Last full `make test` (PR 2, #114): 153 pass, tools 25 pass (28 November 2026). PR D's: running.
+- Last full `make test` (PR 2, #114): 153 pass, tools 25 pass (28 November 2026). PR D's first run: 163/164, the long traffic drive's frame 355 late (lane assist's 27 cycles a frame; main had 17 to spare there). Fixed (no cost without assist); traffic + assist tests 23/23; full run again: running.
 - PR B: full `make test`: e2e 160/160 (after fixing disk.test, which compared the title page without its line), tools 26, emulator screenshots ok; the 16-car build; loader picture unchanged (cmp).
 - Unverified anywhere: the C64 program on real hardware (owner's to try).
 
@@ -93,6 +93,7 @@ Difficulty done: #118 (riders), #119 (title page, D).
 ## Dead ends
 
 - Two colour routines (3c1fa91): 20 raster lines too slow, 3 late frames. Do not retry for room.
+- Lane assist as a detour in every frame (`wheel` round steer, `lane` round anti): 27 cycles, a late frame.
 - `TOP` really has 4 bytes (a 400-byte fill test overflowed it); zero page is full to `$df`. Branches cannot
   cross between sections in different rooms: glue pieces with `jmp`.
 
@@ -118,8 +119,9 @@ Difficulty done: #118 (riders), #119 (title page, D).
 
 ## Next
 
-Full `make test` for PR D, open the PR (refs #61), merge when green. Then PR E (emergency braking): it needs
-far more room than is left (NOTES: rooms 0-16 bytes); 96 tiles (`TILE_ROOM`) would give each room 16 more.
+Full `make test` for PR D, open the PR (refs #61), merge when green. Then PR E (emergency braking): room in
+NOTES (rooms 5-32 bytes); time is the harder part: the long traffic drive's frame 355 has about 13 cycles left
+(NOTES, frame budget), so emergency braking must cost nothing in a car without it, as lane assist does.
 
 ## Subagent files
 

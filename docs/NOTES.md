@@ -93,6 +93,14 @@ A briefing for whoever picks this project up next, person or assistant. Written 
     frames' worth at a time, and knows whether they are on a road from their last step, as a walk with the
     car test came to about 25 lines each. With four of them, jaywalking and cars solid for them, the long
     drive with traffic has no late frame and its busiest is ready 293 lines after the bottom interrupt.
+  - Lane assist (28 November 2026): on main, the long drive with traffic's frame 355 (a colour memory frame
+    in which the passers-by walk) was ready 311 lines after the bottom interrupt, 17 cycles before the next.
+    Lane assist as first written cost 27 cycles in every frame (a detour round steer and one round anti), and
+    made it late. Now a car with no assist pays nothing for it: anti, which looks at `assist` anyway, goes to
+    lane only for bit 7, and lane assist steers by starting `turn` from `pull` in update (4 cycles), so that
+    frame has about 13 cycles left. That frame is the place to look first when the next thing that runs every
+    frame (emergency braking) makes a frame late; the way to find it is to time each routine of the main
+    loop in that pass (run to each in turn and read the raster), on main and on the branch.
   - The status panel (`src/status.asm`) writes only what changed, and only in a frame that does not move the
     screen: row 3 about 8 lines, 16 when its colour changes, and row 1 whole about 25, which also waits for a
     frame with no colour memory. The city viewer keeps the old readout (`src/panel.asm`, `src/digits.asm`).
@@ -165,14 +173,14 @@ A briefing for whoever picks this project up next, person or assistant. Written 
     which is copied after them). Code there that adds heat calls `status.heat_a`, never `crime` or
     `status.add_heat`: a second gate would switch the I/O area back in under it. Left: `io_more` 19 bytes, the
     texts 56 (to `$dfff`), `EXTRA_CODE` 24 (moving `hunting` out gave it 14).
-  - The tables by tile (`$4000`-`$46ff`) have room for 112 tiles (`TILE_ROOM`; the city has 78, and
-    `tools/assets.mjs` refuses more than 112): the rest of six of the seven pages is `.section tile_room1`-`6`,
-    144 bytes each (128 from 26 November 2026, measured as the one room with no cost left; 144 since 28 November
-    2026, for lane assist). The panel's messages are in rooms 1-4; the officers on foot have room 5, room 6 and
-    what was left of 2 and 4; anti-theft (PR C) and lane assist (PR D) the rest. Left after lane assist: room 1
-    16 bytes (5 in the sixteen-car build: `traffic.assist` is there), 2 0, 3 14, 4 5, 5 0, 6 5; the main code's
-    `low_code` 6; `io_text` about 16. Zero page is full (to `$df`). The next 16 tiles (96 tiles) would give each
-    room 16 more. The sixteen-car build had no room for the table in bss. Room 3 also holds the
+  - The tables by tile (`$4000`-`$46ff`) have room for 96 tiles (`TILE_ROOM`; the city has 78, and
+    `tools/assets.mjs` refuses more than 96): the rest of six of the seven pages is `.section tile_room1`-`6`,
+    160 bytes each (128 from 26 November 2026, measured as the one room with no cost left; 144 on 28 November
+    2026 for lane assist, and 160 the same day for the time it cost: see the frame budget). The panel's messages
+    are in rooms 1-4; the officers on foot have room 5, room 6 and what was left of 2 and 4; anti-theft (PR C)
+    and lane assist (PR D) the rest. Left after lane assist, measured: room 1 32 bytes (21 in the sixteen-car
+    build: `traffic.assist` is there), 2 5, 3 30, 4 19, 5 22, 6 31; the main code's `low_code` about 6;
+    `io_text` about 16. Zero page is full (to `$df`). The sixteen-car build had no room for the table in bss. Room 3 also holds the
     difficulty and the riders' colour and speed (`people.difficulty`: the title page sets them before anything is
     unpacked) and the passers-by's shirts (moved from `people_high`, which the sixteen-car test build ran a byte
     past on 28 November 2026; `gap_code` and `basic_code` had no room left for them then). Any code or data can go there:

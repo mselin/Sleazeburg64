@@ -268,9 +268,9 @@ assist          .byte 0
 ; stopped at the last one, with its message; and once it is, the throttle does nothing and down is held while
 ; the forward speed is more than BRAKING, so that it brakes to a stop and never backs away.
 anti            lda assist
-                and #$7f                ; (bit 7 is lane assist: lane)
-                beq a_done
-                cmp #1
+                beq a_done              ; (none: nothing more to do, the commonest)
+                bmi a_lane              ; bit 7: lane assist first, which comes back to a_back
+a_low           cmp #1
                 beq a_stop
                 lda traffic.tick
                 and #31
@@ -292,6 +292,11 @@ a_stop          lda #0
                 bcc a_done
 +               dec thr
 a_done          rts
+a_lane          jmp lane
+a_back          lda assist              ; after lane assist: anti-theft, from its 7 bits
+                and #$7f
+                bne a_low
+                rts
                 .send
 
                 .section tile_room1     ; (where there is room: main.asm)
@@ -302,19 +307,10 @@ wait            .byte 0                 ; the steps left; 0: rolled at the next 
 swerve          .byte 0                 ; the frames it still holds the wheel
 pull            .byte 0                 ; and which way (only the sign counts, as in turn): 0 while it does not
                 .send
-                .section tile_room6     ; (where there is room: main.asm)
-; update's steering: the stick's, or lane assist's while it holds the wheel.
-wheel           lda pull
-                beq +
-                sta turn
-+               jmp steer
-                .send
                 .section tile_room5     ; (where there is room: main.asm)
-; update, where anti was (fwd is this frame's): lane assist, then anti-theft.
+; From anti, in a car with lane assist (fwd is this frame's): lane assist, then back to anti-theft.
 lane            lda swerve
                 bne l_hold1
-                lda assist
-                bpl l_out1
                 lda fwd + 1             ; going forward at 256 or more
                 beq l_out1
                 bmi l_out1
@@ -323,7 +319,7 @@ lane            lda swerve
                 bne l_out1
                 jmp l_step
 l_hold1         jmp l_hold
-l_out1          jmp anti
+l_out1          jmp a_back
                 .send
                 .section tile_room2     ; (where there is room: main.asm)
 l_step          lda wait                ; a step of 16 frames, rolling the steps first
@@ -335,7 +331,7 @@ l_step          lda wait                ; a step of 16 frames, rolling the steps
 +               dec wait
                 bne l_out2
                 jmp l_take
-l_out2          jmp anti
+l_out2          jmp a_back
                 .send
                 .section tile_room4     ; (where there is room: main.asm)
 l_take          lda #40                 ; it takes the wheel, one way or the other
@@ -343,9 +339,10 @@ l_take          lda #40                 ; it takes the wheel, one way or the oth
                 ldx #status.MSG_LANE
                 jsr status.say
                 jsr traffic.rnd
-                ora #1
+                and #$80                ; $40 or $c0: the stick's inc or dec in update leaves its sign
+                ora #$40
                 sta pull
-                jmp anti
+                jmp a_back
                 .send
                 .section low_code       ; (where there is room: main.asm)
 l_hold          dec swerve              ; holding the wheel
@@ -359,14 +356,15 @@ l_hold          dec swerve              ; holding the wheel
                 lda pull                ; the other way round
                 eor #$fe
 l_end           sta pull                ; (0 at the end)
-l_out           jmp anti
+l_out           jmp a_back
                 .send
 
 ; One frame of driving. In: A = joystick bits.
 update          tay
+                lda pull                ; (lane assist's hands on the wheel, while it holds it: only the sign counts)
+                sta turn
                 lda #0
                 sta thr
-                sta turn
                 sta hand
                 tya
                 and #JOY_UP | JOY_DOWN
@@ -403,7 +401,7 @@ update          tay
                 lda #0                  ; the grip: not worked out yet this frame
                 sta held_grip
                 sta fwd_set
-                jsr wheel               ; (steer, with lane assist's hands on the wheel if they are)
+                jsr steer
                 jsr trig
                 lda fwd_set             ; forward = vx cos + vy sin: as steer worked it out, if the direction
                 beq +                   ; is still the one it was for
@@ -418,7 +416,7 @@ update          tay
 +               #mul vel_y, cs, lat     ; sideways = vy cos - vx sin
                 #mul vel_x, sn, mr
                 #sub16 lat, mr, lat
-                jsr lane                ; (lane assist, then anti-theft, which may take the throttle, now that fwd is this frame's)
+                jsr anti                ; (lane assist and anti-theft, which may take the throttle, now that fwd is this frame's)
                 jsr engine
                 jsr tyres
                 #sub16 nf, fwd, nf      ; the changes ...

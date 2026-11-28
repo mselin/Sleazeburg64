@@ -301,7 +301,8 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
     - Done (PR D): bit 7 of `traffic.assist` (and `car.assist`), rolled in `police.fit` on modern for a car that
       is not a police car. `car.lane` counts steps of 16 frames going forward at 256 or more (`wait`, rolled
       16 + r & 31, 16 to 48: 5 to 15 seconds), then holds the wheel 40 frames (`swerve`, `pull`), changing its
-      mind every 8 frames, 2 times in 3; `car.wheel` gives `steer` its way. Unlike the design, the time belongs
+      mind every 8 frames, 2 times in 3; `update` starts `turn` from `pull`, and `car.anti` goes to `lane` only
+      for bit 7, so a car without it pays nothing. Unlike the design, the time belongs
       to the player's driving, not the car: getting out (`foot.park`) clears it, and every 8 frames rather than
       10 is what fitted. Tests: `tests/e2e/assist.test.mjs`.
   - **Emergency braking.** It looks out only from 154 (30 px/s), the speed `people.RUN_OVER` runs someone over

@@ -38,7 +38,7 @@ test('every map byte names a tile that exists, and every tile uses real tile cha
   const used = new Set(map);
   const count = Math.max(...used) + 1;
   assert.equal(used.size, count, 'tile numbers are used without gaps');
-  assert.ok(count <= 112, 'no more than the 112 tiles the program has room for (TILE_ROOM in src/main.asm)');
+  assert.ok(count <= 96, 'no more than the 96 tiles the program has room for (TILE_ROOM in src/main.asm)');
   for (const t of used) {
     for (let quarter = 0; quarter < 4; quarter++) {
       const ch = tiles[quarter * 256 + t];
