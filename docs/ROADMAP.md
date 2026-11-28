@@ -477,6 +477,8 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
     to MODERN, in yellow, and back. It swaps the line's bitmap with the other's, kept beside the picture, and
     the riders' frames with the scooter riders', kept with the title page's code. Still to come on modern: the
     driver assistance, car alarms and GAGGLE cameras.
+    **Not for the C64 version:** the C64 version is the classic game only, and the difficulty and everything
+    modern come out ("The modern difficulty" under What will not carry over, below).
 
 ## Milestone 4: sound and polish
 
@@ -540,6 +542,19 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
     copied: the C64's title page is the picture alone.
 
 ## What will not carry over from the browser game
+
+- **The modern difficulty** (the owner's decision, 2026-11-28; the removal is #123). The
+  original C64 version is the classic game only. Everything the browser game keeps for MODERN stays out:
+  - the difficulty setting itself, and the title page's DIFFICULTY line with its D key;
+  - cursed driver assistance: lane assist, emergency braking and anti-theft, and their status lines;
+  - car alarms, and their status lines;
+  - the GAGGLE cameras;
+  - scooter riders: the riders on the pavements are skaters, always.
+
+  What is already built for modern comes out again: the difficulty byte and its title line, the scooter riders'
+  frames and their swap, and the driver assistance's bits in `traffic.assist` and `car.assist`. Notes above that
+  say "on modern" or "still to come on modern" describe work that will not be done. Changes the browser game
+  makes later on modern only need no note here; changes to classic, or to both, still do.
 
 - **The touch controls.** The browser game is played on a phone by holding a finger on the screen: you walk, or
   drive, towards it. Buttons fire, get in and out, and work the handbrake (`specs/touch-controls.md` there). A
