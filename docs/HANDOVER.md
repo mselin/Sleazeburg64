@@ -19,14 +19,12 @@ Room first (the owner's choice, 28 November 2026, asked when it did not fit): ab
 dozen small gaps (io_code 19, io_more 19, texts 56, HIGH_CODE 28 to `$be00`, EXTRA 23, MORE 8, TOP 4, bss 7,
 stack page about 75); anti-theft alone needs about 190.
 
-0. PR R. Two colour routines in place of four (one per column start, coping with the second row), freeing about
-   8.4K at `$6d00`-`$aef2`. Measure the raster lines it costs in the worst frames (the frame tests, the long
-   drive). Check: `make test` green and the cost written down. If the cost is large, ask the owner before
-   merging. Status: builds; measuring (new build first, then `main` in a worktree, same tests).
+0. PR R, two colour routines in place of four: measured and shelved (the owner's choice, 28 November 2026):
+   about 20 raster lines more in the worst frame, 3 late frames on the long drive with traffic. Status: done.
 
 Then three PRs, each merged when green:
 
-1. PR C. Which cars (three bits a car, from `rnd` as it appears, modern only; never the hospital car; a police car
+1. PR C (anti-theft first, the owner's choice). Which cars (three bits a car, from `rnd` as it appears, modern only; never the hospital car; a police car
    always has anti-theft and never the other two, by the design now, not the ROADMAP) and anti-theft: the time while
    driving, stopped for good, the two messages, the bits travelling with the car. Check: a test where a car
    with anti-theft stops after its time and will not go again. Status: mapping the code (subagent).
@@ -68,12 +66,7 @@ Difficulty done: #118 (riders), #119 (title page, D).
 
 ## Changes
 
-- PR R, uncommitted then committed on `claude/confident-euler-70sqzi`: `src/video.asm` two routines (COLOUR_1 21
-  tiles at `$6d00`, COLOUR_0 20 tiles after it, COLOUR_END about `$9524`); X = 40 or 0 picks the row start; each
-  tile `ldy #k : lda (cmap),y : tay : lda tile_colour,y`. `write_colour` and its tables moved to `.section once`
-  (it was 124 bytes too big for EXTRA); `src/main.asm` HIGH_CODE fixed at `$aef2` (what waits after the map
-  needs the room up to it), viewer `.dsection once`. `$9524`-`$aef2` is free once the game runs.
-
+- PR R reverted on the branch (3c1fa91 has it); NOTES records the cost.
 - Merged #119, PR B: the title page's difficulty. `src/title-page.asm`
   (`.section title_code`, D, `turn`), `src/main.asm` (TITLE_HOME, PACK_ABOVE), `tools/picture.mjs` (`title()`,
   the line, the stash at `$c800`), `tests/e2e/vice.mjs` (`setRegisters`), `tests/e2e/title-page.test.mjs`;
@@ -92,6 +85,8 @@ Difficulty done: #118 (riders), #119 (title page, D).
 
 
 ## Dead ends
+
+- Two colour routines (3c1fa91): 20 raster lines too slow, 3 late frames. Do not retry for room.
 
 - A store to `$00ff,x` is a zero-page store that wraps round in page 0: it overwrote the CPU port at start.
   Copying into the stack page needs `sta @w` (`src/main.asm`, `lay_down`).
@@ -115,10 +110,10 @@ Difficulty done: #118 (riders), #119 (title page, D).
 
 ## Next
 
-Plan step 0: compare the busiest-pass raster lines (car, traffic, city-viewer tests' diagnostics) between the
-branch and `main`; run `make test`; write the cost in NOTES; PR, merge if small, else ask the owner.
-For PR C later: per-slot byte in bss (bit 7 lane, 6 braking, 5-0 anti-theft: 0 none, 1 stopped, else 32-frame
-steps left, rolled 17 + r/16 + r/32), car.assist with it; rolled in police.new_car on modern only.
+PR C, anti-theft only, in the small gaps (about 240 bytes, Plan). Map the code: `police.new_car` (roll on modern,
+`people.difficulty`), take_io / out_here (carry the byte), the car's drive (count down while driven, stop),
+`status.say` (two messages). Per-slot byte in bss (bits 5-0: 0 none, 1 stopped, else 32-frame steps left,
+rolled 17 + r/16 + r/32); lane and braking bits wait for more room.
 
 ## Subagent files
 

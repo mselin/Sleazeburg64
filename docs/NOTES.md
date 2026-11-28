@@ -191,8 +191,9 @@ A briefing for whoever picks this project up next, person or assistant. Written 
     car joining the chase and taking a car (`foot.take`) are there. `police.init` runs from the start-only code. The frames it
     runs in were measured with the tests' frame counts: none late but the one that draws the screen afresh.
     Other room measured and not used: all of RAM under the I/O area for any code, for code only with every interrupt setting the
-    port back (a few raster lines a frame); and two of the four colour routines (about 8.4K), at a cost in
-    raster lines not yet measured.
+    port back (a few raster lines a frame); and two colour routines in place of four (about 6.6K freed, tried
+    28 November 2026, commit 3c1fa91): measured, it costs about 20 raster lines in the worst colour memory frame
+    (the long drive with traffic went from about 235 to 255, with 3 frames late), so it was shelved.
   - A timing edge (26 November 2026): `tests/e2e/screen.test.mjs`, "whatever is on the screen not shown ...",
     fails by one pixel (column 39, line 114) with about 15 more cycles in every frame with no heat (writing
     the border black in `police.watch` did it; 8 more did not). Keep the frames with no heat as they are, and

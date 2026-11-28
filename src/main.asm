@@ -61,7 +61,7 @@ SQUARES         = $bf00                 ; quarter squares for multiplying (see c
 SQUARES_HI      = $c200                 ; low and high bytes of n * n / 4 for n = -255..511, at each + n
 SQUARES_START   = SQUARES - 255         ; (1.5K, from here up to the screen copies)
                 .cerror SQUARES - 255 + 767 > SQUARES_HI - 255, "the halves of the quarter squares overlap"
-HIGH_CODE       = $aef2                  ; code that runs from just above the colour routines,
+HIGH_CODE       = video.COLOUR_END       ; code that runs from just above the colour routines,
 IO_CODE         = $d000                 ; under the I/O area: run only through a gate (below), copied at start
 IO_MORE         = $d600                 ; more of it (the banner), waiting after the map
 IO_LATE         = $dac0                 ; and the rest (io_late, then the panel's messages, which status.say copies
@@ -620,7 +620,6 @@ char_of         lda cam_hi,x
 .if VIEWER != 0
                 .include "video.asm"    ; (in the game, it runs from EXTRA_CODE)
                 .dsection video_more
-                .dsection once          ; (write_colour: in the game, it waits after the map)
 .endif
 .if VIEWER != 0
                 .include "panel.asm"
