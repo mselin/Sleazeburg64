@@ -730,12 +730,16 @@ park            lda car.assist
                 sta traffic.sp,x
                 sta traffic.dlo,x
                 sta traffic.dhi,x
+                sta car.wait            ; and lane assist rolled afresh in the next car
+                sta car.swerve
+                sta car.pull
                 rts
                 .send
                 .section tile_room3     ; (where there is room: main.asm)
 ; take_io's end: the message, or the immobiliser's, if the car is one anti-theft has stopped (car.anti).
 got             jsr hint
                 lda car.assist
+                and #$7f
                 cmp #1
                 bne +
                 ldx #status.MSG_NO

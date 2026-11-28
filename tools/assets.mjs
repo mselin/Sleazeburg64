@@ -208,7 +208,7 @@ chars.forEach((bytes, n) => charset.set(bytes, (FIRST_TILE_CHAR + n) * 8));
 // then each tile's colour, which is what goes into colour memory.
 const tileData = new Uint8Array(7 * 256);
 // The program keeps other things in each table by tile after its first TILE_ROOM entries (src/main.asm).
-export const TILE_ROOM = 128;
+export const TILE_ROOM = 112;
 if (tiles.length > TILE_ROOM) throw new Error(`${tiles.length} tiles: the tables by tile have room for ${TILE_ROOM}`);
 tiles.forEach((t, n) => {
   tileData[n] = t.tl;

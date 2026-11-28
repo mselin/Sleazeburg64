@@ -708,7 +708,7 @@ charset         .binary "chars.bin"     ; font in 0-63, tile characters after
 
 ; The tables by tile have room for TILE_ROOM tiles (tools/assets.mjs holds the city to it); the rest of each
 ; table's page holds other things (.section tile_room1-6): the panel's messages, and code.
-TILE_ROOM       = 128
+TILE_ROOM       = 112                   ; (the city has 78: 34 to spare; 112 since 28 November 2026, for room)
 room            .macro table, number
                 .binary "tiles.bin", \table * 256, TILE_ROOM
                 .dsection tile_room\number

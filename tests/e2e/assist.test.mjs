@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-// End-to-end tests of the cars' driver assistance (the design's "Cursed driver assistance"), on modern only. For
-// now anti-theft: every police car has it, and one car in five else; 10 to 25 seconds after the player takes
-// one it stops the car for good, with its message, and getting back in, the immobiliser says no. The real
-// program in VICE, the models held to it frame by frame (play.mjs; car.anti in car-model.mjs, police.fit in
-// traffic-model.mjs).
+// End-to-end tests of the cars' driver assistance (the design's "Cursed driver assistance"), on modern only.
+// Anti-theft: every police car has it, and one car in five else; 10 to 25 seconds after the player takes one it
+// stops the car for good, with its message, and getting back in, the immobiliser says no. Lane assist: one car
+// in five that is not a police car; driven forward fast enough, every 5 to 15 seconds it takes the wheel for
+// 40 frames, with its message. The real program in VICE, the models held to it frame by frame (play.mjs;
+// car.anti and car.lane in car-model.mjs, police.fit in traffic-model.mjs).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JOY } from './vice.mjs';
@@ -12,7 +13,7 @@ import { World, missed, pass, putTrafficCar } from './play.mjs';
 import { setDifficulty } from './people-model.mjs';
 import { C } from './car-model.mjs';
 
-const THEFT = 'ANTI-THEFT ENGAGED: ENGINE IMMOBILISED', NO = 'THE IMMOBILISER SAYS NO';
+const THEFT = 'ANTI-THEFT ENGAGED: ENGINE IMMOBILISED', NO = 'THE IMMOBILISER SAYS NO', LANE = 'CURSED LANE ASSIST TOOK OVER';
 const HINT_CAR = 'FIRE: HANDBRAKE. STANDING STILL: GET OUT';
 const quiet = assemble('assist', { defs: { SPAWN: 0, HONK: 0 } });
 const busy = assemble('assist-traffic', { defs: { HONK: 0 } });
@@ -73,7 +74,6 @@ test('anti-theft: the car stops for good at its last step, braking, never backin
       if (was > C.BRAKING) braking++, assert.ok(westward(w) < was, 'braking');
     }
     assert.ok(braking > 1, `it braked (${braking} frames)`);
-    assert.deepEqual([w.car.vx, w.car.vy], [0, 0], 'standing still');
     await hold(vice, L, w, JOY.DOWN, 20, 'down held');
     assert.deepEqual([w.car.vx, w.car.vy], [0, 0], 'down does nothing either');
     await press(vice, L, w, 'getting out');
@@ -111,7 +111,49 @@ test('a clean car, on modern, drives as ever; a car counting down keeps its coun
     assert.equal(w.car.assist, left, 'taken again, as it was');
   }));
 
-test('the traffic on modern: every patrol car has anti-theft, and about one car in five else, 17 to 39 steps', () =>
+test('lane assist: driven fast, it takes the wheel for 40 frames with its message, whatever the stick says, and rolls the steps to the next time afresh; getting out ends it', () =>
+  run(quiet, false, async (vice, w, L) => {
+    await press(vice, L, w, 'getting out');
+    await hold(vice, L, w, JOY.RIGHT, 60, 'east, away from their own car');
+    const { px, py } = w.player;
+    await putTrafficCar(vice, L, w, 1, { x: px + 9, y: py - 8, dir: 0, cruise: 0, col: 3, wreck: 1, assist: 0x80 });
+    await press(vice, L, w, 'getting in');
+    assert.equal(w.player.on, 0, 'in');
+    assert.equal(w.car.assist, 0x80, 'lane assist and no anti-theft');
+    await pass(vice, L, w, 0, 'in');
+    // Two steps left: it takes the wheel at the second step of 16 frames going fast enough.
+    await vice.write(L['car.wait'], [2]);
+    w.car.wait = 2;
+    const before = await missed(vice, L);
+    let frame = 0;
+    while (!w.car.swerve && frame++ < 200) await pass(vice, L, w, JOY.UP, `driving east, ${frame}`);
+    assert.equal(w.car.swerve, 40, `it took the wheel, ${frame} frames in`);
+    assert.equal(w.car.said, 'LANE');
+    assert.ok(w.car.vx >= 256, `going at 256 or more (${w.car.vx})`);
+    assert.ok(w.car.pull, 'one way or the other');
+    await pass(vice, L, w, JOY.UP | JOY.RIGHT, 'right held');
+    assert.equal(await hint(vice), LANE, 'its message');
+    const angle = w.car.angle;
+    for (frame = 1; w.car.swerve; frame++) {
+      await pass(vice, L, w, JOY.UP | (frame & 16 ? JOY.LEFT : JOY.RIGHT), `the stick fighting it, ${frame}`);
+    }
+    assert.equal(frame, 40, 'it held the wheel for 40 frames');
+    assert.equal(w.car.pull, 0, 'and let go');
+    assert.notEqual(w.car.angle, angle, 'the car turned');
+    // The stick steers again, and at the next step going fast enough the steps to the next time are rolled.
+    assert.equal(w.car.wait, 0, 'no steps left');
+    for (frame = 1; !w.car.wait && frame <= 100; frame++) await pass(vice, L, w, JOY.UP, `driving on, ${frame}`);
+    assert.ok(w.car.wait >= 15 && w.car.wait <= 47, `16 to 48 steps rolled, one gone (${w.car.wait})`);
+    for (frame = 1; Math.abs(w.car.vx) + Math.abs(w.car.vy) > 64 && frame <= 150; frame++) await pass(vice, L, w, JOY.DOWN, `stopping, ${frame}`);
+    await hold(vice, L, w, 0, 60, 'standing');
+    await press(vice, L, w, 'getting out');
+    assert.equal(w.player.on, 1, 'out');
+    assert.deepEqual([w.car.wait, w.car.swerve, w.car.pull], [0, 0, 0], 'lane assist starts afresh in the next car');
+    assert.equal(w.traffic.cars[w.traffic.mine].assist, 0x80, 'the car left keeps it');
+    assert.equal(await missed(vice, L) - before, 0, 'no frame was late');
+  }));
+
+test('the traffic on modern: every patrol car has anti-theft, and about one car in five else, 17 to 39 steps; lane assist in about one car in five, never a police car', () =>
   run(busy, true, async (vice, w, L) => {
     const seen = new Map(); // each car that came, by the frame it came, with its anti-theft
     let seed = 1987, bits = 0;
@@ -123,11 +165,14 @@ test('the traffic on modern: every patrol car has anti-theft, and about one car 
       w.traffic.cars.forEach((c, i) => c.on && c !== was[i] && !c.wreck && seen.set(`${frame}:${i}`, c));
     }
     const cars = [...seen.values()];
-    const armed = cars.filter((c) => c.assist), patrols = cars.filter((c) => c.patrol || c.cop);
+    const armed = cars.filter((c) => c.assist & 0x7f), patrols = cars.filter((c) => c.patrol || c.cop);
     assert.ok(cars.length >= 20, `enough cars came (${cars.length})`);
-    for (const c of armed) assert.ok(c.assist >= 17 && c.assist <= 39, `10-25 seconds (${c.assist} steps)`);
-    for (const c of patrols) assert.ok(c.assist, 'every police car has it');
+    for (const c of armed) assert.ok((c.assist & 0x7f) >= 17 && (c.assist & 0x7f) <= 39, `10-25 seconds (${c.assist & 0x7f} steps)`);
+    for (const c of patrols) assert.ok(c.assist & 0x7f, 'every police car has it');
+    for (const c of patrols) assert.ok(!(c.assist & 0x80), 'no police car has lane assist');
     const others = cars.filter((c) => !c.patrol && !c.cop);
-    const share = others.filter((c) => c.assist).length / others.length;
+    const share = others.filter((c) => c.assist & 0x7f).length / others.length;
     assert.ok(share > 0 && share < 0.5, `some other cars have it, not most (${armed.length} of ${cars.length}, ${patrols.length} police)`);
+    const lane = others.filter((c) => c.assist & 0x80).length / others.length;
+    assert.ok(lane > 0 && lane < 0.5, `some other cars have lane assist, not most (${lane.toFixed(2)})`);
   }));

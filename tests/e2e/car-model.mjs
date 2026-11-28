@@ -45,8 +45,9 @@ export class Car {
   /** A car at pixel (x, y), facing east, standing still. */
   constructor(x, y) {
     // wet: thirds of it in the water, as water-model.mjs last found (water.wet).
-    // assist: its anti-theft (car.assist): 0 none, 1 stopped for good, else the 32-frame steps left until it is.
-    Object.assign(this, { x: x * 256, y: y * 256, vx: 0, vy: 0, angle: 0, colour: 2, wet: 0, assist: 0 }); // red
+    // assist: its driver assistance (car.assist): bit 7 lane assist; the rest anti-theft, 0 none, 1 stopped for
+    // good, else the 32-frame steps left until it is. wait, swerve, pull: lane assist's (car.lane).
+    Object.assign(this, { x: x * 256, y: y * 256, vx: 0, vy: 0, angle: 0, colour: 2, wet: 0, assist: 0, wait: 0, swerve: 0, pull: 0 }); // red
   }
   get px() {
     return this.x >> 8;
@@ -60,13 +61,32 @@ export class Car {
    * forward speed `fwd` is more than BRAKING.
    */
   anti(thr, fwd, tick) {
-    this.said = null;
-    if (!this.assist) return thr;
-    if (this.assist > 1) {
-      if (!(tick & 31) && --this.assist === 1) this.said = 'THEFT';
+    const left = this.assist & 0x7f;
+    if (!left) return thr;
+    if (left > 1) {
+      if (!(tick & 31) && (--this.assist & 0x7f) === 1) this.said = 'THEFT';
       return thr;
     }
     return fwd > C.BRAKING ? -1 : 0;
+  }
+  /**
+   * car.lane, before anti: while it holds the wheel (`swerve` frames left, `pull` the way, by its sign), every 8
+   * frames it changes its mind 2 times in 3; else, in a car with it, going forward at 256 or more, a step every 16
+   * frames of `tick`, the steps (`wait`, 16 to 48) rolled when there are none, and at the last it takes the wheel
+   * for 40 frames, a random way, with its message. `rnd`: the traffic's random numbers (traffic.rnd).
+   */
+  lane(fwd, tick, rnd) {
+    if (this.swerve) {
+      if (!--this.swerve) this.pull = 0;
+      else if (!(this.swerve & 7) && rnd.next() < 171) this.pull ^= 0xfe;
+      return;
+    }
+    if (!(this.assist & 0x80) || fwd < 256 || tick & 15) return;
+    if (!this.wait) this.wait = 16 + (rnd.next() & 31) + rnd.carry;
+    if (--this.wait) return;
+    this.swerve = 40;
+    this.said = 'LANE';
+    this.pull = rnd.next() | 1;
   }
   /**
    * One frame with the joystick held as given (JOY bits). `traffic`, if given, is the traffic model, which the
@@ -75,7 +95,8 @@ export class Car {
    */
   step(bits, traffic = null, busy = false) {
     let thr = (bits & 1 && !(bits & 2) ? 1 : 0) - (bits & 2 && !(bits & 1) ? 1 : 0);
-    const turn = (bits & 8 && !(bits & 4) ? 1 : 0) - (bits & 4 && !(bits & 8) ? 1 : 0);
+    let turn = (bits & 8 && !(bits & 4) ? 1 : 0) - (bits & 4 && !(bits & 8) ? 1 : 0);
+    if (this.pull) turn = this.pull & 0x80 ? -1 : 1; // car.wheel: lane assist has the wheel
     const hand = !!(bits & 16);
     const inside = hits(this.px, this.py, this.angle >> 8);
     this.ground = kindAt(this.px, this.py); // (car.ground: what it is on this frame)
@@ -99,7 +120,9 @@ export class Car {
     }
     const fwd = mul(this.vx, c) + mul(this.vy, s);
     const lat = mul(this.vy, c) - mul(this.vx, s);
-    thr = this.anti(thr, fwd, traffic?.tick ?? 0); // (after the steering, which had the stick's)
+    this.said = null;
+    if (traffic) this.lane(fwd, traffic.tick, traffic.rnd); // (after the steering, which had the stick's or its)
+    thr = this.anti(thr, fwd, traffic?.tick ?? 0);
     let nf = fwd;
     const wet = this.wet;
     if (thr > 0) nf += WADE.ACCEL[wet];
