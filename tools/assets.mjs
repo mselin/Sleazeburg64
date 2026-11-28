@@ -596,6 +596,47 @@ export function scooterDownPixels() {
 export function scooterFrames() {
   return [0, 1, 2, 3].map((d) => spriteBytes(scooterPixels(d))).concat([spriteBytes(scooterDownPixels())]);
 }
+/**
+ * A skater, by the design: side on across the skateboard, the board along the way they go (east, south,
+ * west, north), a foot towards each end, the shoulders along the board and narrower than it, the arms out
+ * towards its ends, the face to the right. The design's board is cyan with black wheels, which a multicolour
+ * sprite does not have (its own colour is the hoodie): here the board is black, as the scooter is, and its
+ * wheels go with it. Then, lying, frame 4: someone knocked down, with the board on its side beside them.
+ */
+function skaterAt(x, y) {
+  const disc = (cx, cy, r) => (x - cx) ** 2 + (y - cy) ** 2 <= r * r;
+  let c = 0;
+  // The board: along x, its ends rounded.
+  if ((Math.abs(x) <= 6.5 && Math.abs(y) <= 3.6) || disc(-6.5, 0, 3.6) || disc(6.5, 0, 3.6)) c = 1;
+  if (Math.abs(x) <= 4.6 && Math.abs(y) <= 2.2) c = 2; // the shoulders, along it
+  for (const side of [-1, 1]) {
+    if (Math.abs(y) <= 1 && side * x >= 4.6 && side * x <= 7) c = 2; // the arms, out towards its ends
+    if (disc(side * 8, 0, 1.6)) c = 3; // the hands
+  }
+  if (disc(0, 0, 2.4)) c = y > 0.8 ? 3 : 1; // the head: hair, the face to the right
+  return c;
+}
+export function skaterPixels(d) {
+  const a = (d * Math.PI) / 2, cs = Math.round(Math.cos(a)), sn = Math.round(Math.sin(a));
+  const px = new Array(12 * 21).fill(0);
+  for (let br = 0; br < 10; br++)
+    for (let m = 0; m < 12; m++) {
+      const dx = 2 * m + 1 - 12, dy = 2 * br + 1 - 10;
+      px[2 * br * 12 + m] = px[(2 * br + 1) * 12 + m] = skaterAt(cs * dx + sn * dy, -sn * dx + cs * dy);
+    }
+  ring(px, 1);
+  return px;
+}
+export function skaterDownPixels() {
+  const px = downPixels();
+  // The board on its side to their right, along them: a shorter black bar, a wheel at each end.
+  for (let j = 4; j < 17; j++) px[j * 12 + 10] = px[j * 12 + 10] || 1;
+  for (const j of [4, 16]) px[j * 12 + 11] = 1;
+  return px;
+}
+export function skaterFrames() {
+  return [0, 1, 2, 3].map((d) => spriteBytes(skaterPixels(d))).concat([spriteBytes(skaterDownPixels())]);
+}
 const people = [];
 for (let d = 0; d < PEOPLE_DIRS; d++) for (let p = 0; p < PLAYER_POSES; p++) people.push(spriteBytes(personPixels(d, p)));
 people.push(spriteBytes(downPixels()));
@@ -603,6 +644,7 @@ writeFileSync(join(dir, 'people.bin'), Buffer.concat(people));
 writeFileSync(join(dir, 'punch.bin'), Buffer.concat(punchFrames()));
 writeFileSync(join(dir, 'pickups.bin'), Buffer.concat(pickupFrames()));
 writeFileSync(join(dir, 'scooters.bin'), Buffer.concat(scooterFrames()));
+writeFileSync(join(dir, 'skaters.bin'), Buffer.concat(skaterFrames())); // the classic riders, the default
 writeFileSync(join(dir, 'marker.bin'), Buffer.concat([spriteBytes(markerPixels()), spriteBytes(signPixels())])); // the P, then the S
 writeFileSync(join(dir, 'arrows.bin'), arrowBytes());
 writeFileSync(join(dir, 'player.bin'), Buffer.concat(player.stored)); // what the program file holds

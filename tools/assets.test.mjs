@@ -16,6 +16,8 @@ const car = readFileSync(join(dir, 'car.bin'));
 const player = readFileSync(join(dir, 'player.bin'));
 const playerMade = readFileSync(join(dir, 'player-made.bin'));
 const playerAll = readFileSync(join(dir, 'player-all.bin'));
+const skaters = readFileSync(join(dir, 'skaters.bin'));
+const scooters = readFileSync(join(dir, 'scooters.bin'));
 
 test('the city is the same one as in the browser game', () => {
   const city = generate();
@@ -83,6 +85,27 @@ test('every tile has the kind its ground has in the city: buildings and trees ar
   const city = generate();
   const kindOf = { [BLD]: 1, [TREE]: 1, [GRASS]: 2, [WATER]: 3, [FOUNT]: 3, [WALK]: 4, [PLAZA]: 4 };
   for (let i = 0; i < map.length; i++) assert.equal(tiles[1280 + map[i]], kindOf[city.map[i]] ?? 0, `tile ${i % MW},${Math.floor(i / MW)}`);
+});
+
+test('the skaters (classic\'s riders): side on across a board along the way they go, then lying beside it', () => {
+  assert.equal(skaters.length, 5 * 64, 'four ways and lying, as the scooter riders');
+  assert.equal(scooters.length, 5 * 64);
+  const px = (f, m, r) => (skaters[f * 64 + r * 3 + (m >> 2)] >> (6 - 2 * (m & 3))) & 3; // multicolour pixel m of row r
+  const box = (f) => {
+    let w = 0, h = 0;
+    for (let r = 0; r < 21; r++) for (let m = 0; m < 12; m++) if (px(f, m, r)) [w, h] = [Math.max(w, Math.abs(2 * m + 1 - 12)), Math.max(h, Math.abs(r - 10))];
+    return [w, h]; // half its width and height, in hi-res pixels
+  };
+  for (const f of [0, 2]) assert.ok(box(f)[0] > box(f)[1] + 3, `going east or west, the board lies across (${box(f)})`);
+  for (const f of [1, 3]) assert.ok(box(f)[1] > box(f)[0] + 3, `going south or north, it lies up and down (${box(f)})`);
+  for (let f = 0; f < 4; f++) {
+    const seen = new Set();
+    for (let r = 0; r < 21; r++) for (let m = 0; m < 12; m++) seen.add(px(f, m, r));
+    assert.deepEqual([...seen].sort(), [0, 1, 2, 3], `way ${f}: black (board, outline), the hoodie, and yellow (face, hands)`);
+  }
+  // Going west is going east turned half round: the face is to the right of the way they go, either way.
+  for (let r = 0; r < 20; r++) for (let m = 0; m < 12; m++) assert.equal(px(2, 11 - m, 19 - r), px(0, m, r), `pixel ${m},${r}`);
+  assert.ok(!skaters.subarray(0, 256).equals(scooters.subarray(0, 256)), 'not the scooter riders');
 });
 
 test('the car looks the same turned a quarter turn: its 16 directions are one shape rotated', () => {
