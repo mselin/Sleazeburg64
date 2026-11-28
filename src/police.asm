@@ -63,7 +63,8 @@ AT_WINDOW       = 13                    ; ... or this near the player's car ...
 WINDOW_SLOW     = 113                   ; ... going slower than this (22 pixels a second) ...
 WINDOW_AFTER    = 35                    ; ... for this many frames on end (0.7 seconds)
 HURT_FAST       = 115                   ; a car going faster than this (45 pixels a second, the traffic's units) ...
-HURT_REACH      = 9                     ; ... with its middle this near the player on foot either way hurts them,
+HURT_LONG       = 12                    ; ... with its body this near the player's middle on foot, along it ...
+HURT_SHORT      = 7                     ; ... and across (its length and width and their shoulders) hurts them,
 HURT_WAIT       = 20                    ; ... and nothing more does for this many frames (0.4 seconds)
 HOSPITAL_X      = (1 * 12 + 7) * 16     ; the hospital: where the browser game has it (its HOSP)
 HOSPITAL_Y      = (1 * 12 + 2) * 16 + 8
@@ -749,6 +750,7 @@ officers_go     ldx #CROWD - 1
                 .send
 
                 .section police_extra   ; (where there is room: waiting.asm)
+gate_shoot      #io_gate shoot_io       ; (a gate, as those in low_more)
                 .send
 
                 .section tile_room6     ; (where there is room: main.asm)
@@ -1238,23 +1240,29 @@ billed          ldy #9
 gate_officer    #io_gate seat_officer
 gate_down       #io_gate down_io
 gate_back       #io_gate back_io
-gate_shoot      #io_gate shoot_io
 
 ; On foot, once a frame (foot.update): a car on the move hits the player, for its speed * 0.28 (in pixels a
 ; second: the traffic's speed * 7/64), unless one has in the last HURT_WAIT frames; at no health left, wasted.
+; Its body is turned to the axis it faces nearer (the design turns it all the way: the cars turn only at
+; crossings).
 hits            lda hit_wait
                 beq +
                 dec hit_wait
                 rts
-+               lda #HURT_REACH
-                sta reach
-                ldx #SLOTS - 1
++               ldx #SLOTS - 1
 each_hitter     stx looked
                 lda traffic.on,x
                 beq next_hitter
                 lda traffic.sp,x
                 cmp #HURT_FAST + 1
                 bcc next_hitter
+                lda traffic.face,x      ; (C set: + 2) 4 if it faces nearer north or south
+                adc #1
+                and #4
+                beq +
+                lda #HURT_LONG ^ HURT_SHORT
++               eor #HURT_LONG          ; HURT_LONG east or west, else HURT_SHORT
+                sta reach
                 sec
                 lda traffic.pl,x
                 sbc player_at
@@ -1263,6 +1271,9 @@ each_hitter     stx looked
                 sbc player_at + 1
                 jsr close
                 bcs next_hitter
+                lda reach               ; the other way
+                eor #HURT_LONG ^ HURT_SHORT
+                sta reach
                 ldx looked
                 sec
                 lda traffic.pl + N1,x

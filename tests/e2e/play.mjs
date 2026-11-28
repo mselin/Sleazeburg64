@@ -24,7 +24,7 @@ const TRAFFIC_COLOURS = [4, 5, 8, 10, 13, 14, 3, 7]; // (traffic.colours)
 /** The police and the pavement (police.pave_look): a tile's kind, the speed (1/256 pixel a frame), frames between. */
 export const PAVE = { KIND: 4, FAST: 77, AGAIN: 150 };
 /** Hurt, and wasted (police.hits, police.wasted). */
-export const HURT = { FAST: 115, REACH: 9, WAIT: 20, HOSPITAL: [(1 * 12 + 7) * 16, (1 * 12 + 2) * 16 + 8] };
+export const HURT = { FAST: 115, LONG: 12, SHORT: 7, WAIT: 20, HOSPITAL: [(1 * 12 + 7) * 16, (1 * 12 + 2) * 16 + 8] };
 /** Officers on foot (police.get_out, police.on_foot). */
 export const OFFICERS = {
   NEAR: 36, CAR_STILL: 77, STILL: 154, MOST: 4, BESIDE: 12, NOTICE: 120, ARREST: 7, WINDOW: 13, WINDOW_SLOW: 113, WINDOW_AFTER: 35,
@@ -374,16 +374,17 @@ export class World {
     else this.cam.busy = true;
   }
   /**
-   * police.hits, on foot after the rest of foot.update: a car going faster than HURT.FAST with its middle within
-   * HURT.REACH of the player's hurts them, its speed / 8 - its speed / 64, unless one has in the last HURT.WAIT
-   * frames; at no health left, wasted.
+   * police.hits, on foot after the rest of foot.update: a car going faster than HURT.FAST with its body near the
+   * player's middle (HURT.LONG along the axis it faces nearer, HURT.SHORT across) hurts them, its speed / 8 - its
+   * speed / 64, unless one has in the last HURT.WAIT frames; at no health left, wasted.
    */
   hits() {
     if (this.hitWait) return void this.hitWait--;
     const near = World.near, [x, y] = this.at, t = this.traffic;
     for (let k = t.n - 1; k >= 0; k--) {
       const c = t.cars[k];
-      if (!c.on || c.sp <= HURT.FAST || !near(c.px - x, HURT.REACH) || !near(c.py - y, HURT.REACH)) continue;
+      const ns = ((c.face + 2) & 4) !== 0, rx = ns ? HURT.SHORT : HURT.LONG, ry = ns ? HURT.LONG : HURT.SHORT;
+      if (!c.on || c.sp <= HURT.FAST || !near(c.px - x, rx) || !near(c.py - y, ry)) continue;
       this.hitWait = HURT.WAIT;
       return this.harm((c.sp >> 3) - (c.sp >> 6));
     }

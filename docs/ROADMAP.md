@@ -125,7 +125,9 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
     - On the C64 (28 November 2026), the player's car runs over by its whole body: someone's middle within
       12 pixels of the car's middle along it and 7.5 across (its body, 19 by 10, with their shoulders),
       turned with the car's picture (one of 16 ways), worked out in 64ths of a pixel with the multiplication's
-      table (`people.struck`). Still to come: traffic hurting the player by its body, and the slow push aside.
+      table (`people.struck`). A traffic car hurts the player on foot by its body too: their middle within 12
+      pixels of its middle along it and 7 across (`police.hits`), turned to the axis it faces nearer (it turns
+      only at crossings; the design turns it all the way). Still to come: the slow push aside.
 - Water: cars flood and sink, people swim (done, not yet tried on real hardware). The player's car wades,
   slower the deeper it is, floods once it is wholly in, and sinks in three colours, leaving the player swimming.
   It stops where it floods rather than drifting on, and it is out of the way from the moment it floods rather
@@ -212,7 +214,7 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
     (every 6 frames) from tables, with no square roots; the way's 11 × 11 picture is copied into the arrow's
     frame only when it changes; nothing is added to a frame with no heat.
   - **Hurt, and wasted** (done, the first part: cars). On foot, a car going faster than 45 pixels a second with
-    its middle within 9 pixels of the player's either way hurts them, by its speed × 0.28 (the design's),
+    its body near the player (12 pixels along it, 7 across, from its middle) hurts them, by its speed × 0.28 (the design's),
     and nothing hurts them again for 0.4 seconds; the browser game also pushes them along, which is not done
     here yet. At no health left they are wasted: the police and the heat go, health is full again, the
     hospital bills $500 (or all there is) and the player is at the hospital (where the browser game has it).

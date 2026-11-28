@@ -341,6 +341,22 @@ test('a car going fast hurts the player on foot for its speed, and not again for
     }
   }));
 
+test('a car hurts the player on foot by its body: its length along the way it faces, its width across', () =>
+  quietRun(async (vice, w) => {
+    await putOnFoot(vice, Q, w, 200, 24, 0);
+    for (let i = 1; i <= 3; i++) await pass(vice, Q, w, 0, `put there, ${i} frames`);
+    // [the way it goes, then where it is put from the player (it is looked at where it was put), hit or not]
+    for (const [dir, dx, dy, hit] of [[0, -12, 0, true], [0, -1, 8, false], [1, 7, -12, true], [1, 8, -1, false]]) {
+      const before = w.hp;
+      await putTrafficCar(vice, Q, w, 0, { x: w.player.px + dx, y: w.player.py + dy, dir, cruise: 255 });
+      await pass(vice, Q, w, 0, `going ${dir ? 'south' : 'east'}, put ${dx}, ${dy} from them`);
+      assert.equal(w.hp < before, hit, hit ? 'hit by its body' : 'just beside it');
+      assert.equal(await hp(vice), w.hp);
+      await putTrafficCar(vice, Q, w, 0, { x: w.player.px - 120, y: 24, dir: 0, cruise: 0 });
+      for (let i = 1; i <= HURT.WAIT; i++) await pass(vice, Q, w, 0, `out of the way, ${i} frames`);
+    }
+  }));
+
 test('with no health left the player is wasted: at the hospital, healed, billed $500, the weapons kept with no police about', () =>
   quietRun(async (vice, w) => {
     await putOnFoot(vice, Q, w, 200, 24, 0);
