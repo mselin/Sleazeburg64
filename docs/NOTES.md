@@ -158,6 +158,12 @@ A briefing for whoever picks this project up next, person or assistant. Written 
     `EXTRA_CODE` 10 bytes, `low_more` 7, `HIGH_CODE` 23 (1 in the build with sixteen cars, which the traffic
     tests make: `status.digit` there overflowed it), `boot` 10, `io_more` 1, `io_code` (`$d000`-`$d5eb`,
     waiting at `$2000`-`$25eb`, up to the player's frames at `$2600`) 20. `io_late` starts at `$d900` (the texts after it).
+  - The push aside (28 November 2026, `people.push_io`, with `people.hunting` beside it as `people.car_under`,
+    both behind one gate, `people.car_io`) is in `io_more`, which now runs to `IO_LATE` at `$dac0` (it need not
+    start a page: the texts after it are copied up in whole pages, the last over the start of `EXTRA_CODE`,
+    which is copied after them). Code there that adds heat calls `status.heat_a`, never `crime` or
+    `status.add_heat`: a second gate would switch the I/O area back in under it. Left: `io_more` 19 bytes, the
+    texts 56 (to `$dfff`), `EXTRA_CODE` 24 (moving `hunting` out gave it 14).
   - The tables by tile (`$4000`-`$46ff`) have room for 128 tiles (`TILE_ROOM`; the city has 78, and
     `tools/assets.mjs` refuses more than 128): the rest of six of the seven pages is `.section tile_room1`-`6`,
     128 bytes each (26 November 2026, measured as the one room with no cost left). The panel's messages are in

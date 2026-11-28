@@ -64,8 +64,9 @@ SQUARES_START   = SQUARES - 255         ; (1.5K, from here up to the screen copi
 HIGH_CODE       = video.COLOUR_END       ; code that runs from just above the colour routines,
 IO_CODE         = $d000                 ; under the I/O area: run only through a gate (below), copied at start
 IO_MORE         = $d600                 ; more of it (the banner), waiting after the map
-IO_LATE         = $d900                 ; and the rest (io_late, then the panel's messages, which status.say copies
-                                        ; out), waiting with what start runs once
+IO_LATE         = $dac0                 ; and the rest (io_late, then the panel's messages, which status.say copies
+                                        ; out), waiting with what start runs once (copied up in whole pages, the
+                                        ; last of them over the start of EXTRA_CODE, which is copied after it)
 MORE_CODE       = $c8e0                 ; from after the screen copies,
 TOP_CODE        = $f300                 ; and from the top of memory: all copied there at start
 EXTRA_CODE      = $e000                 ; and from under the KERNAL ROM, which is switched out, up to TOP_CODE
