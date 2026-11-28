@@ -9,28 +9,22 @@ in it: it is committed and public.
 
 ## Task
 
-"continue with implementation" (after #117): the difficulty, CLASSIC or MODERN (mselin/gta-c64#85; ROADMAP
-under "Title screen" and the skaters under Pedestrians; Sleazeburg64#11). Design: "Difficulty" under "Title
-screen and icon" in `specs/design.md` there; the skater under People on foot ("A skater stands side on ...").
+"continue with implementation" (after #119): cursed driver assistance, modern only (Sleazeburg64#61; ROADMAP
+"Cursed driver assistance (#61)", which already plans the C64 way). Design: "Cursed driver assistance" in
+`specs/design.md` in mselin/gta-c64, and "Difficulty" (going to classic, every car loses its assistance).
 
 ## Plan
 
-Two PRs: the riders by difficulty first (classic, the default, gets skaters), then the title page.
+Three PRs, each merged when green:
 
-1. DONE (PR A). Riders by difficulty: `people.difficulty`, `rider_col`, `rider_spd` (in `tile_room3`: plain in
-   the program file, so the title page can set them before unpacking). Skater 15 at 235 (46 px/s), scooter 13
-   at 255. `src/people.asm` (new person, show), `src/pickups.asm` drop_io. Model `P.riders(d)`,
-   `setDifficulty`. Check: `tests/e2e/riders.test.mjs` (was scooter.test) 6/6 pass.
-2. DONE (PR A). Skater frames: `tools/assets.mjs` `skaterFrames` -> `build/skaters.bin`, in the program file at
-   SCOOTER_FRAMES; `build/scooters.bin` kept for modern. Check: `tools/assets.test.mjs` 13/13 pass.
-3. DONE (PR B). Title page (TITLE builds): its code moves out of `boot` to a fixed place before PACK_HOME (both
-   build passes must have the same labels: `tools/build-game.sh` compares them; in the unpacked pass it can be
-   `.virtual`), with the scooter riders' 320 bytes. The line "DIFFICULTY: CLASSIC - PRESS D" in a character
-   row (tools/picture.mjs emits both words' bitmap cells), grey 12 / yellow 7 in the screen bytes' high nybble
-   (colour 1); D (keyboard column 2, row 2) swaps it, copies the frames, sets the three bytes. Check:
-   `tests/e2e/title-page.test.mjs` 3/3 (holds D five frames, D on, off, on; the frame drawn as D is pressed
-   shows the old line whole).
-4. Docs, HANDOVER; `make e2e`; PR; merge when green, each PR.
+1. PR C. Which cars (three bits a car, from `rnd` as it appears, modern only; never the hospital car; a police car
+   always has anti-theft and never the other two, by the design now, not the ROADMAP) and anti-theft: the time while
+   driving, stopped for good, the two messages, the bits travelling with the car. Check: a test where a car
+   with anti-theft stops after its time and will not go again. Status: mapping the code (subagent).
+2. PR D. Lane assist. Check: a test of the swerve and its message.
+3. PR E. Emergency braking. Check: tests stopping for a person and a car.
+(The alarm's sound waits for sound, milestone 4; its lights flash the car's sprite yellow.)
+Difficulty done: #118 (riders), #119 (title page, D).
 
 ## Established
 
@@ -65,7 +59,7 @@ Two PRs: the riders by difficulty first (classic, the default, gets skaters), th
 
 ## Changes
 
-- PR B (branch `claude/confident-euler-70sqzi`): the title page's difficulty. `src/title-page.asm`
+- Merged #119, PR B: the title page's difficulty. `src/title-page.asm`
   (`.section title_code`, D, `turn`), `src/main.asm` (TITLE_HOME, PACK_ABOVE), `tools/picture.mjs` (`title()`,
   the line, the stash at `$c800`), `tests/e2e/vice.mjs` (`setRegisters`), `tests/e2e/title-page.test.mjs`;
   ROADMAP, NOTES.
@@ -106,9 +100,7 @@ Two PRs: the riders by difficulty first (classic, the default, gets skaters), th
 
 ## Next
 
-Open PR B and merge when green. After the difficulty: driver assistance (modern only); jobs are blocked on mselin/gta-c64#117;
-check the officers' values against gta-c64#116.
-
+Plan step 1: read the subagent's map of spawning, getting in, the car's throttle, messages; then the model.
 
 ## Subagent files
 
