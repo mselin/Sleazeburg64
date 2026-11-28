@@ -15,7 +15,16 @@ in it: it is committed and public.
 
 ## Plan
 
-Three PRs, each merged when green:
+Room first (the owner's choice, 28 November 2026, asked when it did not fit): about 240 bytes are free, in a
+dozen small gaps (io_code 19, io_more 19, texts 56, HIGH_CODE 28 to `$be00`, EXTRA 23, MORE 8, TOP 4, bss 7,
+stack page about 75); anti-theft alone needs about 190.
+
+0. PR R. Two colour routines in place of four (one per column start, coping with the second row), freeing about
+   8.4K at `$6d00`-`$aef2`. Measure the raster lines it costs in the worst frames (the frame tests, the long
+   drive). Check: `make test` green and the cost written down. If the cost is large, ask the owner before
+   merging. Status: next.
+
+Then three PRs, each merged when green:
 
 1. PR C. Which cars (three bits a car, from `rnd` as it appears, modern only; never the hospital car; a police car
    always has anti-theft and never the other two, by the design now, not the ROADMAP) and anti-theft: the time while
@@ -100,7 +109,10 @@ Difficulty done: #118 (riders), #119 (title page, D).
 
 ## Next
 
-Plan step 1: read the subagent's map of spawning, getting in, the car's throttle, messages; then the model.
+Plan step 0: read `src/video.asm` `write_colour` (around line 931) and how a frame picks a routine (`colour_lo`,
+gx/gy); design one routine per column start that handles the row start, then measure.
+For PR C later: per-slot byte in bss (bit 7 lane, 6 braking, 5-0 anti-theft: 0 none, 1 stopped, else 32-frame
+steps left, rolled 17 + r/16 + r/32), car.assist with it; rolled in police.new_car on modern only.
 
 ## Subagent files
 
