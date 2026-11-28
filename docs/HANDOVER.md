@@ -78,7 +78,7 @@ Two PRs: the riders by difficulty first (classic, the default, gets skaters), th
 ## Verification
 
 - Last full `make test` (PR 2, #114): 153 pass, tools 25 pass (28 November 2026).
-- PR B: title page 3/3, the 16-car build, loader picture unchanged (cmp); full `make test` running.
+- PR B: full `make test`: e2e 160/160 (after fixing disk.test, which compared the title page without its line), tools 26, emulator screenshots ok; the 16-car build; loader picture unchanged (cmp).
 - Unverified anywhere: the C64 program on real hardware (owner's to try).
 
 
