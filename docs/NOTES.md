@@ -168,7 +168,7 @@ A briefing for whoever picks this project up next, person or assistant. Written 
   - The tables by tile (`$4000`-`$46ff`) have room for 128 tiles (`TILE_ROOM`; the city has 78, and
     `tools/assets.mjs` refuses more than 128): the rest of six of the seven pages is `.section tile_room1`-`6`,
     128 bytes each (26 November 2026, measured as the one room with no cost left). The panel's messages are in
-    rooms 1-4; the officers on foot have room 5, room 6 and what was left of 2 and 4 (only a few bytes are left in each). Room 3 also holds the
+    rooms 1-4; the officers on foot have room 5, room 6 and what was left of 2 and 4. Anti-theft (PR C) took more: left after it, room 1 43 bytes (32 in the sixteen-car build: `traffic.assist` is there), 2 14, 3 0, 4 19, 5 16, 6 22; `io_text` about 16. The sixteen-car build had no room for the table in bss. Room 3 also holds the
     difficulty and the riders' colour and speed (`people.difficulty`: the title page sets them before anything is
     unpacked) and the passers-by's shirts (moved from `people_high`, which the sixteen-car test build ran a byte
     past on 28 November 2026; `gap_code` and `basic_code` had no room left for them then). Any code or data can go there:
@@ -191,8 +191,9 @@ A briefing for whoever picks this project up next, person or assistant. Written 
     car joining the chase and taking a car (`foot.take`) are there. `police.init` runs from the start-only code. The frames it
     runs in were measured with the tests' frame counts: none late but the one that draws the screen afresh.
     Other room measured and not used: all of RAM under the I/O area for any code, for code only with every interrupt setting the
-    port back (a few raster lines a frame); and two of the four colour routines (about 8.4K), at a cost in
-    raster lines not yet measured.
+    port back (a few raster lines a frame); and two colour routines in place of four (about 6.6K freed, tried
+    28 November 2026, commit 3c1fa91): measured, it costs about 20 raster lines in the worst colour memory frame
+    (the long drive with traffic went from about 235 to 255, with 3 frames late), so it was shelved.
   - A timing edge (26 November 2026): `tests/e2e/screen.test.mjs`, "whatever is on the screen not shown ...",
     fails by one pixel (column 39, line 114) with about 15 more cycles in every frame with no heat (writing
     the border black in `police.watch` did it; 8 more did not). Keep the frames with no heat as they are, and

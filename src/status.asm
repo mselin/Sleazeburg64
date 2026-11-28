@@ -597,7 +597,9 @@ MSG_SEIZED      = 11                    ; (wasted with the police about)
 MSG_PAVE        = 12                    ; and on: the police's four lines for driving on the pavement
 MSG_PAINTED     = 16
 MSG_NO_CASH     = 17
-MESSAGES        = ("fire: handbrake. standing still: get out", "stand by a car and press fire to get in", "the car is gone. swim for it. the warranty does not cover this.", "a stern letter is being drafted", "police dispatched. eventually.", "shoot first, paperwork never", "overtime has been approved", "the homeowners association has been notified", 'busted. your weapons are now evidence', "the cops know that cruiser. they do not know you.", "st. invoice hospital: ambulance ride (out of network)", "ambulance ride billed. the police kept your weapons", "officer: that is a sidewalk, not a shortcut.", "police: sidewalks are for pedestrians and parking tickets.", "the cops saw that. the pavement is not a lane.", "driving on the sidewalk. in front of the police. bold.", "paint & pray: new colour, same sins. -$200", "paint & pray: no cash, no absolution.")
+MSG_THEFT       = 18                    ; anti-theft (car.anti), and the car it stopped, got back into (foot.got)
+MSG_NO          = 19
+MESSAGES        = ("fire: handbrake. standing still: get out", "stand by a car and press fire to get in", "the car is gone. swim for it. the warranty does not cover this.", "a stern letter is being drafted", "police dispatched. eventually.", "shoot first, paperwork never", "overtime has been approved", "the homeowners association has been notified", 'busted. your weapons are now evidence', "the cops know that cruiser. they do not know you.", "st. invoice hospital: ambulance ride (out of network)", "ambulance ride billed. the police kept your weapons", "officer: that is a sidewalk, not a shortcut.", "police: sidewalks are for pedestrians and parking tickets.", "the cops saw that. the pavement is not a lane.", "driving on the sidewalk. in front of the police. bold.", "paint & pray: new colour, same sins. -$200", "paint & pray: no cash, no absolution.", "anti-theft engaged: engine immobilised", "the immobiliser says no")
                 .send                   ; (the messages: in the room the tables by tile leave, main.asm)
                 .section io_more        ; (two of the texts, where there is room under the I/O area: main.asm)
 m0              .text format("%-40s", MESSAGES[0])
@@ -620,12 +622,16 @@ m16             .text format("%-40s", MESSAGES[16])
 m17             .text format("%-40s", MESSAGES[17])
 m10             .text format("%-40s", MESSAGES[10])
 m11             .text format("%-40s", MESSAGES[11])
+m18             .text format("%-40s", MESSAGES[18])
+                .send
+                .section tile_room5     ; (where there is room: main.asm; say copies it out as it does the rest)
+m19             .text format("%-40s", MESSAGES[19])
                 .send
                 .section tile_room1     ; (where there is room: main.asm)
 msg_buf         .fill 64                ; the message being shown, copied here by say
                 .send
                 .section status
-MSG_AT          = (m0, m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, m11, m12, m13, m14, m15, m16, m17)
+MSG_AT          = (m0, m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, m11, m12, m13, m14, m15, m16, m17, m18, m19)
 msg_lo          .byte <MSG_AT
 msg_hi          .byte >MSG_AT
 most_of         .function m
@@ -636,8 +642,8 @@ msg_most        .byte most_of(MESSAGES[0]), most_of(MESSAGES[1]), most_of(MESSAG
                 .byte most_of(MESSAGES[4]), most_of(MESSAGES[5]), most_of(MESSAGES[6]), most_of(MESSAGES[7])
                 .byte most_of(MESSAGES[8]), most_of(MESSAGES[9]), most_of(MESSAGES[10]), most_of(MESSAGES[11])
                 .byte most_of(MESSAGES[12]), most_of(MESSAGES[13]), most_of(MESSAGES[14]), most_of(MESSAGES[15])
-                .byte most_of(MESSAGES[16]), most_of(MESSAGES[17])
-MSG_FRAMES      = (frames_of(MESSAGES[0]), frames_of(MESSAGES[1]), frames_of(MESSAGES[2]), frames_of(MESSAGES[3]), frames_of(MESSAGES[4]), frames_of(MESSAGES[5]), frames_of(MESSAGES[6]), frames_of(MESSAGES[7]), frames_of(MESSAGES[8]), frames_of(MESSAGES[9]), frames_of(MESSAGES[10]), frames_of(MESSAGES[11]), frames_of(MESSAGES[12]), frames_of(MESSAGES[13]), frames_of(MESSAGES[14]), frames_of(MESSAGES[15]), frames_of(MESSAGES[16]), frames_of(MESSAGES[17]))
+                .byte most_of(MESSAGES[16]), most_of(MESSAGES[17]), most_of(MESSAGES[18]), most_of(MESSAGES[19])
+MSG_FRAMES      = (frames_of(MESSAGES[0]), frames_of(MESSAGES[1]), frames_of(MESSAGES[2]), frames_of(MESSAGES[3]), frames_of(MESSAGES[4]), frames_of(MESSAGES[5]), frames_of(MESSAGES[6]), frames_of(MESSAGES[7]), frames_of(MESSAGES[8]), frames_of(MESSAGES[9]), frames_of(MESSAGES[10]), frames_of(MESSAGES[11]), frames_of(MESSAGES[12]), frames_of(MESSAGES[13]), frames_of(MESSAGES[14]), frames_of(MESSAGES[15]), frames_of(MESSAGES[16]), frames_of(MESSAGES[17]), frames_of(MESSAGES[18]), frames_of(MESSAGES[19]))
                 .send
                 .section io_code        ; (under the I/O area, where say reads them: main.asm)
 msg_left_lo     .byte <MSG_FRAMES

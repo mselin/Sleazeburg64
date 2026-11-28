@@ -55,7 +55,8 @@ export async function readTraffic(vice, L, n) {
   const cop = await vice.read(L['police.cop'], n), [chaseWait] = await vice.read(L['police.chase_wait'], 1), [around] = await vice.read(L['police.around'], 1);
   const [wail] = await vice.read(L['police.wail'], 1), [tone] = await vice.read(L['police.tone'], 1), [stolen] = await vice.read(L['police.stolen'], 1);
   const patrol = await vice.read(L['police.patrol'], n), [patrolNear] = await vice.read(L['police.patrol_near'], 1);
-  cars.forEach((c, i) => c.on && Object.assign(c, { cop: cop[i], patrol: patrol[i] }));
+  const assist = await get('assist', n);
+  cars.forEach((c, i) => c.on && Object.assign(c, { cop: cop[i], patrol: patrol[i], assist: assist[i] }));
   return { cars, seed: [seed[0], seed[1]], tick: tick[0], turns: turns[0], rot: rot[0], spawnWait: wait[0], mine: mine[0], chaseWait, around, wail, tone, stolen, patrolNear };
 }
 
@@ -68,23 +69,24 @@ export function modelTraffic(t) {
     car.ta = c.turn === 0xff ? null : c.ta;
     car.cop = c.cop;
     car.patrol = c.patrol;
+    car.assist = c.assist;
     return car;
   });
   return { cars, seed: [t.rnd.lo, t.rnd.hi], tick: t.tick, turns: t.turns, rot: t.rot, spawnWait: t.spawnWait, mine: t.mine, chaseWait: t.chaseWait, around: t.around, wail: t.wail, tone: t.tone, stolen: t.stolen, patrolNear: t.patrolNear };
 }
 
 const signed = (lo, hi) => ((hi << 8) | lo) << 16 >> 16;
-/** The player's car in the program: where it is, how it moves, the way it faces, and its colour. */
+/** The player's car in the program: where it is, how it moves, the way it faces, its colour and its anti-theft. */
 export async function readCar(vice, L) {
   if (L['car.colour'] - L['car.pos_x'] !== 13) throw new Error('readCar expects pos, vel, angle, inside and colour in a row');
   const b = await vice.read(L['car.pos_x'], 14);
   return {
     x: b[0] | (b[1] << 8) | (b[2] << 16), y: b[3] | (b[4] << 8) | (b[5] << 16),
     vx: signed(b[6], b[7]), vy: signed(b[8], b[9]), angle: b[10] | (b[11] << 8), colour: b[13],
-    wet: (await vice.read(L['water.wet'], 1))[0],
+    wet: (await vice.read(L['water.wet'], 1))[0], assist: (await vice.read(L['car.assist'], 1))[0],
   };
 }
-export const carState = (c) => ({ x: c.x, y: c.y, vx: c.vx, vy: c.vy, angle: c.angle, colour: c.colour, wet: c.wet });
+export const carState = (c) => ({ x: c.x, y: c.y, vx: c.vx, vy: c.vy, angle: c.angle, colour: c.colour, wet: c.wet, assist: c.assist });
 
 /**
  * The models of everything that moves, starting as the program does. `honk` false leaves Big Honk out (a
@@ -466,15 +468,15 @@ export async function putOnFoot(vice, L, w, x, y, face = 0) {
  * pixels, driving at its cruising speed, with the rest as new. `wreck: 1` and cruise 0 make it a car with no
  * driver, as the player leaves one.
  */
-export async function putTrafficCar(vice, L, w, i, { x, y, dir, cruise, col = 5, face = dir * 4, wreck = 0, sink = 0 }) {
+export async function putTrafficCar(vice, L, w, i, { x, y, dir, cruise, col = 5, face = dir * 4, wreck = 0, sink = 0, assist = 0 }) {
   const n1 = w.traffic.n + 1;
-  const car = new TrafficCar({ x: x << 8, y: y << 8, dir, sp: cruise, cruise, face, col, wreck, sink });
+  const car = new TrafficCar({ x: x << 8, y: y << 8, dir, sp: cruise, cruise, face, col, wreck, sink, assist });
   w.traffic.cars[i] = car;
   const write = (name, at, bytes) => vice.write(L[`traffic.${name}`] + at, bytes);
   await write('on', i, [1]);
   for (const [name, at, value] of [['pf', i, 0], ['pf', n1 + i, 0], ['pl', i, x & 255], ['ph', i, x >> 8], ['pl', n1 + i, y & 255], ['ph', n1 + i, y >> 8]])
     await write(name, at, [value]);
-  for (const [name, value] of Object.entries({ dir, sp: cruise, cruise, face, col, turn: 0xff, held: 0, ghost: 0, blocked: 0, entered: 0, wreck, sink }))
+  for (const [name, value] of Object.entries({ dir, sp: cruise, cruise, face, col, turn: 0xff, held: 0, ghost: 0, blocked: 0, entered: 0, wreck, sink, assist }))
     await write(name, i, [value]);
   await write('dlo', i, [(cruise * 2) & 255]);
   await write('dhi', i, [(cruise * 2) >> 8]);

@@ -124,6 +124,9 @@ close_by        .fill SLOTS             ; nearby: the cars near the player's car
 sink            .fill SLOTS             ; 0, or for a car that flooded the frames since, from 1 (water.asm)
 mine            .byte ?                 ; the car the player left last, which stays however far they go; or $ff
                 .send
+                .section tile_room1     ; (where there is room: main.asm; out of bss, which a 16-car build fills)
+assist          .fill SLOTS             ; its driver assistance, modern only: police.fit, and car.assist
+                .send
 
 init            ldx #SLOTS - 1
                 lda #0

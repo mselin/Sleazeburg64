@@ -107,7 +107,7 @@ export class Player {
     traffic.stolen = c.cop || c.patrol ? 1 : 0; // a police car, chasing or on patrol: a stolen one (police.cruiser)
     if (c.cruise) this.heat?.add(c.cop ? 2 * 16 : 2 * 4); // taken from its driver (heat-model.mjs)
     const v = (c.dir & 2 ? -c.sp * 2 : c.sp * 2) || 0; // (never -0)
-    Object.assign(car, { x: c.x, y: c.y, angle: c.face << 12, vx: c.dir & 1 ? 0 : v, vy: c.dir & 1 ? v : 0, colour: c.col });
+    Object.assign(car, { x: c.x, y: c.y, angle: c.face << 12, vx: c.dir & 1 ? 0 : v, vy: c.dir & 1 ? v : 0, colour: c.col, assist: c.assist });
     traffic.cars[i] = new TrafficCar({ on: 0 });
     if (traffic.mine === i) traffic.mine = 0xff;
     this.on = 0;
@@ -144,7 +144,7 @@ export class Player {
     const car = this.car, k = direction16(car.angle);
     Object.assign(this, { on: 1, x: at[0] << 8, y: at[1] << 8, phase: 0, face: ((k + 1) >> 1) & 7 });
     // (A police car the player drove is one still, empty; and getting out ends its being stolen.)
-    traffic.cars[slot] = new TrafficCar({ x: car.x, y: car.y, dir: ((k + 2) >> 2) & 3, sp: 0, cruise: 0, face: k, col: car.colour, wreck: 1, sink, cop: traffic.stolen ?? 0 });
+    traffic.cars[slot] = new TrafficCar({ x: car.x, y: car.y, dir: ((k + 2) >> 2) & 3, sp: 0, cruise: 0, face: k, col: car.colour, wreck: 1, sink, cop: traffic.stolen ?? 0, assist: car.assist });
     traffic.stolen = 0;
     traffic.mine = slot;
     car.vx = car.vy = 0;
