@@ -9,7 +9,7 @@ import { mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { JOY, ROOT } from './vice.mjs';
 import { assemble, readPanel, withProgram } from './game.mjs';
-import { HEIGHT, LOADING, WIDTH, bitmap, colours, readPng, text } from '../../tools/picture.mjs';
+import { HEIGHT, LOADING, WIDTH, bitmap, colours, difficulty, readPng, text } from '../../tools/picture.mjs';
 
 execFileSync('make', ['--quiet', 'build/sleazeburg64.d64'], { cwd: ROOT, stdio: ['ignore', 'ignore', 'inherit'] });
 // The disk's two files, read back out of it; and a folder holding them, as VICE's drive 8. (VICE's own drive
@@ -26,6 +26,7 @@ const G = assemble('disk-game', { defs: { TITLE: 1 } }).labels; // the game on t
 const loader = assemble('loader', { source: 'src/loader.asm' });
 const png = readPng(readFileSync(join(ROOT, 'assets/title-sunset.png')));
 const shown = (words) => bitmap(text(colours(png), words)).shown;
+const titled = (words) => bitmap(difficulty(text(colours(png), words), 0)).shown; // (the title page: classic's line too)
 const FIRST = 51, LEFT = 24; // the screen's first line and pixel (vice.mjs's display)
 
 async function wrong(vice, want) {
@@ -57,8 +58,8 @@ test('the loader: the picture says LOADING while the game loads, then PRESS FIRE
     for (let i = 0; i < 312 * 3; i++) await vice.runTo(G['title_page.each_frame']);
     do await vice.runTo(G['title_page.each_frame']); // (on to the top border: the picture is all of one frame)
     while ((await vice.registers()).LIN > 40);
-    const lit = await wrong(vice, shown());
-    const dark = await wrong(vice, shown(''));
+    const lit = await wrong(vice, titled());
+    const dark = await wrong(vice, titled(''));
     assert.ok(lit === 0 || dark === 0, `then the game's title page (${lit}, ${dark} pixels wrong)`);
     await vice.joystick(JOY.FIRE);
     await vice.runTo(G.ready);

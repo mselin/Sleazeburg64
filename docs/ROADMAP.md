@@ -120,7 +120,7 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
     (no passer-by's shirt either), at 46 pixels a second (235/256 of a pixel a frame), side on across a black
     board (cyan is no colour a multicolour sprite has besides its own, so the board and its wheels are black,
     as the scooter is), in four frames of their own and one lying beside the board. The program file holds the
-    skaters' frames at `$0d80`; the title page will put the scooter riders' there for modern, with the three
+    skaters' frames at `$0d80`; the title page puts the scooter riders' there for modern, with the three
     bytes (Title screen, below). Still to come: the jobs, the news line and the greetings, with those.
   - **Fixed in the browser game: running over, end to end** (mselin/gta-c64#110). Running someone over was
     two circles, round the car's middle and its nose, so a sedan's back corners and a limousine's ends could pass
@@ -450,8 +450,12 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
     (where a visit starts) or MODERN, which D goes through on the title screen. More settings may come. Modern
     adds the cursed driver assistance, car alarms and GAGGLE cameras, and scooter riders instead of skaters. See
     "Difficulty" under the design's [Title screen and icon](https://github.com/mselin/gta-c64/blob/main/specs/design.md#title-screen-and-icon).
-    In the C64 version so far: the difficulty byte and the riders that follow it (skaters on classic, under
-    Pedestrians above). Next: the title page's line and D, which sets it.
+    In the C64 version: the difficulty byte, the riders that follow it (skaters on classic, under Pedestrians
+    above), and the title page's line, DIFFICULTY: CLASSIC - PRESS D, grey, above the picture (its top
+    character row, black in the picture: the C64 has no text page to put it on), which D, once a press, turns
+    to MODERN, in yellow, and back. It swaps the line's bitmap with the other's, kept beside the picture, and
+    the riders' frames with the scooter riders', kept with the title page's code. Still to come on modern: the
+    driver assistance, car alarms and GAGGLE cameras.
 
 ## Milestone 4: sound and polish
 

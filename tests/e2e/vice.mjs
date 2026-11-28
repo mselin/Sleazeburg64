@@ -41,7 +41,7 @@ const ROM_FILES = { kernal: ROM_SET.kernal[0], basic: ROM_SET.basic[0], chargen:
 export const JOY = { UP: 1, DOWN: 2, LEFT: 4, RIGHT: 8, FIRE: 16 };
 
 // Binary monitor commands and replies, from the VICE manual ("Binary monitor").
-const CMD = { MEM_GET: 0x01, MEM_SET: 0x02, CHECKPOINT_SET: 0x12, CHECKPOINT_DELETE: 0x13, REGISTERS_GET: 0x31,
+const CMD = { MEM_GET: 0x01, MEM_SET: 0x02, CHECKPOINT_SET: 0x12, CHECKPOINT_DELETE: 0x13, REGISTERS_GET: 0x31, REGISTERS_SET: 0x32,
   REGISTERS_AVAILABLE: 0x83, DISPLAY_GET: 0x84, JOYPORT_SET: 0xa2, EXIT: 0xaa, QUIT: 0xbb, AUTOSTART: 0xdd };
 const REPLY = { CHECKPOINT: 0x11, REGISTERS: 0x31, STOPPED: 0x62, RESUMED: 0x63 };
 const EVENT = 0xffffffff;
@@ -228,6 +228,21 @@ export class Vice {
       at += size + 1;
     }
     return registers;
+  }
+
+  /** Set processor registers by name (as `registers` names them), e.g. { A: 0 }. */
+  async setRegisters(values) {
+    if (!this.registerIds) await this.registers();
+    const ids = Object.fromEntries(Object.entries(this.registerIds).map(([id, name]) => [name, Number(id)]));
+    const names = Object.keys(values), body = Buffer.alloc(3 + 4 * names.length);
+    body.writeUInt16LE(names.length, 1); // (memory space 0: the main processor's)
+    names.forEach((name, i) => {
+      if (ids[name] === undefined) throw new Error(`no register ${name}`);
+      body[3 + 4 * i] = 3; // the size of what follows
+      body[4 + 4 * i] = ids[name];
+      body.writeUInt16LE(values[name], 5 + 4 * i);
+    });
+    await this.#command(CMD.REGISTERS_SET, body, REPLY.REGISTERS);
   }
 
   /**

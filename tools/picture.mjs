@@ -3,18 +3,21 @@
 //
 //   node tools/picture.mjs assets/title-sunset.png build/title.bin [preview.png] [TEXT]
 //
-// TEXT in place of PRESS FIRE TO COMMIT CRIMES: the loader's picture says LOADING (src/loader.asm).
+// TEXT in place of PRESS FIRE TO COMMIT CRIMES, and no difficulty: the loader's picture says LOADING
+// (src/loader.asm).
 //
 // The browser game's picture (mselin/gta-c64, assets/title-sunset.png) is 320 x 180 in the 16 C64 colours,
 // its pixels two wide: a multicolour bitmap's pixels, but with no care for what a character cell may hold.
 // Here it goes 10 lines down a 160 x 200 bitmap, black above and below, and each 4 x 8 cell keeps black (the
 // background, shared by them all) and the three colours it uses most; a pixel in any other colour takes the
 // nearest of those four. Under it, in the last character row, PRESS FIRE TO COMMIT CRIMES in white, in the
-// font (tools/font.mjs) with its pixels two wide: colour 1 of those cells, which the title screen blinks.
+// font (tools/font.mjs) with its pixels two wide: colour 1 of those cells, which the title screen blinks. In
+// the top row, black above the picture, the difficulty's line (`difficulty`, below).
 //
 // Out, packed (tools/pack.mjs): the picture as it goes from $c000, which src/title-page.asm unpacks it to
 // and shows: 1000 bytes of screen (colours 1 and 2 of each cell, high and low nybble), 1000 of what goes in
-// colour memory (colour 3), nothing up to $e000, then the 8000 bytes of the bitmap.
+// colour memory (colour 3), nothing up to $e000 but the other difficulty's line at $c800 (`STASH`), then the
+// 8000 bytes of the bitmap.
 import { readFileSync, writeFileSync } from 'node:fs';
 import { inflateSync, deflateSync } from 'node:zlib';
 import { FONT } from './font.mjs';
@@ -26,6 +29,16 @@ export const PALETTE = ['000000', 'ffffff', '68372b', '70a4b2', '6f3d86', '588d4
 export const WIDTH = 160, HEIGHT = 200, TOP = 10, BACKGROUND = 0, TEXT_COLOUR = 1;
 export const TEXT = 'PRESS FIRE TO COMMIT CRIMES', LOADING = 'LOADING', TEXT_ROW = 24;
 const SPACE = 4; // a space's width in pixels: with a whole glyph's, the text would be wider than the screen
+/**
+ * The difficulty's line (specs/design.md in mselin/gta-c64, "Difficulty"), in the top character row, black
+ * above the picture: colour 1 of its cells, grey on classic and yellow on modern. With 3-pixel spaces and a
+ * narrow colon it fits the 160 pixels across. The title page swaps it for the other one (`STASH`) when D is
+ * pressed, and sets colour 1 of the whole row to the setting's.
+ */
+export const DIFFICULTIES = ['CLASSIC', 'MODERN'], LINE_COLOURS = [12, 7], LINE_ROW = 0, LINE_SPACE = 3;
+export const STASH = 0x800; // where in what goes from $c000 the other line's 320 bitmap bytes are (classic: modern's)
+export const line = (d) => `DIFFICULTY: ${DIFFICULTIES[d]} - PRESS D`;
+const NARROW = new Set([':']); // glyphs as wide as their ink, not five
 
 /** An 8-bit RGB or RGBA PNG with no interlace: { width, height, pixel(x, y) → [r, g, b] }. */
 export function readPng(bytes) {
@@ -105,29 +118,54 @@ export function colours(png) {
   return out;
 }
 
-/** `words` written into `pixels` across the last character row, in the middle. */
-export function text(pixels, words = TEXT) {
-  const width = [...words].reduce((w, ch) => w + (ch === ' ' ? SPACE : 6), -1);
-  if (width > WIDTH) throw new Error('the text is wider than the screen');
+/** A glyph's columns: [first, past the last] of the five, all five but for the narrow ones. */
+function columns(ch) {
+  if (!NARROW.has(ch)) return [0, 5];
+  const ink = FONT[ch].reduce((a, b) => a | b, 0);
+  let first = 0, last = 4;
+  while (!(ink & (16 >> first))) first++;
+  while (!(ink & (16 >> last))) last--;
+  return [first, last + 1];
+}
+
+/** `words` written into `pixels` across a character row (the last, unless told), in the middle. */
+export function text(pixels, words = TEXT, { row = TEXT_ROW, colour = TEXT_COLOUR, space = SPACE } = {}) {
+  const wide = (ch) => (ch === ' ' ? space : columns(ch)[1] - columns(ch)[0] + 1);
+  const width = [...words].reduce((w, ch) => w + wide(ch), -1);
+  if (width > WIDTH) throw new Error(`the text is wider than the screen (${width} pixels)`);
   let x = (WIDTH - width) >> 1;
   for (const ch of words) {
-    if (ch === ' ') {
-      x += SPACE;
-      continue;
+    if (ch !== ' ') {
+      const [first, end] = columns(ch);
+      FONT[ch].forEach((bits, y) => {
+        for (let i = first; i < end; i++) if (bits & (16 >> i)) pixels[(row * 8 + y) * WIDTH + x + i - first] = colour;
+      });
     }
-    FONT[ch].forEach((bits, y) => {
-      for (let i = 0; i < 5; i++) if (bits & (16 >> i)) pixels[(TEXT_ROW * 8 + y) * WIDTH + x + i] = TEXT_COLOUR;
-    });
-    x += 6;
+    x += wide(ch);
   }
   return pixels;
 }
 
-/** What goes from $c000: screen, colour memory, nothing, then the bitmap at $e000. */
-export function layout(koala) {
+/** The difficulty `d`'s line written into `pixels`. */
+export const difficulty = (pixels, d) =>
+  text(pixels, line(d), { row: LINE_ROW, colour: LINE_COLOURS[d], space: LINE_SPACE });
+
+/**
+ * The title page's picture: { picture (as `bitmap` gives it: classic's line in the top row, PRESS FIRE ... in
+ * the last), stash (the top row's 320 bitmap bytes with modern's line), bin (all of it laid out and packed) }.
+ */
+export function title(png) {
+  const picture = bitmap(difficulty(text(colours(png)), 0));
+  const stash = bitmap(difficulty(new Uint8Array(WIDTH * HEIGHT), 1)).koala.subarray(LINE_ROW * 320, LINE_ROW * 320 + 320);
+  return { picture, stash, bin: Buffer.from(pack(layout(picture.koala, stash))) };
+}
+
+/** What goes from $c000: screen, colour memory, nothing (but the other line at STASH), then the bitmap at $e000. */
+export function layout(koala, stash) {
   const out = Buffer.alloc(0x2000 + 8000);
   koala.copy(out, 0, 8000, 9000);
   koala.copy(out, 1000, 9000, 10000);
+  if (stash) out.set(stash, STASH);
   koala.copy(out, 0x2000, 0, 8000);
   return out;
 }
@@ -173,14 +211,20 @@ export function bitmap(pixels) {
 }
 
 if (process.argv[1] && import.meta.url.endsWith(process.argv[1].replace(/.*\//, ''))) {
-  const [source, out, preview, words = TEXT] = process.argv.slice(2);
-  const { koala, shown, changed } = bitmap(text(colours(readPng(readFileSync(source))), words));
-  const packed = Buffer.from(pack(layout(koala)));
-  writeFileSync(out, packed);
+  const [source, out, preview, words] = process.argv.slice(2);
+  const png = readPng(readFileSync(source));
+  // The title page's, with the difficulty's line; or, given other words (the loader's), just those.
+  let made = words ? null : title(png);
+  if (!made) {
+    const picture = bitmap(text(colours(png), words));
+    made = { picture, bin: Buffer.from(pack(layout(picture.koala))) };
+  }
+  const { picture: { shown, changed }, bin: bytes } = made;
+  writeFileSync(out, bytes);
   if (preview) {
     const rgb = Buffer.alloc(WIDTH * 2 * HEIGHT * 3);
     for (let i = 0; i < WIDTH * HEIGHT; i++) for (const half of [0, 1]) rgb.set(PALETTE[shown[i]], (i * 2 + half) * 3);
     writeFileSync(preview, writePng(WIDTH * 2, HEIGHT, rgb));
   }
-  console.log(`${out}: ${packed.length} bytes packed; ${changed} of ${WIDTH * HEIGHT} pixels took another colour to fit their cell`);
+  console.log(`${out}: ${bytes.length} bytes packed; ${changed} of ${WIDTH * HEIGHT} pixels took another colour to fit their cell`);
 }
