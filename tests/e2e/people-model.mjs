@@ -7,7 +7,7 @@ import { LOWEST } from './traffic-model.mjs';
 
 export const P = {
   CROWD: 4, REACH: 9, TREAD: 4, ARRIVE_GAP: 16, FAR: 0x180, BACK_ODDS: 205, SPRITE: 0x2000 / 64,
-  RUN_OVER: 154, BODY_LONG: 64 * 12, BODY_SHORT: 64 * 15 / 2, DOWN_TIME: 200, DOWN_FRAME: 20, JAY_ODDS: 26,
+  RUN_OVER: 154, BODY_LONG: 64 * 12, BODY_SHORT: 64 * 15 / 2, MOVING: 5, PUSH_LONG: 64 * 11, PUSH_OUT: 7, DOWN_TIME: 200, DOWN_FRAME: 20, JAY_ODDS: 26,
   HALT: 10, TURN_AFTER: 75, PUNCH_WAIT: 18, STAB_WAIT: 14, STAB_REACH: 10, ARM_OUT: 10, PUNCH_REACH: 7, PUNCH_LIM: 7, SCARE: 60, FLEE_TURNS: 50, CAR_LONG: 13, CAR_SHORT: 8, CAR_SQUARE: 10,
   SHIRTS: [4, 8, 3, 2, 10, 9, 5, 1], // purple, orange, cyan, red, light red, brown, green, white
   // Scooter riders: light green (no passer-by's shirt), the scooter's speed, one time in seven or so.
@@ -356,11 +356,13 @@ export class People {
   }
   /**
    * What people.show does besides listing, every frame: those lying count down and go; anyone walking is run
-   * over by the player's car `car` (car-model.mjs) if it is going fast enough and on them.
+   * over by the player's car `car` (car-model.mjs) if it is going fast enough and on them, or pushed aside by it
+   * if it is going slower but MOVING or more (push), clear of the walls and the cars of `traffic`.
    */
-  tick(cam, car) {
+  tick(cam, car, traffic = null) {
     if (this.punchLeft) this.punchLeft--;
     const fast = Math.abs(car.vx) >= P.RUN_OVER || Math.abs(car.vy) >= P.RUN_OVER;
+    const creeps = !fast && (Math.abs(car.vx) >= P.MOVING || Math.abs(car.vy) >= P.MOVING);
     // On them: their middle within the car's body and their shoulders, along it and across it by its picture's
     // way, in 64ths of a pixel (the cosines rounded to 64ths, as people.turns has them).
     const k = direction16(car.angle);
@@ -383,13 +385,45 @@ export class People {
         [p.ko, p.flee] = [0, P.FLEE_TURNS]; // knocked down by a punch: up, and running
         continue;
       }
-      if (p.down || !fast) continue; // (anyone the car can run over is in sight)
+      if (p.down || !(fast || creeps)) continue; // (anyone the car can run over is in sight)
+      if (creeps) {
+        if (within(p.py - car.py, 15) && within(p.px - car.px, 15)) this.push(p, car, k, traffic);
+        continue;
+      }
       if (on(p)) {
         p.down = P.DOWN_TIME;
         this.crime(p, true);
         this.onKill?.(p); // run over by the player: what they drop
       }
     }
+  }
+  /**
+   * people.push_io: `p`, within 15 of the slow car `car` (its picture's way `k`) both ways, whose footprint its
+   * body takes in (along it within PUSH_LONG, across it within 6 pixels, rounded), moved across it to PUSH_OUT
+   * out, the nearer side first, then the other, to the first not into a wall nor a car of `traffic` (not the
+   * player's car, which pushes them); with neither, knocked down, as by a punch.
+   */
+  push(p, car, k, traffic) {
+    const signed = (d) => ((w16(d) ^ 0x8000) - 0x8000);
+    const dx = signed(p.px - car.px), dy = signed(p.py - car.py);
+    const u = dx * TURNS[k + 4] + dy * TURNS[k];
+    if (Math.abs(u) > P.PUSH_LONG) return;
+    const across = Math.floor((32 + dx * TURNS[k + 8] + dy * TURNS[k + 4]) / 64);
+    if (Math.abs(across) >= P.PUSH_OUT) return;
+    const side = across >= 0 ? P.PUSH_OUT : -P.PUSH_OUT;
+    for (const to of [side, -side]) {
+      const m = to - across;
+      const x = w16(p.px + Math.floor((32 + m * TURNS[k + 8]) / 64)), y = w16(p.py + Math.floor((32 + m * TURNS[k + 4]) / 64));
+      if (People.kind(x, y) === WALL || People.carInWay([x, y], p, traffic, null)) continue;
+      p.x = (x << 8) | (p.x & 255);
+      p.y = (y << 8) | (p.y & 255);
+      return;
+    }
+    p.down = P.DOWN_TIME;
+    p.ko = 1;
+    this.crime(p, false);
+    const near = (q, lim) => w16(q.px - p.px + lim) <= 2 * lim && w16(q.py - p.py + lim) <= 2 * lim;
+    for (const q of this.people) if (q.on && !q.down && near(q, P.SCARE)) q.flee = P.FLEE_TURNS;
   }
   /** What they list for the multiplexer for the window `cam`, after the traffic and Big Honk (after tick). */
   show(cam) {

@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { JOY } from './vice.mjs';
 import { PEOPLE_SPRITE, assemble, assets, withProgram } from './game.mjs';
 import { Car } from './car-model.mjs';
-import { World, assertPicture, missed, pass, putCar, putOnFoot } from './play.mjs';
+import { World, assertPicture, missed, pass, putCar, putOnFoot, putTrafficCar } from './play.mjs';
 import { P, PAVEMENT, People, WALL, putPerson } from './people-model.mjs';
 
 // Nobody arrives by themselves and no Big Honk: the tests put people where they want them.
@@ -183,6 +183,60 @@ test('the whole car runs people over, to its back corners, at any turn; just bes
         await vice.write(L['people.on'] + i, [0]);
       }
       await hold(vice, w, JOY.DOWN, 2, `turned ${k}, after`);
+    }
+  }));
+
+test('the car going slowly pushes someone in its way aside, nearer side first, else the other; with neither free, knocks them down', () =>
+  run(async (vice, w) => {
+    // Creeping at 60/256 of a pixel a frame (under RUN_OVER, at least MOVING), turned k sixteenths of a turn,
+    // into someone just inside its body (u along it, v across, from where its middle will be after the frame).
+    const creep = async (x, y, k, speed, u, v, what) => {
+      const angle = k * 16 * 256, a = (k * Math.PI) / 8, c = Math.cos(a), s = Math.sin(a);
+      await putCar(vice, L, w, x, y, angle);
+      const vx = Math.round(speed * c), vy = Math.round(speed * s);
+      Object.assign(w.car, { vx, vy });
+      await vice.write(L['car.pos_x'] + 6, [vx & 255, (vx >> 8) & 255, vy & 255, (vy >> 8) & 255]);
+      const next = Object.assign(new Car(0, 0), w.car);
+      next.step(0);
+      const p = await putPerson(vice, L, w.people, 0, { x: Math.round(next.px + u * c - v * s), y: Math.round(next.py + u * s + v * c), way: 1, spd: 0, col: 4, wait: 255 });
+      await pass(vice, L, w, 0, what);
+      const across = (p.px - w.car.px) * -s + (p.py - w.car.py) * c;
+      return { p, across };
+    };
+    const gone = async (what) => {
+      w.people.people[0].on = 0;
+      await vice.write(L['people.on'], [0]);
+      await hold(vice, w, 0, 2, what);
+    };
+    for (const k of [0, 3, 4, 6, 9, 12, 15])
+      for (const v of [2, -3]) {
+        const { p, across } = await creep(208, 16, k, 60, 4, v, `turned ${k}, ${v} across`);
+        assert.equal(p.down, 0, `turned ${k}: not run over`);
+        assert.ok(Math.abs(across - Math.sign(v) * P.PUSH_OUT) < 1.5, `turned ${k}, ${v} across: pushed out to ${across}`);
+        await gone(`turned ${k}, after`);
+      }
+    // Stopped, the car pushes nobody.
+    {
+      const { p, across } = await creep(208, 16, 0, 0, 4, 2, 'stopped');
+      assert.equal(p.down, 0);
+      assert.ok(Math.abs(across - 2) < 1.5, 'left where they are');
+      await gone('stopped, after');
+    }
+    // On the pavement, a building's wall (from y 48) on the nearer side: pushed out the other.
+    {
+      const { p, across } = await creep(330, 41, 0, 60, 3, 3, 'by a wall');
+      assert.equal(p.down, 0);
+      assert.ok(Math.abs(across + P.PUSH_OUT) < 1.5, `pushed north instead, to ${across}`);
+      await gone('by a wall, after');
+    }
+    // A wall on one side and a car left on the other: knocked down, as by a punch, for half a kill's heat.
+    {
+      await putTrafficCar(vice, L, w, 0, { x: 330, y: 28, dir: 0, cruise: 0, col: 3, wreck: 1 });
+      const heat = w.heat.points;
+      const { p } = await creep(330, 41, 0, 60, 3, 3, 'boxed in');
+      assert.equal(p.down, P.DOWN_TIME, 'knocked down (after this frame\'s counting down)');
+      assert.equal(p.ko, 1, 'they will get up');
+      assert.ok(w.heat.points > heat, 'a crime');
     }
   }));
 

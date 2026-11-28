@@ -127,7 +127,14 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
       turned with the car's picture (one of 16 ways), worked out in 64ths of a pixel with the multiplication's
       table (`people.struck`). A traffic car hurts the player on foot by its body too: their middle within 12
       pixels of its middle along it and 7 across (`police.hits`), turned to the axis it faces nearer (it turns
-      only at crossings; the design turns it all the way). Still to come: the slow push aside.
+      only at crossings; the design turns it all the way).
+    - On the C64 (28 November 2026), the push aside: the player's car going slower than that, but at least 1
+      pixel a second on either axis, pushes someone whose middle it covers (within 11 pixels along it and 6
+      across, rounded) out to 7 pixels across it, the side they were nearer first, then the other, to the first
+      that is not a wall nor a traffic car's body; with neither, they are knocked down as by a punch (they get
+      up, half a kill's heat, and who is near them runs; `people.push_io`, under the I/O area). Not done yet:
+      traffic pushing people aside (on the C64 people keep off the roads), and Big Honk being ruffled (here
+      Big Honk is not one of the people).
 - Water: cars flood and sink, people swim (done, not yet tried on real hardware). The player's car wades,
   slower the deeper it is, floods once it is wholly in, and sinks in three colours, leaving the player swimming.
   It stops where it floods rather than drifting on, and it is out of the way from the moment it floods rather

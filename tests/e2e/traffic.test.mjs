@@ -56,7 +56,7 @@ function step(m, bits) {
   m.people.step(!moves && !busy, [m.car.px, m.car.py], m.cam, m.traffic, m.car);
   m.people.shoot(m.traffic);
   m.pickups.step(m.cam, !moves && !busy, [m.car.px, m.car.py]);
-  m.people.tick(m.cam, m.car);
+  m.people.tick(m.cam, m.car, m.traffic);
   m.list = [...m.traffic.show(m.cam), ...m.honk.show(m.cam), ...m.people.show(m.cam), ...m.pickups.show(m.cam, [m.car.px, m.car.py], busy), ...m.people.shown(m.cam)]
     .slice(0, 16); // the multiplexer lists sixteen
 }

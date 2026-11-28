@@ -147,7 +147,7 @@ export class World {
     this.pickups?.step(this.cam, !movesNow && !busy, [this.player.px, this.player.py], this.player.on);
     if (this.player.on) this.player.draw(this.traffic.tick, !moves && !busy);
     else this.player.drawn = null;
-    this.people.tick(this.cam, this.car);
+    this.people.tick(this.cam, this.car, this.traffic);
     this.list = [...this.traffic.show(this.cam), ...(this.honk ? this.honk.show(this.cam) : []), ...this.people.show(this.cam),
       ...(this.pickups ? this.pickups.show(this.cam, [this.player.px, this.player.py], busy) : []), ...this.people.shown(this.cam)].slice(0, 16); // the multiplexer lists sixteen
     if (level && !this.heat.level) this.quiet(); // (a donut: police.quiet)

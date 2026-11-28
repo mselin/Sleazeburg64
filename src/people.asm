@@ -28,7 +28,8 @@
 ; someone unseen. They lie flat for 4 seconds in the
 ; design's picture of someone knocked down, then are gone (the browser game leaves a stain, which the city's
 ; characters cannot show here). Nothing else follows yet: no heat, no pickup. Traffic does not run anyone over:
-; people keep off the roads.
+; people keep off the roads. Slower, but moving at least 1 pixel a second, the car pushes aside someone it
+; covers (push_io): out to the side they were nearer, else the other, else they are knocked down.
 ;
 ; Time. They move, and new ones appear, only in a frame that neither moves the screen nor works out colour
 ; memory, which have no time to spare; in those they stand still for a frame. And only half of them walk in
@@ -53,6 +54,9 @@ RUN_OVER        = 154                   ; the player's car runs someone over goi
                                         ; in 1/256 pixel a frame (30 pixels a second), with their shoulders
 BODY_LONG       = 64 * 12               ; touching its body: half its length (9.5) and 2.5 more, along it,
 BODY_SHORT      = 64 * 15 / 2           ; and half its width (5) and 2.5, across it, in 1/64 pixel (struck)
+MOVING          = 5                     ; slower, but at least this (1 pixel a second), it pushes them aside
+PUSH_LONG       = 64 * 11               ; when its body (9.5 pixels) and their footprint (1.5) reach them, along
+PUSH_OUT        = 7                     ; it; to this far out across it (push_io)
 DOWN_TIME       = 200                   ; frames they lie, 4 seconds, then gone
 DOWN_FRAME      = 20                    ; their picture lying (tools/assets.mjs)
 SCOOTER_SPRITE  = SCOOTER_FRAMES / 64   ; a scooter rider's, the way they go; then lying
@@ -650,7 +654,8 @@ shirts          .byte PURPLE, ORANGE, CYAN, RED, LIGHT_RED, BROWN, GREEN, WHITE
 show            lda punch_left          ; (the time until the player can punch again)
                 beq +
                 dec punch_left
-+               jsr hunting             ; the player's car, if it is going fast enough to run someone over
++               clc                     ; the player's car: going fast enough to run someone over, or slow
+                jsr car_io              ; enough to push them aside (hunting)
                 ldx #CROWD - 1
 each            lda on,x
                 bne +
@@ -681,7 +686,12 @@ each            lda on,x
                 lda d
                 cmp #31
                 bcs listed
-                jsr struck
+                bit chasing             ; slow: pushed aside, not run over
+                bpl +
+                sec
+                jsr car_io              ; (push_io: the carry comes back set)
+                bcs listed
++               jsr struck
                 bcs listed
                 lda #DOWN_TIME
                 sta down,x
@@ -757,27 +767,8 @@ hidden          dex
 +               rts
 cycle           .byte 2, 3, 4, 3, 2, 1, 0, 1
 
-; chasing = 1 if the player's car is going RUN_OVER or more along either axis (as Big Honk's speedy).
-hunting         lda #0
-                sta chasing
-                ldy #2                  ; down, then across
--               lda car.vel_x + 1,y
-                beq forward
-                cmp #$ff
-                bne quick               ; 256 or more either way
-                lda car.vel_x,y         ; -256 to -1
-                cmp #256 - RUN_OVER + 1
-                bcc quick
-                bcs slow
-forward         lda car.vel_x,y         ; 0 to 255
-                cmp #RUN_OVER
-                bcs quick
-slow            dey
-                dey
-                bpl -
-                rts
-quick           inc chasing             ; (the points only when someone in sight is to be looked at: points)
-                rts
+; The gate to hunting and push_io, under the I/O area (C clear: hunting).
+car_io          #io_gate car_under
 
 ; The way the car's picture points, 0-15 (as car.show has it), worked out once a frame, the first time it is
 ; needed. chasing goes from 1 to 2.
@@ -791,6 +782,203 @@ points          inc chasing
                 lsr
                 sta car_way
                 rts
+
+                .section io_more        ; (under the I/O area: main.asm, through car_io)
+car_under       bcs push_io
+; chasing = 1 if the player's car is going RUN_OVER or more along either axis (as Big Honk's speedy); else
+; $81 if it is going MOVING or more along one (push_io); else 0.
+                lda #0
+                sta chasing
+                ldy #2                  ; down, then across
+-               lda car.vel_x + 1,y
+                beq forward
+                cmp #$ff
+                bne quick               ; 256 or more either way
+                lda car.vel_x,y         ; -256 to -1: |v| - 1
+                eor #$ff
+                cmp #RUN_OVER - 1
+                bcs quick
+                cmp #MOVING - 1
+                bcs creeping
+                bcc slow
+forward         lda car.vel_x,y         ; 0 to 255
+                cmp #RUN_OVER
+                bcs quick
+                cmp #MOVING
+                bcc slow
+creeping        lda #$81
+                sta chasing
+slow            dey
+                dey
+                bpl -
+                rts
+quick           lda #1                  ; (the points only when someone in sight is to be looked at: points)
+                sta chasing
+no_push         rts
+
+; The design's slow car, which never rolls through anyone: person X, walking, within 15 pixels of the car
+; down, whose footprint (1.5 pixels) its body takes in, along it (|u| <= PUSH_LONG) and across it (|v|
+; rounded to whole pixels at most 6, the design's 6.5), is moved across it to PUSH_OUT pixels out (the design's
+; half its width, the footprint and half a pixel), the side they were nearer first (from the middle line: that
+; side), then the other: to the first not into a wall nor another car's body (car_in_way). With neither free,
+; they are knocked down, as by a punch. u and v as struck has them. X is kept.
+push_io         lda chasing
+                cmp #$82
+                beq +
+                jsr points              ; (chasing $81 to $82)
++               stx who
+                sec
+                lda xl,x
+                sbc car.pos_x + 1
+                sta d
+                lda xh,x
+                sbc car.pos_x + 2
+                ldy #15
+                sty lim
+                jsr within              ; within 15 across?
+                bcs no_push             ; (X as it was)
+                lda d
+                sbc #15 - 1             ; (the carry is clear)
+                sta dx
+                sec
+                lda yl,x
+                sbc car.pos_y + 1
+                sta dy
+                lda #<PUSH_LONG         ; along: dx cos + dy sin, from -PUSH_LONG
+                sta sum
+                lda #>PUSH_LONG
+                sta sum + 1
+                ldx car_way
+                lda turns + 4,x
+                ldx dx
+                jsr term
+                ldx car_way
+                lda turns,x
+                ldx dy
+                jsr term
+                lda sum
+                cmp #<(2 * PUSH_LONG + 1)
+                lda sum + 1
+                sbc #>(2 * PUSH_LONG + 1)
+                bcs clear
+                lda #32                 ; across: dx (-sin) + dy cos, rounded to pixels
+                sta sum
+                lda #0
+                sta sum + 1
+                ldx car_way
+                lda turns + 8,x
+                ldx dx
+                jsr term
+                ldx car_way
+                lda turns + 4,x
+                ldx dy
+                jsr pixels
+                sta across
+                clc
+                adc #PUSH_OUT - 1
+                cmp #2 * PUSH_OUT - 1
+                bcs clear               ; not within 6
+                ldy #PUSH_OUT           ; the nearer side
+                lda across
+                bpl +
+                ldy #-PUSH_OUT
++               sty to_side
+                jsr try_side
+                bcc clear
+                lda #0                  ; the other
+                sec
+                sbc to_side
+                sta to_side
+                jsr try_side
+                bcc clear
+                ldx who                 ; neither: knocked down, and who is near them runs
+                lda #DOWN_TIME
+                sta down,x
+                lda #1
+                sta ko,x
+                lda #2 * 3              ; a crime, as a punch's (crime; but here, under the I/O area, its
+                ldy officer,x           ; heat goes straight to status.heat_a)
+                beq +
+                lda #2 * 14
++               jsr status.heat_a
+                ldx who
+                jsr scatter
+clear           ldx who
+                rts
+; C clear if person who is moved across the car to to_side (PUSH_OUT or -PUSH_OUT): by to_side - across pixels
+; along (-sin, cos), rounded; C set, and not moved, if that is into a wall or a car's body.
+try_side        sec
+                lda to_side
+                sbc across
+                sta m
+                ldy #8                  ; across: -sin
+                jsr moved
+                clc
+                adc xl,x
+                sta nx
+                tya
+                adc xh,x
+                sta nx + 1
+                ldy #4                  ; down: cos
+                jsr moved
+                clc
+                adc yl,x
+                sta ny
+                tya
+                adc yh,x
+                sta ny + 1
+                jsr kind
+                cmp #WALL
+                beq +
+                lda foot.on             ; (the player's car, which pushes them, is not looked at: it is not
+                pha                     ; in the way once they are clear of it)
+                lda #1
+                sta foot.on
+                jsr car_in_way
+                pla
+                sta foot.on
+                bcs +
+                ldx who
+                lda nx
+                sta xl,x
+                lda nx + 1
+                sta xh,x
+                lda ny
+                sta yl,x
+                lda ny + 1
+                sta yh,x
+                clc
++               rts
+; A, Y = m times turns + car_way + Y, in pixels (16 bits, rounded); X = who.
+moved           tya
+                clc
+                adc car_way
+                tax
+                lda #32
+                sta sum
+                lda #0
+                sta sum + 1
+                lda turns,x
+                ldx m
+                jsr pixels
+                ldy #0
+                cmp #$80
+                bcc +
+                dey
++               ldx who
+                rts
+; A = the high byte of 4 * (sum + A * X): (sum + A * X) / 64, rounded down (term).
+pixels          jsr term
+                asl sum
+                rol sum + 1
+                asl sum
+                rol sum + 1
+                lda sum + 1
+                rts
+to_side         .byte 0                 ; try_side: PUSH_OUT or -PUSH_OUT
+across          .byte 0                 ; ... from the car's middle line, in pixels (push_io)
+m               .byte 0                 ; ... and how far to move
+                .send
 
 ; C clear if person X is run over: their shoulders (2.5 pixels) touch the car's body, its length and width
 ; turned the way its picture points. From the car's middle to theirs (dx, dy: they are at most 15 apart down,
@@ -1124,7 +1312,7 @@ knock           lda #DOWN_TIME
                 ldy status.knife        ; heat: 3, half a kill, for a punch; 6, a kill, for a stab
                 lda heat_of,y
                 jsr crime
-                lda xl,x                ; who is near them runs
+scatter         lda xl,x                ; who is near them runs (push_io too)
                 sta cx
                 lda xh,x
                 sta cx + 1

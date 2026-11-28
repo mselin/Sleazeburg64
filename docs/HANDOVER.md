@@ -21,10 +21,12 @@ car pushing people aside (mselin/gta-c64#110; ROADMAP, Pedestrians; Sleazeburg64
 2. Whole-body run-over: someone's shoulders (2.5 px) touching the player's car's turned body (its length and
    width, corners included), at RUN_OVER or more; the same body test for a fast car hurting the player.
    Check: people tests pass with a new test at several turns. Done for the player's car running people over
-   (#115, merged); the traffic hurting the player by its body (this PR, `police.hits`): done.
+   (#115, merged); the traffic hurting the player by its body (#116, merged): done.
 3. Push-aside below RUN_OVER: out to the nearer side, just clear; the other side if a wall or car is there;
    else knocked down (a crime for the player's car only); Big Honk only ruffled. Check: new tests pass.
-4. Models (`tests/e2e/people-model.mjs`), ROADMAP, NOTES; `make test`; PR; merge when green.
+   Done for the player's car (`people.push_io`; people test "the car going slowly pushes someone"). Not done:
+   traffic pushing (people keep off roads here), Big Honk's ruffle (not a person here).
+4. Models (`tests/e2e/people-model.mjs`), ROADMAP, NOTES; `make e2e`; PR; merge when green. In progress.
 
 
 ## Established
@@ -60,16 +62,18 @@ car pushing people aside (mselin/gta-c64#110; ROADMAP, Pedestrians; Sleazeburg64
 
 ## Changes
 
-- Sleazeburg64, branch `claude/confident-euler-70sqzi` (new PR): traffic hurts the player on foot by its body,
-  12 along and 7 across, by the axis it faces nearer (`src/police.asm` `hits`, `HURT_LONG`/`HURT_SHORT`;
-  `police.gate_shoot` moved to `police_extra` for room); `tests/e2e/play.mjs` `hits()`; a new test in
-  `tests/e2e/police.test.mjs` ("a car hurts the player on foot by its body").
-- Recent merged work: #115 the whole-body run-over; #114 the paint shop arrow and S; #113 the P marker.
+- Sleazeburg64, branch `claude/confident-euler-70sqzi` (new PR): the slow push aside. `src/people.asm`:
+  `chasing` gains $81/$82 (slow but moving); `car_io` gate to `car_under` (hunting) and `push_io`, `try_side`,
+  `moved`, `pixels` in `io_more`; `scatter` label in punch's tail. `src/main.asm` `IO_LATE` `$dac0`.
+  Model `People.push` (`tests/e2e/people-model.mjs`; `tick` takes the traffic); a new people test.
+- Recent merged work: #116 traffic hurts the player by its body; #115 the whole-body run-over.
 
 
 ## Verification
 
 - Last full `make test` (PR 2, #114): 153 pass, tools 25 pass (28 November 2026).
+- This change: `tests/e2e/people.test.mjs` 11/11 pass; the sixteen-car build assembles; full `make e2e`
+  running (see the PR).
 - Unverified anywhere: the C64 program on real hardware (owner's to try).
 
 
@@ -88,13 +92,17 @@ car pushing people aside (mselin/gta-c64#110; ROADMAP, Pedestrians; Sleazeburg64
 - `paint_near` ends in `arrow_round`, which uses X: the caller in `look_each` set X before the call and
   stored it after, so `turn` became $ff. It now loads X after the call.
 - `status.digit` in `HIGH_CODE`: the build with sixteen cars (traffic tests) overflowed it by 18 bytes.
+- Code under the I/O area must not call `crime` / `status.add_heat`: that is a second `io_gate`, whose
+  return switches the I/O area back in under the caller, and the program hung. Use `status.heat_a`.
+- No walls touch the roads (pavement between), and the car cannot be put within 8 px of the map's edge: the
+  wall case of the push test is on the pavement by a building (330, 41), wall from y 48.
 - The pickups tests ran someone over 10 px ahead of the car's middle, within the reach of their drop (11), so
   the car took it at once; they now hit them at 12 (`tests/e2e/pickups.test.mjs`, `runOver`).
 
 ## Next
 
-Wait for CI on the PR for the traffic's body hurting the player, merge when green. Then plan step 3, the push
-aside below RUN_OVER (design: "Cars are solid for anyone on foot").
+Wait for CI on the push-aside PR and merge when green. Then the next roadmap item: jobs are blocked on
+mselin/gta-c64#117, so difficulty, then driver assistance; check the officers' values against gta-c64#116.
 
 
 ## Subagent files
