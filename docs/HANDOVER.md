@@ -22,7 +22,7 @@ stack page about 75); anti-theft alone needs about 190.
 0. PR R. Two colour routines in place of four (one per column start, coping with the second row), freeing about
    8.4K at `$6d00`-`$aef2`. Measure the raster lines it costs in the worst frames (the frame tests, the long
    drive). Check: `make test` green and the cost written down. If the cost is large, ask the owner before
-   merging. Status: next.
+   merging. Status: builds; measuring (new build first, then `main` in a worktree, same tests).
 
 Then three PRs, each merged when green:
 
@@ -68,6 +68,12 @@ Difficulty done: #118 (riders), #119 (title page, D).
 
 ## Changes
 
+- PR R, uncommitted then committed on `claude/confident-euler-70sqzi`: `src/video.asm` two routines (COLOUR_1 21
+  tiles at `$6d00`, COLOUR_0 20 tiles after it, COLOUR_END about `$9524`); X = 40 or 0 picks the row start; each
+  tile `ldy #k : lda (cmap),y : tay : lda tile_colour,y`. `write_colour` and its tables moved to `.section once`
+  (it was 124 bytes too big for EXTRA); `src/main.asm` HIGH_CODE fixed at `$aef2` (what waits after the map
+  needs the room up to it), viewer `.dsection once`. `$9524`-`$aef2` is free once the game runs.
+
 - Merged #119, PR B: the title page's difficulty. `src/title-page.asm`
   (`.section title_code`, D, `turn`), `src/main.asm` (TITLE_HOME, PACK_ABOVE), `tools/picture.mjs` (`title()`,
   the line, the stash at `$c800`), `tests/e2e/vice.mjs` (`setRegisters`), `tests/e2e/title-page.test.mjs`;
@@ -109,8 +115,8 @@ Difficulty done: #118 (riders), #119 (title page, D).
 
 ## Next
 
-Plan step 0: read `src/video.asm` `write_colour` (around line 931) and how a frame picks a routine (`colour_lo`,
-gx/gy); design one routine per column start that handles the row start, then measure.
+Plan step 0: compare the busiest-pass raster lines (car, traffic, city-viewer tests' diagnostics) between the
+branch and `main`; run `make test`; write the cost in NOTES; PR, merge if small, else ask the owner.
 For PR C later: per-slot byte in bss (bit 7 lane, 6 braking, 5-0 anti-theft: 0 none, 1 stopped, else 32-frame
 steps left, rolled 17 + r/16 + r/32), car.assist with it; rolled in police.new_car on modern only.
 

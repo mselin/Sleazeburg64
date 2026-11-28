@@ -111,17 +111,12 @@ init            lda #$ff                ; no copy made ahead yet
                 ldx #1
                 jsr char_of
                 sta cell + 1
-                ldx #3                  ; the four colour routines
--               lda colour_lo,x
+                ldx #1                  ; the two colour routines
+-               lda colour_lo + 2,x
                 sta ptr
-                lda colour_hi,x
+                lda colour_hi + 2,x
                 sta ptr + 1
-                txa
-                and #1
-                sta gx
-                txa
-                lsr
-                sta gy
+                stx gx
                 txa
                 pha
                 jsr write_colour
@@ -911,25 +906,41 @@ last_upper      lda tile_tl,x
 ;       sta COLOUR_RAM + n      4, for each of the tile's characters on screen: up to four
 ; and cmap moved on by a row of the map between rows of tiles: some 6800 cycles, against 10,500 for working
 ; it out a character at a time. Which characters each tile covers depends on whether the window starts on a
-; tile's first or second column and row, so there are four routines. At 4.2K each they are too much to load,
+; tile's first or second column and row, so there were four routines (two now: below). At about 5K each they are too much to load,
 ; so init writes them, into memory the video chip does not need: end to end after the map, where what waits
 ; in the program file (and a music build's tune) has been copied away by then. Starting on a tile's second
 ; column, a routine has 21 tiles across, else 20.
-COLOUR_SIZE     = 11 * 2 + 10 * 11 + 21 * 11 * 7 - 11 + ROWS * 40 * 3 + 1      ; 21 tiles across
-COLOUR_SIZE_20  = 11 * 2 + 10 * 11 + 20 * 11 * 7 - 11 + ROWS * 40 * 3 + 1      ; 20
-COLOUR_11       = $6d00                 ; second column, second row
-COLOUR_00       = COLOUR_11 + COLOUR_SIZE       ; the window starts on a tile's first column and row
-COLOUR_10       = COLOUR_00 + COLOUR_SIZE_20    ; second column, first row
-COLOUR_01       = COLOUR_10 + COLOUR_SIZE       ; first column, second row
-COLOUR_END      = COLOUR_01 + COLOUR_SIZE_20
+; Two routines, one for each column it can start on, written so that one register moves all they write down a
+; row: each store is sta abs,x (5 cycles, one more than sta abs), with X = 40 for a window starting on a tile's
+; first row and 0 for its second, and each tile reloads Y (ldy #k, as cheap as iny), so X is free. A routine
+; has two ways in, each loading X: one that writes the first row of tiles' second rows only (the second row),
+; and one that writes both (the first row); both go on to the rest, and the last row of tiles writes only its
+; first rows for a window on a tile's first row (the routine's one test of X). Each store is to
+; COLOUR_RAM - 40 + 40 * t + c, t = 2 * the row of tiles + the tile's row: X adds the row the window cuts off.
+; Two routines rather than four leave about 6.6K (28 November 2026), at about 840 cycles more in a frame of
+; colour memory (one for each character).
+                .cerror ROWS % 2 == 0, "write_colour expects an odd number of rows"
+routine_size    .function n           ; n tiles across
+                .endf 2 + 8 * n + 120 + 3 + 2 + 8 * n + 240 + (ROWS - 3) / 2 * (11 + 8 * n + 240) + 11 + 7 + 8 * n + 240 + 1 + 8 * n + 120 + 1
+COLOUR_SIZE     = routine_size(21)       ; starting on a tile's second column: 21 tiles across
+COLOUR_SIZE_20  = routine_size(20)       ; its first: 20
+COLOUR_IN       = 2 + 8 * 21 + 120 + 3  ; where the way in for a window on a tile's first row is
+COLOUR_IN_20    = 2 + 8 * 20 + 120 + 3
+COLOUR_1        = $6d00                 ; the window starts on a tile's second column
+COLOUR_0        = COLOUR_1 + COLOUR_SIZE        ; ... on its first
+COLOUR_END      = COLOUR_0 + COLOUR_SIZE_20
                 .cerror COLOUR_END > SQUARES_START, "the colour routines run into the multiplication table"
-                .cerror map_end > COLOUR_11, "no room after the map"
+                .cerror map_end > COLOUR_1, "no room after the map"
                 .cerror (tile_colour & $ff) != 0, "tile_colour must start a page"
-colour_lo       .byte <COLOUR_00, <COLOUR_10, <COLOUR_01, <COLOUR_11
-colour_hi       .byte >COLOUR_00, >COLOUR_10, >COLOUR_01, >COLOUR_11
+                .cerror (<COLOUR_RAM) != 0, "write_colour expects colour memory to start a page"
+; By where the window starts: first column and row, second column and first row, first column and second row,
+; second column and row.
+colour_lo       .byte <(COLOUR_0 + COLOUR_IN_20), <(COLOUR_1 + COLOUR_IN), <COLOUR_0, <COLOUR_1
+colour_hi       .byte >(COLOUR_0 + COLOUR_IN_20), >(COLOUR_1 + COLOUR_IN), >COLOUR_0, >COLOUR_1
 
-; Write the colour routine for a window starting on a tile's column gx and row gy (0 for the first, 1 for
-; the second), at ptr. Y stays 0, for emit.
+                .section once           ; (runs once, from where it waits after the map: waiting.asm)
+; Write the colour routine for a window starting on a tile's column gx (0 for the first, 1 for the second), at
+; ptr. Y stays 0, for emit.
 write_colour    ldy #0
                 lda gx
                 clc
@@ -937,40 +948,99 @@ write_colour    ldy #0
                 sta across
                 lda #0
                 sta j                   ; row of tiles
-tile_row        lda j
-                beq +
-                ldx #0                  ; after the first: on to the next row of the map
+                lda #$a2                ; ldx #0: the way in for a window on a tile's second row ...
+                jsr emit
+                tya
+                jsr emit
+                lda #2                  ; ... the first row of tiles' second rows ...
+                jsr tile_row
+                lda #245                ; ... and on past the other way in: jmp ptr + 245 + 8 * across
+                jsr over
+                lda #$a2                ; ldx #40: the way in for a window on a tile's first row
+                jsr emit
+                lda #40
+                jsr emit
+                lda #3                  ; both of the first row of tiles' rows
+                jsr tile_row
+middle_rows     inc j                   ; on to the next row of the map
+                ldx #0
 -               lda next_row,x
                 jsr emit
                 inx
                 cpx #size(next_row)
                 bne -
-+               lda #$a0                ; ldy #0
+                lda j
+                cmp #(ROWS - 1) / 2     ; the last row of tiles?
+                beq last_row
+                lda #3
+                jsr tile_row
+                jmp middle_rows
+last_row        ldx #0                  ; cpx #0 : beq (both rows)
+-               lda split,x
                 jsr emit
-                tya
+                inx
+                cpx #size(split)
+                bne -
+                lda #244                ; jmp to its first rows only, for X = 40: ptr + 244 + 8 * across
+                jsr over
+                lda #3
+                jsr tile_row
+                lda #$60                ; rts
                 jsr emit
+                lda #1
+                jsr tile_row
+                lda #$60                ; rts
+                jmp emit
+
+; Emit jmp ptr + A + 8 * across, past the code for a row of tiles with both of its rows (8 * across + 240).
+over            sta r
+                lda across
+                asl
+                asl
+                asl
+                clc
+                adc r
+                sta r
+                lda #0
+                rol
+                sta nr
+                lda r
+                clc
+                adc ptr
+                sta r
+                lda nr
+                adc ptr + 1
+                sta nr
+                lda #$4c                ; jmp
+                jsr emit
+                lda r
+                jsr emit
+                lda nr
+                jmp emit
+
+; Emit the code for row of tiles j: each tile's colour, into its characters on screen in the tile's rows that A
+; has bits for (bit 0 its first row, bit 1 its second): 8 bytes a tile and 120 a row.
+tile_row        sta gy                  ; (the rows)
+                lda #0
                 sta k                   ; tile in the row
-tile_col        lda k
-                beq +
-                lda #$c8                ; iny
+tile_col        lda #$a0                ; ldy #k
                 jsr emit
-+               ldx #0                  ; its colour
+                lda k
+                jsr emit
+                ldx #0                  ; its colour
 -               lda read_tile,x
                 jsr emit
                 inx
                 cpx #size(read_tile)
                 bne -
-                lda j                   ; into its characters: rows 2j - gy and the next ...
+                lda j                   ; into its characters: t = 2j and 2j + 1 ...
                 asl
-                sec
-                sbc gy
                 sta r
-                lda #2
+                lda gy
                 sta nr
-each_row        lda r
-                cmp #ROWS
-                bcs no_row              ; (-1 is 255)
-                tax
+each_row        lsr nr
+                bcc no_row
+                ldx r
                 lda k                   ; ... and columns 2k - gx and the next
                 asl
                 sec
@@ -980,36 +1050,33 @@ each_row        lda r
                 sta nc
 each_col        lda c
                 cmp #40
-                bcs no_col
-                lda #$8d                ; sta COLOUR_RAM + 40 * r + c
+                bcs no_col              ; (-1 is 255)
+                lda #$9d                ; sta COLOUR_RAM - 40 + 40 * t + c, x
                 jsr emit
                 lda c
                 clc
-                adc row40_lo,x
+                adc colour_row_lo,x
                 jsr emit
-                lda row40_hi,x
-                adc #>COLOUR_RAM
+                lda colour_row_hi,x
+                adc #0
                 jsr emit
 no_col          inc c
                 dec nc
                 bne each_col
 no_row          inc r
-                dec nr
+                lda nr
                 bne each_row
                 inc k
                 lda k
                 cmp across
                 bne tile_col
-                inc j
-                lda j
-                cmp #(ROWS + 1) / 2
-                beq +
-                jmp tile_row
-+               lda #$60                ; rts
-                jmp emit
+                rts
 next_row        .byte $18, $a5, <cmap, $69, MAP_SIZE, $85, <cmap, $90, $02, $e6, <cmap + 1  ; cmap += MAP_SIZE
-read_tile       .byte $b1, <cmap, $aa, $bd, <tile_colour, >tile_colour  ; lda (cmap),y : tax : lda tile_colour,x
-                .cerror (<COLOUR_RAM) != 0, "write_colour expects colour memory to start a page"
+read_tile       .byte $b1, <cmap, $a8, $b9, <tile_colour, >tile_colour  ; lda (cmap),y : tay : lda tile_colour,y
+split           .byte $e0, 0, $f0, 3    ; cpx #0 : beq *+5
+colour_row_lo   .byte <(COLOUR_RAM - 40 + range(ROWS + 1) * 40)
+colour_row_hi   .byte >(COLOUR_RAM - 40 + range(ROWS + 1) * 40)
+                .send
 
 emit            sta (ptr),y
                 inc ptr
