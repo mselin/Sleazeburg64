@@ -660,8 +660,8 @@ DROP_KNIFE_ODDS = 123                   ; ... else below this, a knife: 8 %
 ; Person X (people.asm), killed by the player: what they drop, if anything (drop_io, under the I/O area). X kept.
 drop            #io_gate drop_io
                 .section io_code
-drop_io         lda people.col,x        ; a scooter rider: nothing (the design: they pay $0)
-                cmp #LIGHT_GREEN
+drop_io         lda people.col,x        ; a rider: nothing (the design: they pay $0)
+                cmp people.rider_col
                 beq no_drop
                 jsr rnd
                 cmp #DROP_CASH_ODDS

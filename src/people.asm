@@ -59,9 +59,12 @@ PUSH_LONG       = 64 * 11               ; when its body (9.5 pixels) and their f
 PUSH_OUT        = 7                     ; it; to this far out across it (push_io)
 DOWN_TIME       = 200                   ; frames they lie, 4 seconds, then gone
 DOWN_FRAME      = 20                    ; their picture lying (tools/assets.mjs)
-SCOOTER_SPRITE  = SCOOTER_FRAMES / 64   ; a scooter rider's, the way they go; then lying
-SCOOT_ODDS      = 36                    ; a random byte below this: someone new rides a scooter (14 %)
-SCOOT_SPEED     = 255                   ; 50 pixels a second (the design's 52 is more than a byte holds)
+SCOOTER_SPRITE  = SCOOTER_FRAMES / 64   ; a rider's (a skater's or a scooter rider's), the way they go; then lying
+SCOOT_ODDS      = 36                    ; a random byte below this: someone new is a rider (14 %)
+SCOOTER         = LIGHT_GREEN           ; on modern, scooter riders: light green ...
+SCOOT_SPEED     = 255                   ; ... 50 pixels a second (the design's 52 is more than a byte holds)
+SKATER          = LIGHT_GREY            ; on classic, skaters: a light grey hoodie ...
+SKATE_SPEED     = 235                   ; ... 46 pixels a second
 TREAD            = 4                     ; and to take a step
 ARRIVE_GAP       = 16                    ; frames with time to spare between looking for a place for someone
 FAR             = $180                  ; 384: further than this from the player, they go
@@ -581,12 +584,12 @@ set_up          ldx who                 ; in the middle of its tile
                 jsr rnd
                 and #3
                 sta way,x
-                jsr rnd                 ; one time in seven or so, a scooter rider: light green, and the
-                cmp #SCOOT_ODDS         ; scooter's speed
+                jsr rnd                 ; one time in seven or so, a rider: the difficulty's colour, and
+                cmp #SCOOT_ODDS         ; their speed (rider_col)
                 bcs +
-                lda #LIGHT_GREEN
+                lda rider_col
                 sta col,x
-                lda #SCOOT_SPEED
+                lda rider_spd
                 sta spd,x
 +
                 lda #0
@@ -646,6 +649,8 @@ seen            clc
                 rts
 unseen          sec
                 rts
+                .send
+                .section tile_room3     ; (where there is room: main.asm; people_high was full)
 shirts          .byte PURPLE, ORANGE, CYAN, RED, LIGHT_RED, BROWN, GREEN, WHITE
                 .send
 
@@ -730,8 +735,8 @@ listed          sec                     ; down: 0 to LOWEST - 1 from cy
                 sta sprites.sx
                 bcc +
                 inc sprites.sx + 1
-+               lda col,x               ; a scooter rider: standing on the deck, the way they go; or lying
-                cmp #LIGHT_GREEN
++               lda col,x               ; a rider: on the deck or the board, the way they go; or lying
+                cmp rider_col
                 bne walker
                 lda down,x
                 beq +
@@ -1551,4 +1556,14 @@ first           .byte 0
 nx              .word 0                 ; ahead: the point looked at
 ny              .word 0
 
+
+                .section tile_room3     ; (where there is room: main.asm; in the program file where it is used,
+                                        ; so the title page can set it before anything is unpacked)
+; The difficulty (the design's "Difficulty", under the title screen): 0 classic, where a visit starts, or 1
+; modern. The riders follow it: their colour (which marks them out: drop, show) and speed. The title page
+; (title-page.asm) sets all three, and puts the difficulty's frames at SCOOTER_FRAMES.
+difficulty      .byte 0
+rider_col       .byte SKATER
+rider_spd       .byte SKATE_SPEED
+                .send
                 .bend

@@ -114,6 +114,14 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
     a light grey hoodie and stands side on across a cyan skateboard with black wheels, at 46 px/s. The two rider
     jobs, the news line and the title's greetings speak of skaters on classic. See "The riders" under
     "Difficulty" in the design's [Title screen and icon](https://github.com/mselin/gta-c64/blob/main/specs/design.md#title-screen-and-icon).
+    In the C64 version: the riders follow `people.difficulty` (0 classic, as the program file starts, or 1
+    modern), through two bytes beside it, the riders' colour and speed, which mark them out wherever the
+    program asks (the new person, their picture, what they drop). On classic they are skaters, in light grey
+    (no passer-by's shirt either), at 46 pixels a second (235/256 of a pixel a frame), side on across a black
+    board (cyan is no colour a multicolour sprite has besides its own, so the board and its wheels are black,
+    as the scooter is), in four frames of their own and one lying beside the board. The program file holds the
+    skaters' frames at `$0d80`; the title page will put the scooter riders' there for modern, with the three
+    bytes (Title screen, below). Still to come: the jobs, the news line and the greetings, with those.
   - **Fixed in the browser game: running over, end to end** (mselin/gta-c64#110). Running someone over was
     two circles, round the car's middle and its nose, so a sedan's back corners and a limousine's ends could pass
     over people. Now a car at 30 px/s or more runs over anyone whose shoulders (5 × PERSON) touch its body, its
@@ -442,6 +450,8 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
     (where a visit starts) or MODERN, which D goes through on the title screen. More settings may come. Modern
     adds the cursed driver assistance, car alarms and GAGGLE cameras, and scooter riders instead of skaters. See
     "Difficulty" under the design's [Title screen and icon](https://github.com/mselin/gta-c64/blob/main/specs/design.md#title-screen-and-icon).
+    In the C64 version so far: the difficulty byte and the riders that follow it (skaters on classic, under
+    Pedestrians above). Next: the title page's line and D, which sets it.
 
 ## Milestone 4: sound and polish
 

@@ -108,8 +108,8 @@ tmp             .byte ?
                 .cerror * != PICKUP_FRAMES, "the pickups' frames follow the car's"
                 .binary "pickups.bin"
 .if CROWD != 0
-                .cerror * != SCOOTER_FRAMES, "the scooter riders' frames follow the pickups'"
-                .binary "scooters.bin"
+                .cerror * != SCOOTER_FRAMES, "the riders' frames follow the pickups'"
+                .binary "skaters.bin"   ; (classic's; the title page puts the scooter riders' here for modern)
 .endif
 MARKER_FRAMES                           ; the paint shop's marker, a P (pickups.show_paint), after those, then
 SIGN_FRAME = MARKER_FRAMES + 64         ; the S beside the arrow to the shop (pickups.show_arrow)

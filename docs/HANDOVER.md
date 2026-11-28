@@ -9,25 +9,27 @@ in it: it is committed and public.
 
 ## Task
 
-"merge when green, then continue": the next roadmap item, running over by the car's whole body and a slow
-car pushing people aside (mselin/gta-c64#110; ROADMAP, Pedestrians; Sleazeburg64#6; `specs/design.md` there,
-"Running over" and "Cars are solid").
-
+"continue with implementation" (after #117): the difficulty, CLASSIC or MODERN (mselin/gta-c64#85; ROADMAP
+under "Title screen" and the skaters under Pedestrians; Sleazeburg64#11). Design: "Difficulty" under "Title
+screen and icon" in `specs/design.md` there; the skater under People on foot ("A skater stands side on ...").
 
 ## Plan
 
-1. Study the C64 run-over (`src/people.asm` `hunting`, `struck`, `beside`, `within`, `under`, `in_body`) and the
-   design's rules. Done.
-2. Whole-body run-over: someone's shoulders (2.5 px) touching the player's car's turned body (its length and
-   width, corners included), at RUN_OVER or more; the same body test for a fast car hurting the player.
-   Check: people tests pass with a new test at several turns. Done for the player's car running people over
-   (#115, merged); the traffic hurting the player by its body (#116, merged): done.
-3. Push-aside below RUN_OVER: out to the nearer side, just clear; the other side if a wall or car is there;
-   else knocked down (a crime for the player's car only); Big Honk only ruffled. Check: new tests pass.
-   Done for the player's car (`people.push_io`; people test "the car going slowly pushes someone"). Not done:
-   traffic pushing (people keep off roads here), Big Honk's ruffle (not a person here).
-4. Models (`tests/e2e/people-model.mjs`), ROADMAP, NOTES; `make e2e`; PR; merge when green. In progress.
+Two PRs: the riders by difficulty first (classic, the default, gets skaters), then the title page.
 
+1. DONE (PR A). Riders by difficulty: `people.difficulty`, `rider_col`, `rider_spd` (in `tile_room3`: plain in
+   the program file, so the title page can set them before unpacking). Skater 15 at 235 (46 px/s), scooter 13
+   at 255. `src/people.asm` (new person, show), `src/pickups.asm` drop_io. Model `P.riders(d)`,
+   `setDifficulty`. Check: `tests/e2e/riders.test.mjs` (was scooter.test) 6/6 pass.
+2. DONE (PR A). Skater frames: `tools/assets.mjs` `skaterFrames` -> `build/skaters.bin`, in the program file at
+   SCOOTER_FRAMES; `build/scooters.bin` kept for modern. Check: `tools/assets.test.mjs` 13/13 pass.
+3. PR B. Title page (TITLE builds): its code moves out of `boot` to a fixed place before PACK_HOME (both
+   build passes must have the same labels: `tools/build-game.sh` compares them; in the unpacked pass it can be
+   `.virtual`), with the scooter riders' 320 bytes. The line "DIFFICULTY: CLASSIC - PRESS D" in a character
+   row (tools/picture.mjs emits both words' bitmap cells), grey 12 / yellow 7 in the screen bytes' high nybble
+   (colour 1); D (keyboard column 2, row 2) swaps it, copies the frames, sets the three bytes. Check: a title
+   test presses D.
+4. Docs, HANDOVER; `make e2e`; PR; merge when green, each PR.
 
 ## Established
 
@@ -62,18 +64,16 @@ car pushing people aside (mselin/gta-c64#110; ROADMAP, Pedestrians; Sleazeburg64
 
 ## Changes
 
-- Sleazeburg64, branch `claude/confident-euler-70sqzi` (new PR): the slow push aside. `src/people.asm`:
-  `chasing` gains $81/$82 (slow but moving); `car_io` gate to `car_under` (hunting) and `push_io`, `try_side`,
-  `moved`, `pixels` in `io_more`; `scatter` label in punch's tail. `src/main.asm` `IO_LATE` `$dac0`.
-  Model `People.push` (`tests/e2e/people-model.mjs`; `tick` takes the traffic); a new people test.
-- Recent merged work: #116 traffic hurts the player by its body; #115 the whole-body run-over.
-
+- PR A (branch `claude/confident-euler-70sqzi`): riders by difficulty, skaters on classic. `src/people.asm`,
+  `src/pickups.asm`, `src/main.asm` (skaters.bin at SCOOTER_FRAMES), `tools/assets.mjs` (+test),
+  `tests/e2e/riders.test.mjs` (renamed from scooter.test), `game.mjs` (`assets.riders`), `people-model.mjs`;
+  ROADMAP (Pedestrians, Title screen), NOTES, README memory map.
+- Merged #117 (d393de7): the slow push aside. Earlier: #116, #115.
 
 ## Verification
 
 - Last full `make test` (PR 2, #114): 153 pass, tools 25 pass (28 November 2026).
-- This change: `tests/e2e/people.test.mjs` 11/11 pass; the sixteen-car build assembles; full `make e2e`
-  running (see the PR).
+- PR A: riders 6/6, assets 13/13; full `make e2e` running.
 - Unverified anywhere: the C64 program on real hardware (owner's to try).
 
 
@@ -101,8 +101,8 @@ car pushing people aside (mselin/gta-c64#110; ROADMAP, Pedestrians; Sleazeburg64
 
 ## Next
 
-Wait for CI on the push-aside PR and merge when green. Then the next roadmap item: jobs are blocked on
-mselin/gta-c64#117, so difficulty, then driver assistance; check the officers' values against gta-c64#116.
+Plan step 1. After the difficulty: driver assistance (modern only); jobs are blocked on mselin/gta-c64#117;
+check the officers' values against gta-c64#116.
 
 
 ## Subagent files

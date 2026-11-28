@@ -10,8 +10,12 @@ export const P = {
   RUN_OVER: 154, BODY_LONG: 64 * 12, BODY_SHORT: 64 * 15 / 2, MOVING: 5, PUSH_LONG: 64 * 11, PUSH_OUT: 7, DOWN_TIME: 200, DOWN_FRAME: 20, JAY_ODDS: 26,
   HALT: 10, TURN_AFTER: 75, PUNCH_WAIT: 18, STAB_WAIT: 14, STAB_REACH: 10, ARM_OUT: 10, PUNCH_REACH: 7, PUNCH_LIM: 7, SCARE: 60, FLEE_TURNS: 50, CAR_LONG: 13, CAR_SHORT: 8, CAR_SQUARE: 10,
   SHIRTS: [4, 8, 3, 2, 10, 9, 5, 1], // purple, orange, cyan, red, light red, brown, green, white
-  // Scooter riders: light green (no passer-by's shirt), the scooter's speed, one time in seven or so.
-  SCOOTER: 13, SCOOT_ODDS: 36, SCOOT_SPEED: 255, SCOOTER_SPRITE: 0x0d80 / 64,
+  // Riders, one time in seven or so, by the difficulty (people.difficulty): on classic (0), skaters in a light
+  // grey hoodie at 46 pixels a second; on modern (1), scooter riders, light green, at 50. No passer-by's shirt
+  // is either. Their frames are at SCOOTER_SPRITE, whichever they are.
+  SKATER: 15, SKATE_SPEED: 235, SCOOTER: 13, SCOOT_ODDS: 36, SCOOT_SPEED: 255, SCOOTER_SPRITE: 0x0d80 / 64,
+  /** The riders' colour and speed on `difficulty`. */
+  riders: (difficulty) => (difficulty ? [13, 255] : [15, 235]),
   // Police officers on foot (police.get_out): light blue, at 47 pixels a second.
   OFFICER: 14, COP_PACE: 241,
 };
@@ -24,6 +28,17 @@ export const G = {
 };
 G.VELOCITY = ((s, d) => [[s, 0], [d, d], [0, s], [-d, d], [-s, 0], [-d, -d], [0, -s], [d, -d]])(G.STRAIGHT, G.DIAGONAL);
 const CYCLE = [2, 3, 4, 3, 2, 1, 0, 1];
+let difficulty = 0; // classic, as the program file starts (people.difficulty)
+/**
+ * The difficulty, in the model and, given VICE, in the program as the title page sets it: the byte, the riders'
+ * colour and speed, and their frames (`frames`: build/skaters.bin or build/scooters.bin) at SCOOTER_FRAMES.
+ */
+export async function setDifficulty(d, vice, L, frames) {
+  difficulty = d;
+  if (!vice) return;
+  await vice.write(L['people.difficulty'], [d, ...P.riders(d)]);
+  await vice.write(L.SCOOTER_FRAMES, [...frames]);
+}
 /** cos((k - 4) pi / 8) in 64ths, k = 0-23 (people.turns): sin k is TURNS[k], cos k TURNS[k + 4], -sin k TURNS[k + 8]. */
 export const TURNS = Array.from({ length: 24 }, (_, k) => Math.round(64 * Math.cos(((k - 4) * Math.PI) / 8)));
 const DX = [1, 0, -1, 0], DY = [0, 1, 0, -1];
@@ -45,9 +60,9 @@ export class Person {
   get py() {
     return (this.y >> 8) & 0xffff;
   }
-  /** A scooter rider (shirt light green). */
+  /** A rider (in the difficulty's colour: setDifficulty). */
   get rider() {
-    return this.col === P.SCOOTER;
+    return this.col === P.riders(difficulty)[0];
   }
   get pointer() {
     if (this.rider) return P.SCOOTER_SPRITE + (this.down ? 4 : this.way);
@@ -330,7 +345,7 @@ export class People {
   setUp(i, nx, ny) {
     let spd = 77 + (this.rnd() & 31), col = P.SHIRTS[this.rnd() & 7];
     const way = this.rnd() & 3;
-    if (this.rnd() < P.SCOOT_ODDS) [col, spd] = [P.SCOOTER, P.SCOOT_SPEED];
+    if (this.rnd() < P.SCOOT_ODDS) [col, spd] = P.riders(difficulty);
     return (this.people[i] = new Person({ on: 1, x: ((nx & 0xfff0) | 8) << 8, y: ((ny & 0xfff0) | 8) << 8, spd, col, way, wait: 1, ph: 0, jay: 0 }));
   }
   /**

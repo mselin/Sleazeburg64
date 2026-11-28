@@ -101,7 +101,8 @@ A briefing for whoever picks this project up next, person or assistant. Written 
     way copied in when it changes, `pickups.arrow_copy`), so code starts at `$0f80`. Not `$2500`: that is the
     passers-by's lying-down frame (`people.bin` has 21 frames, `$2000`-`$253f`). `arrow_axes` is in tile room 4.
   - Below the screens (`$0ec0`-`$1fff`, after the car's, the pickups' and the scooter riders' sprites) there
-    are about 150 bytes of code left (the scooter riders' five frames took 320 at `$0d80`, 25 November 2026).
+    are about 150 bytes of code left (the riders' five frames took 320 at `$0d80`, 25 November 2026: the
+    skaters' in the program file, the scooter riders' put there for modern).
     There were about 460 bytes of
     code left since what start runs once moved out (25 November 2026: `boot`, the title page, the unpacker and
     the copying up are in the program file at `$3000`, where the screens will be, and run from there before
@@ -167,7 +168,10 @@ A briefing for whoever picks this project up next, person or assistant. Written 
   - The tables by tile (`$4000`-`$46ff`) have room for 128 tiles (`TILE_ROOM`; the city has 78, and
     `tools/assets.mjs` refuses more than 128): the rest of six of the seven pages is `.section tile_room1`-`6`,
     128 bytes each (26 November 2026, measured as the one room with no cost left). The panel's messages are in
-    rooms 1-4; the officers on foot have room 5, room 6 and what was left of 2 and 4 (only a few bytes are left in each). Any code or data can go there:
+    rooms 1-4; the officers on foot have room 5, room 6 and what was left of 2 and 4 (only a few bytes are left in each). Room 3 also holds the
+    difficulty and the riders' colour and speed (`people.difficulty`: the title page sets them before anything is
+    unpacked) and the passers-by's shirts (moved from `people_high`, which the sixteen-car test build ran a byte
+    past on 28 November 2026; `gap_code` and `basic_code` had no room left for them then). Any code or data can go there:
     it is in the program file where it runs, and nothing is copied. Three more places for code since 27 November 2026, each copied in by the byte at the end of start's
     copying (`lay_down` in `src/main.asm`; `src/waiting.asm` has them): the stack page but its top 64 bytes
     (`.section stack_code`, `$0100`-`$01bf`: the stack went 16 bytes deep at most in 6000 frames of random

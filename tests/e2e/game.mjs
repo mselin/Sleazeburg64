@@ -52,6 +52,8 @@ assets.people = readFileSync(join(ROOT, 'build/people.bin')); // the passers-by'
 assets.punch = readFileSync(join(ROOT, 'build/punch.bin')); // the player punching, 8 frames
 assets.pickups = readFileSync(join(ROOT, 'build/pickups.bin')); // the five pickups
 assets.scooters = readFileSync(join(ROOT, 'build/scooters.bin')); // scooter riders: four ways, then lying
+assets.skaters = readFileSync(join(ROOT, 'build/skaters.bin')); // skaters, the same (classic's: in the program file)
+assets.riders = assets.skaters; // what is at SCOOTER_SPRITE: a test that sets modern (setDifficulty) changes it
 const marker = readFileSync(join(ROOT, 'build/marker.bin'));
 assets.marker = marker.subarray(0, 64); // the paint shop's marker, a P
 assets.sign = marker.subarray(64, 128); // the S beside the arrow to it
@@ -65,7 +67,7 @@ export function arrowFrame(k) {
   return f;
 }
 export const PICKUP_SPRITE = 0x0c40 / 64;
-export const SCOOTER_SPRITE = 0x0d80 / 64; // scooter riders: four ways, then lying
+export const SCOOTER_SPRITE = 0x0d80 / 64; // riders: four ways, then lying (skaters in the program file, classic's)
 export const MARKER_SPRITE = 0x0ec0 / 64; // the paint shop's marker
 export const SIGN_SPRITE = 0x0f00 / 64; // the S beside the arrow
 export const ARROW_SPRITE = 0x0f40 / 64; // the arrow, its way copied in (after the S)
@@ -79,7 +81,7 @@ export const PEOPLE_SPRITE = 0x2000 / 64;
 export function spriteData(pointer) {
   if (pointer === MARKER_SPRITE) return assets.marker.subarray(0, 63);
   if (pointer === SIGN_SPRITE) return assets.sign.subarray(0, 63);
-  if (pointer >= SCOOTER_SPRITE && pointer < SCOOTER_SPRITE + 5) return assets.scooters.subarray((pointer - SCOOTER_SPRITE) * 64, (pointer - SCOOTER_SPRITE) * 64 + 63);
+  if (pointer >= SCOOTER_SPRITE && pointer < SCOOTER_SPRITE + 5) return assets.riders.subarray((pointer - SCOOTER_SPRITE) * 64, (pointer - SCOOTER_SPRITE) * 64 + 63);
   if (pointer === BULLET_SPRITE) return assets.bullet;
   if (pointer >= HONK_SPRITE) return assets.chars.subarray(pointer * 64 - CHARSET, pointer * 64 - CHARSET + 63);
   if (pointer >= PEOPLE_SPRITE) return assets.people.subarray((pointer - PEOPLE_SPRITE) * 64, (pointer - PEOPLE_SPRITE) * 64 + 63);
