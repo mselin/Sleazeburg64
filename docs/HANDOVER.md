@@ -28,9 +28,12 @@ Then three PRs, each merged when green:
    always has anti-theft and never the other two, by the design now, not the ROADMAP) and anti-theft: the time while
    driving, stopped for good, the two messages, the bits travelling with the car. Check: a test where a car
    with anti-theft stops after its time and will not go again. Status: merged (#120).
-2. PR D. Lane assist. Check: a test of the swerve and its message. Status: code and tests done
-   (`tests/e2e/assist.test.mjs`, 4 pass; both builds fit); full `make test` and the PR next.
-3. PR E. Emergency braking. Check: tests stopping for a person and a car.
+2. PR D. Lane assist. Check: a test of the swerve and its message. Status: merged (#121).
+3. PR E. Emergency braking (bit 6; anti-theft keeps the low 6 bits). Steps: E1 the bit, rolled in `police.fit`
+   (<64, sports <128, never police), masks `$7f` to `$3f`; E2 the scan, braking and latch, under the I/O area
+   through `io_gate`, only for a car with the bit going fast enough; E3 the models; E4 tests (a person, a car,
+   the latch and its message, reversing) and the frame budget. Check: those tests and a full `make test`
+   (both builds fit). Status: blocked on room (measured 28 November 2026, below); asking the owner.
 (The alarm's sound waits for sound, milestone 4; its lights flash the car's sprite yellow.)
 Difficulty done: #118 (riders), #119 (title page, D).
 
@@ -67,7 +70,8 @@ Difficulty done: #118 (riders), #119 (title page, D).
 
 ## Changes
 
-- PR D (branch, not merged): lane assist. `TILE_ROOM` 96 (`src/main.asm`, `tools/assets.mjs` + test);
+- PR E (branch `claude/confident-euler-70sqzi`, from 5d2e4a7): emergency braking, in progress.
+- Merged #121, PR D: lane assist. `TILE_ROOM` 96 (`src/main.asm`, `tools/assets.mjs` + test);
   `src/car.asm` (`wait`/`swerve`/`pull`; `anti` goes to `lane` for bit 7 and lane comes back to `a_back`;
   `lane` in pieces over rooms 1, 2, 4, 5, 6; `update` starts `turn` from `pull`, $40/$c0), `src/police.asm` (`fit`: bit 7), `src/foot.asm` (`park` clears it, `got`
   masks), `src/status.asm` (MSG_LANE in room 1); models car (`lane`), traffic (roll; `Rnd.carry`), foot,
@@ -120,9 +124,11 @@ Difficulty done: #118 (riders), #119 (title page, D).
 
 ## Next
 
-Full `make test` for PR D, open the PR (refs #61), merge when green. Then PR E (emergency braking): room in
-NOTES (rooms 5-32 bytes; room 6 1); time is the harder part: the long traffic drive's frame 355 has about 13 cycles left
-(NOTES, frame budget), so emergency braking must cost nothing in a car without it, as lane assist does.
+Emergency braking does not fit. Measured on 5d2e4a7 (`.warn` in `src/main.asm`, then restored): `boot` 123
+bytes left, the texts under the I/O area (`io_late` + `io_text`, to `$e000`) 16, `io_code` 7; the tile rooms
+32/5/30/19/22/1. NOTES' "about 1.1K left in boot" is stale. The full design (scan of people, cars and walls,
+braking to 3 px short, the latch, two messages of 59 characters) needs an estimated 500-600 bytes. Waiting for
+the owner: cut it down, make room, or shelve it.
 
 ## Subagent files
 
