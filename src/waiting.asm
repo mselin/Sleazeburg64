@@ -22,7 +22,6 @@ high_image
                 .include "honk.asm"
 .endif
                 .include "foot.asm"
-                .dsection status_high
                 .dsection police_high
 .if CROWD != 0
                 .dsection people_high

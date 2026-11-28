@@ -2,12 +2,12 @@
 // A model of the passers-by (src/people.asm), worked out again here so the tests can hold the program to it
 // frame by frame. The rules are the program's: see the comments there for why they are what they are.
 import { MAP_PIXELS, VIEW_H, VIEW_W, assets, MAP_SIZE } from './game.mjs';
-import { AXIS, direction16 } from './car-model.mjs';
+import { direction16 } from './car-model.mjs';
 import { LOWEST } from './traffic-model.mjs';
 
 export const P = {
   CROWD: 4, REACH: 9, TREAD: 4, ARRIVE_GAP: 16, FAR: 0x180, BACK_ODDS: 205, SPRITE: 0x2000 / 64,
-  RUN_OVER: 154, HIT: 9, NOSE: 8, DOWN_TIME: 200, DOWN_FRAME: 20, JAY_ODDS: 26,
+  RUN_OVER: 154, BODY_LONG: 64 * 12, BODY_SHORT: 64 * 15 / 2, DOWN_TIME: 200, DOWN_FRAME: 20, JAY_ODDS: 26,
   HALT: 10, TURN_AFTER: 75, PUNCH_WAIT: 18, STAB_WAIT: 14, STAB_REACH: 10, ARM_OUT: 10, PUNCH_REACH: 7, PUNCH_LIM: 7, SCARE: 60, FLEE_TURNS: 50, CAR_LONG: 13, CAR_SHORT: 8, CAR_SQUARE: 10,
   SHIRTS: [4, 8, 3, 2, 10, 9, 5, 1], // purple, orange, cyan, red, light red, brown, green, white
   // Scooter riders: light green (no passer-by's shirt), the scooter's speed, one time in seven or so.
@@ -24,6 +24,8 @@ export const G = {
 };
 G.VELOCITY = ((s, d) => [[s, 0], [d, d], [0, s], [-d, d], [-s, 0], [-d, -d], [0, -s], [d, -d]])(G.STRAIGHT, G.DIAGONAL);
 const CYCLE = [2, 3, 4, 3, 2, 1, 0, 1];
+/** cos((k - 4) pi / 8) in 64ths, k = 0-23 (people.turns): sin k is TURNS[k], cos k TURNS[k + 4], -sin k TURNS[k + 8]. */
+export const TURNS = Array.from({ length: 24 }, (_, k) => Math.round(64 * Math.cos(((k - 4) * Math.PI) / 8)));
 const DX = [1, 0, -1, 0], DY = [0, 1, 0, -1];
 const w16 = (v) => v & 0xffff;
 const kindAt = (x, y) => assets.tiles[1280 + assets.map[(y >> 4) * MAP_SIZE + (x >> 4)]];
@@ -359,9 +361,17 @@ export class People {
   tick(cam, car) {
     if (this.punchLeft) this.punchLeft--;
     const fast = Math.abs(car.vx) >= P.RUN_OVER || Math.abs(car.vy) >= P.RUN_OVER;
-    const [ax, ay] = AXIS[direction16(car.angle)];
-    const points = [[car.px, car.py, P.HIT], [w16(car.px + ax), w16(car.py + ay), P.NOSE]];
+    // On them: their middle within the car's body and their shoulders, along it and across it by its picture's
+    // way, in 64ths of a pixel (the cosines rounded to 64ths, as people.turns has them).
+    const k = direction16(car.angle);
     const within = (d, lim) => w16(d + lim) <= 2 * lim;
+    const signed = (d) => ((w16(d) ^ 0x8000) - 0x8000);
+    const on = (p) => {
+      if (!within(p.py - car.py, 15) || !within(p.px - car.px, 15)) return false;
+      const dx = signed(p.px - car.px), dy = signed(p.py - car.py);
+      const u = dx * TURNS[k + 4] + dy * TURNS[k], v = dx * TURNS[k + 8] + dy * TURNS[k + 4];
+      return Math.abs(u) <= P.BODY_LONG && Math.abs(v) <= P.BODY_SHORT;
+    };
     for (let i = this.people.length - 1; i >= 0; i--) {
       const p = this.people[i];
       if (!p.on) continue;
@@ -374,7 +384,7 @@ export class People {
         continue;
       }
       if (p.down || !fast) continue; // (anyone the car can run over is in sight)
-      if (points.some(([x, y, lim]) => within(p.px - x, lim) && within(p.py - y, lim))) {
+      if (on(p)) {
         p.down = P.DOWN_TIME;
         this.crime(p, true);
         this.onKill?.(p); // run over by the player: what they drop

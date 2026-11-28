@@ -1011,7 +1011,7 @@ pave_io         lda #PAVE_AGAIN
                 lda status.heat
                 pha
                 lda #2 * 4
-                jsr status.add_heat
+                jsr status.heat_a
                 pla
                 cmp status.heat
                 bne +

@@ -22,9 +22,9 @@
 ; steps a pixel, four poses a step). Traffic stops for someone in its lane up to 26 pixels ahead and 9 to the
 ; side (traffic.look, the design's distances), as it does for a car.
 ;
-; Run over. The player's car, going at least 30 pixels a second on either axis, runs someone over when its
-; middle comes within HIT of theirs on both axes or the point ahead of it within NOSE (the design's 10 and 9,
-; distances, taken here as squares). It is looked at in every frame (show), so a fast car never crosses
+; Run over. The player's car, going at least 30 pixels a second on either axis, runs someone over when their
+; shoulders (2.5 pixels) touch its body, its length and width turned the way its picture points (struck: the
+; design's whole body, mselin/gta-c64#110). It is looked at in every frame (show), so a fast car never crosses
 ; someone unseen. They lie flat for 4 seconds in the
 ; design's picture of someone knocked down, then are gone (the browser game leaves a stain, which the city's
 ; characters cannot show here). Nothing else follows yet: no heat, no pickup. Traffic does not run anyone over:
@@ -50,8 +50,9 @@ PAVEMENT        = 4                     ; a tile's kind (tools/assets.mjs): pave
 people          .block
 REACH           = 9                     ; how far ahead they look to choose a way
 RUN_OVER        = 154                   ; the player's car runs someone over going this fast on either axis,
-HIT             = 9                     ; in 1/256 pixel a frame (30 pixels a second), with its middle within
-NOSE            = 8                     ; HIT of theirs on both axes, or the point ahead of it within NOSE
+                                        ; in 1/256 pixel a frame (30 pixels a second), with their shoulders
+BODY_LONG       = 64 * 12               ; touching its body: half its length (9.5) and 2.5 more, along it,
+BODY_SHORT      = 64 * 15 / 2           ; and half its width (5) and 2.5, across it, in 1/64 pixel (struck)
 DOWN_TIME       = 200                   ; frames they lie, 4 seconds, then gone
 DOWN_FRAME      = 20                    ; their picture lying (tools/assets.mjs)
 SCOOTER_SPRITE  = SCOOTER_FRAMES / 64   ; a scooter rider's, the way they go; then lying
@@ -662,7 +663,7 @@ each            lda on,x
                 bcc listed
                 jmp hidden
 +               lda chasing             ; walking: run over? Only if within 15 pixels of the car down (its
-                beq listed              ; middle and the point ahead of it are at most HIT and 6 away), which
+                beq listed              ; body and their shoulders reach at most 14.2 from its middle), which
                 sec                     ; most are not, so that is looked at first
                 lda yl,x
                 sbc car.pos_y + 1
@@ -778,63 +779,113 @@ slow            dey
 quick           inc chasing             ; (the points only when someone in sight is to be looked at: points)
                 rts
 
-; The points that run someone over, worked out once a frame, the first time they are needed: the car's middle
-; (cx, cy) and the point ahead of it (fx, fy). chasing goes from 1 to 2.
+; The way the car's picture points, 0-15 (as car.show has it), worked out once a frame, the first time it is
+; needed. chasing goes from 1 to 2.
 points          inc chasing
-                stx who                 ; (X is the person being looked at)
-                lda car.angle + 1       ; the car's sprite direction, and its axis that way
+                lda car.angle + 1
                 clc
                 adc #8
                 lsr
                 lsr
                 lsr
                 lsr
-                tay
-                lda car.pos_x + 1
-                sta cx
-                lda car.pos_x + 2
-                sta cx + 1
-                lda car.pos_y + 1
-                sta cy
-                lda car.pos_y + 2
-                sta cy + 1
-                ldx #0
-                lda car.axis_x,y
-                jsr ahead_of
-                ldx #2
-                lda car.axis_y,y
-                jsr ahead_of
-                ldx who
-                rts
-; fx (X = 0) or fy (X = 2) = cx or cy + the signed byte A.
-ahead_of        sta lim                 ; (spare)
-                and #$80
-                beq +
-                lda #$ff
-+               sta lim + 1
-                clc
-                lda cx,x
-                adc lim
-                sta fx,x
-                lda cx + 1,x
-                adc lim + 1
-                sta fx + 1,x
+                sta car_way
                 rts
 
-; C clear if person X is run over: within HIT of the car's middle on both axes, or within NOSE of the point
-; ahead of it.
+; C clear if person X is run over: their shoulders (2.5 pixels) touch the car's body, its length and width
+; turned the way its picture points. From the car's middle to theirs (dx, dy: they are at most 15 apart down,
+; as show has it), along the car u = dx cos + dy sin and across it v = dx (-sin) + dy cos, in 1/64 pixel (the
+; cosines and sines from turns); run over if |u| <= BODY_LONG and |v| <= BODY_SHORT. (The box takes in the
+; corners whole, a little more than the design's rounded ones.) X is kept.
 struck          lda chasing
                 cmp #2
                 beq +
                 jsr points
-+               lda #HIT
-                ldy #0
-                jsr beside
-                bcc +
-                lda #NOSE
-                ldy #4
-                jsr beside
-+               rts
++               stx who
+                sec
+                lda xl,x
+                sbc car.pos_x + 1
+                sta d
+                lda xh,x
+                sbc car.pos_x + 2
+                ldy #15
+                sty lim
+                jsr within              ; within 15 across?
+                bcs missed
+                lda d
+                sbc #15 - 1             ; (the carry is clear)
+                sta dx
+                sec
+                lda yl,x
+                sbc car.pos_y + 1
+                sta dy
+                ldy #2                  ; across, then along
+axis            sty of_axis
+                lda reach_of,y          ; the sum of the two products, from the reach on
+                sta sum
+                lda reach_of + 1,y
+                sta sum + 1
+                jsr axis_at             ; dx times cos, or -sin across
+                lda turns + 4,x
+                ldx dx
+                jsr term
+                jsr axis_at             ; dy times sin, or cos across
+                lda turns,x
+                ldx dy
+                jsr term
+                ldy of_axis
+                lda sum                 ; within twice the reach
+                cmp width_of,y
+                lda sum + 1
+                sbc width_of + 1,y
+                bcs missed
+                dey
+                dey
+                bpl axis
+missed          ldx who
+                rts
+; X = car_way, and 4 more across (sin k = cos (k - 4) = turns + k, and -sin k = sin (k + 8)).
+axis_at         lda of_axis
+                asl
+                adc car_way             ; (the carry is clear)
+                tax
+                rts
+reach_of        .word BODY_LONG, BODY_SHORT
+width_of        .word 2 * BODY_LONG + 1, 2 * BODY_SHORT + 1
+; sum += A * X, signed bytes with |A + X| and |A - X| below 128: (A + X)^2 / 4 - (A - X)^2 / 4 from the
+; quarter squares (car.init), which come out whole either way as A + X and A - X are both odd or both even.
+term            stx pb
+                sta pa
+                clc
+                adc pb
+                eor #$80                ; n + 128 for n = -128..127
+                tax
+                lda pa
+                sec
+                sbc pb
+                eor #$80
+                tay
+                clc
+                lda sum
+                adc SQUARES - 128,x
+                sta sum
+                lda sum + 1
+                adc SQUARES_HI - 128,x
+                sta sum + 1
+                sec
+                lda sum
+                sbc SQUARES - 128,y
+                sta sum
+                lda sum + 1
+                sbc SQUARES_HI - 128,y
+                sta sum + 1
+                rts
+                .section basic_code     ; (where there is room: waiting.asm)
+turns
+                .for k := -4, k < 20, k += 1
+                .char int(round(64 * cos(k * pi / 8)))
+                .next
+                .send
 ; C clear if person X is within A of the point at cx + Y (cx, cy, or fx, fy) on both axes.
 beside          sta lim
                 sec
@@ -1293,10 +1344,15 @@ phl             .fill CROWD, 0            ; how far through the walk: 1/256 pose
 phh             .fill CROWD, 0
 seed            .byte 0
 chasing            .byte 0                 ; show: 1 if the player's car can run someone over
-cx              .word 0                 ; its middle ...
+cx              .word 0                 ; punch: the point
 cy              .word 0
-fx              .word 0                 ; ... and the point ahead of it
-fy              .word 0
+car_way         .byte 0                 ; ... and the way its picture points (points)
+dx              .byte 0                 ; struck: from the car's middle to someone's, across and down
+dy              .byte 0
+of_axis         .byte 0                 ; ... the axis (2 across, 0 along) ...
+sum             .word 0                 ; ... and how far along it, from minus its reach, in 1/64 pixel
+pa              .byte 0                 ; term
+pb              .byte 0
 lim             .word 0                 ; beside
 d               .word 0
 lull             .byte 0                 ; frames with time to spare until the next look for a place

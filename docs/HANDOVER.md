@@ -9,19 +9,23 @@ in it: it is committed and public.
 
 ## Task
 
-"merge when green, then continue": the next roadmap item, the paint shop's P on the map and the arrow to it
-with heat (ROADMAP, the paint shop; `specs/design.md` there, "The paint shop", and `js/render.js` `marker`,
-`edgeArrow`, `drawWorld`).
+"merge when green, then continue": the next roadmap item, running over by the car's whole body and a slow
+car pushing people aside (mselin/gta-c64#110; ROADMAP, Pedestrians; Sleazeburg64#6; `specs/design.md` there,
+"Running over" and "Cars are solid").
+
 
 ## Plan
 
-1. Room for the P (PR 1): what a pickup does when taken moved under the I/O area. Done.
-2. The P marker: mselin/Sleazeburg64#113, merged 28 November 2026. Done.
-3. The arrow and the S (PR 2): `pickups.arrow_round` (once a round, from `paint_near`), `show_arrow`, the 16
-   ways copied into `ARROW_FRAME` ($0f40) by `arrow_copy` (I/O area), hooks `paint_skip`/`paint_hook`/
-   `paint_tail`; model `arrowRound` in `tests/e2e/pickups-model.mjs`; test "with heat, at the wheel ...".
-   Done in the working tree; pickups tests pass. Check: `make test` passes.
-4. PR 2: mselin/Sleazeburg64#114, opened 28 November 2026; merge when green. Check: merged on GitHub.
+1. Study the C64 run-over (`src/people.asm` `hunting`, `struck`, `beside`, `within`, `under`, `in_body`) and the
+   design's rules. Done.
+2. Whole-body run-over: someone's shoulders (2.5 px) touching the player's car's turned body (its length and
+   width, corners included), at RUN_OVER or more; the same body test for a fast car hurting the player.
+   Check: people tests pass with a new test at several turns. Done for the player's car running people over
+   (this PR); the traffic hurting the player by its body is the next PR.
+3. Push-aside below RUN_OVER: out to the nearer side, just clear; the other side if a wall or car is there;
+   else knocked down (a crime for the player's car only); Big Honk only ruffled. Check: new tests pass.
+4. Models (`tests/e2e/people-model.mjs`), ROADMAP, NOTES; `make test`; PR; merge when green.
+
 
 ## Established
 
@@ -39,7 +43,7 @@ with heat (ROADMAP, the paint shop; `specs/design.md` there, "The paint shop", a
   `main` in and wait again (`.claude/CLAUDE.md`). CI: `.github/workflows/build.yml`, checks `build` and
   `All checks passed`.
 - **Testing.** `make test` runs everything in VICE (x64sc) with JavaScript models held to the program frame by
-  frame (`tests/e2e/play.mjs` `World`, `pass()`); about 25 minutes. Last full run: 151 pass, tools 25 pass.
+  frame (`tests/e2e/play.mjs` `World`, `pass()`); about 25 minutes. Last full run: 153 pass, tools 25 pass.
 - **Memory is the constraint.** The map of it, and what is left where, is in `docs/NOTES.md` ("Commodore 64
   port"). Since 27 November 2026, code that runs now and then lives under the I/O area (`$d000`-`$dfff`) and
   runs through `io_gate` (`src/main.asm`), interrupts off; the panel's messages are there too
@@ -56,17 +60,18 @@ with heat (ROADMAP, the paint shop; `specs/design.md` there, "The paint shop", a
 
 ## Changes
 
-- Sleazeburg64, branch `claude/confident-euler-70sqzi` (PR 2, #114): the arrow and S as in plan step 3;
-  `pickups.drop` and `place` under the I/O area; `tools/assets.mjs` `signPixels`, `arrowRows`; the pack test
-  checks only up to `HIGH_CODE` (what waits past it, the rest of `io_more`, is copied up first, then written
-  over); `play.mjs` and `traffic.test.mjs` pass the player's place and on-foot flag to the pickups model.
-- Recent merged work: #113 the P marker; #112 the handover docs; #111 the banners.
+- Sleazeburg64, branch `claude/confident-euler-70sqzi`: the whole-body run-over (`src/people.asm` `struck`,
+  `term`, `turns` in `basic_code`); `status.add_heat` under the I/O area (`heat_io`/`heat_a`), the messages'
+  times in `io_code`, messages m0/m1 in `io_more` to make room (`docs/NOTES.md` has the figures); the people model
+  and a new test (`tests/e2e/people.test.mjs`, "the whole car runs people over").
+- Recent merged work: #114 the paint shop arrow and S; #113 the P marker; #112 the handover docs.
+
 
 ## Verification
 
-- `tests/e2e/pickups.test.mjs`: 9 pass with the arrow test (28 November 2026). `make test` running for PR 2.
-  Last full `make test` (PR 1): 152 pass, tools 25 pass.
+- Last full `make test` (PR 2, #114): 153 pass, tools 25 pass (28 November 2026).
 - Unverified anywhere: the C64 program on real hardware (owner's to try).
+
 
 ## Dead ends
 
@@ -82,11 +87,16 @@ with heat (ROADMAP, the paint shop; `specs/design.md` there, "The paint shop", a
   it broke the picture tests. It is at `$0f40` now.
 - `paint_near` ends in `arrow_round`, which uses X: the caller in `look_each` set X before the call and
   stored it after, so `turn` became $ff. It now loads X after the call.
+- `status.digit` in `HIGH_CODE`: the build with sixteen cars (traffic tests) overflowed it by 18 bytes.
+- The pickups tests ran someone over 10 px ahead of the car's middle, within the reach of their drop (11), so
+  the car took it at once; they now hit them at 12 (`tests/e2e/pickups.test.mjs`, `runOver`).
 
 ## Next
 
-Wait for #114's checks (and the local `make test`), then merge it (a merge commit). The send_later safety
-net trig_01HLGhD4SsTPKBUAk8znAE8d is set: delete it after the merge. Then the next roadmap item (jobs, mselin/gta-c64#117; push-aside, #110).
+Wait for CI on PR #115 (the whole-body run-over), merge when green. Then: traffic hurting the player by
+its body (police.asm `hits`, along 12 and across 7 by `traffic.dir`; `tests/e2e/play.mjs` `hits()`, `HURT`), then
+the push aside below RUN_OVER.
+
 
 ## Subagent files
 
