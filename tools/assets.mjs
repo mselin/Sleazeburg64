@@ -383,6 +383,56 @@ export function markerPixels() {
     }
   return px;
 }
+/**
+ * The S beside the paint shop's arrow (the browser game's, on black so it reads over the city): a black square of
+ * 10 x 10 pixels (5 pairs across) with a cyan S (the sprite's own colour), 3 pairs by 7 lines, inside.
+ */
+export function signPixels() {
+  const S = ['.##', '#..', '#..', '.#.', '..#', '..#', '##.'];
+  const px = new Array(12 * 21).fill(0);
+  for (let j = 0; j < 10; j++)
+    for (let m = 0; m < 5; m++) px[j * 12 + m] = j >= 1 && j < 8 && m >= 1 && m < 4 && S[j - 1][m - 1] === '#' ? 2 : 1;
+  return px;
+}
+/** The browser game's arrow (`ARW` in js/sprites.js): seven by seven, pointing east. */
+const ARROW = ['...#...', '...##..', '######.', '#######', '######.', '...##..', '...#...'];
+/**
+ * The arrow turned to each of 16 ways (way k: k / 16 of a turn clockwise from east), as the browser game's
+ * `mkSprite(..., 7, 7, 16, 11)` turns it: 11 lines of 11 hi-res pixels, each line two bytes, the first pixel the
+ * top bit.
+ */
+export function arrowRows(k) {
+  const an = (k / 16) * Math.PI * 2, cs = Math.cos(an), sn = Math.sin(an), S = 11, rows = [];
+  for (let y = 0; y < S; y++) {
+    let bits = 0;
+    for (let x = 0; x < S; x++) {
+      const dx = x + 0.5 - S / 2, dy = y + 0.5 - S / 2,
+        sx = Math.floor(cs * dx + sn * dy + 7 / 2), sy = Math.floor(-sn * dx + cs * dy + 7 / 2);
+      if (sx >= 0 && sy >= 0 && sx < 7 && sy < 7 && ARROW[sy][sx] === '#') bits |= 0x8000 >> x;
+    }
+    rows.push(bits);
+  }
+  return rows;
+}
+/** Way k's whole frame, as it is in the sprite at $2500 once it is copied there. */
+export function arrowFrame(k) {
+  const bytes = new Uint8Array(64);
+  arrowRows(k).forEach((b, y) => ((bytes[y * 3] = b >> 8), (bytes[y * 3 + 1] = b & 255)));
+  return bytes;
+}
+/** Ways 0-8's lines for the program (under the I/O area), 22 bytes each: ways 9-15 are ways 7-1 upside down,
+ * which the program copies them as (refused here if that ever stops being so). */
+export function arrowBytes() {
+  const out = new Uint8Array(22 * 9);
+  for (let k = 0; k < 16; k++) {
+    const rows = arrowRows(k);
+    if (k > 8) {
+      const up = arrowRows(16 - k);
+      if (rows.some((b, y) => b !== up[10 - y])) throw new Error(`arrow way ${k} is not way ${16 - k} upside down`);
+    } else rows.forEach((b, y) => ((out[k * 22 + 2 * y] = b >> 8), (out[k * 22 + 2 * y + 1] = b & 255)));
+  }
+  return out;
+}
 export function pickupFrames() {
   return PICKUP_KINDS.map((_, k) => spriteBytes(pickupPixels(k)));
 }
@@ -553,7 +603,8 @@ writeFileSync(join(dir, 'people.bin'), Buffer.concat(people));
 writeFileSync(join(dir, 'punch.bin'), Buffer.concat(punchFrames()));
 writeFileSync(join(dir, 'pickups.bin'), Buffer.concat(pickupFrames()));
 writeFileSync(join(dir, 'scooters.bin'), Buffer.concat(scooterFrames()));
-writeFileSync(join(dir, 'marker.bin'), spriteBytes(markerPixels()));
+writeFileSync(join(dir, 'marker.bin'), Buffer.concat([spriteBytes(markerPixels()), spriteBytes(signPixels())])); // the P, then the S
+writeFileSync(join(dir, 'arrows.bin'), arrowBytes());
 writeFileSync(join(dir, 'player.bin'), Buffer.concat(player.stored)); // what the program file holds
 writeFileSync(join(dir, 'player-made.bin'), Uint8Array.from(player.made)); // and how it makes the rest
 writeFileSync(join(dir, 'player-all.bin'), Buffer.concat(player.all)); // what it should end up with: for the tests

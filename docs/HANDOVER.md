@@ -15,21 +15,13 @@ with heat (ROADMAP, the paint shop; `specs/design.md` there, "The paint shop", a
 
 ## Plan
 
-1. Room: move what a pickup does when taken (`pickups.take` .. `pay`, `take_drop`) under the I/O area, run
-   through gates (now and then only); `police.quiet` (SID, border) stays outside. Check: build passes its
-   size checks; `low_code` has 128 bytes more than the two new frames need. Done: `code_end` $1f07 from
-   $1fd0.
-2. The P marker (PR 1): a multicolour frame after the scooter riders' (edge and letter in the sprite's own
-   colour, flashing cyan/white, inside black), listed after the drops when the shop is near the window
-   (a hook written by the nearness check: no cost in other frames). Model in `pickups-model.mjs`. Check:
-   pickups, screen and play tests pass; the screen test with no heat still passes. Done in the working tree
-   (frame `MARKER_FRAMES` = $0ec0, `pickups.show_paint`, `paint_near`, `paint_hook`; `code_end` $1f93);
-   the new pickups test passes; `make test` running.
-3. PR 1 opened, green, merged.
-4. The arrow and the S (PR 2): with heat at the wheel and the shop 12 px inside the view's edge or beyond,
-   a cyan hi-res arrow (16 frames from `ARW`, kept under the I/O area, copied into the frame at `$2500` when
-   the direction changes) and the S on black beside it. Check: model and tests; frame time with heat.
-5. PR 2 opened, green, merged; ROADMAP and NOTES updated.
+1. Room for the P (PR 1): what a pickup does when taken moved under the I/O area. Done.
+2. The P marker: mselin/Sleazeburg64#113, merged 28 November 2026. Done.
+3. The arrow and the S (PR 2): `pickups.arrow_round` (once a round, from `paint_near`), `show_arrow`, the 16
+   ways copied into `ARROW_FRAME` ($0f40) by `arrow_copy` (I/O area), hooks `paint_skip`/`paint_hook`/
+   `paint_tail`; model `arrowRound` in `tests/e2e/pickups-model.mjs`; test "with heat, at the wheel ...".
+   Done in the working tree; pickups tests pass. Check: `make test` passes.
+4. PR 2: mselin/Sleazeburg64#114, opened 28 November 2026; merge when green. Check: merged on GitHub.
 
 ## Established
 
@@ -64,15 +56,16 @@ with heat (ROADMAP, the paint shop; `specs/design.md` there, "The paint shop", a
 
 ## Changes
 
-- Sleazeburg64, branch `claude/confident-euler-70sqzi` (not yet committed): `src/pickups.asm` (take and
-  take_drop under the I/O area; the marker), `src/main.asm` (`MARKER_FRAMES`), `tools/assets.mjs`
-  (`markerPixels`, `build/marker.bin`), `tests/e2e/pickups-model.mjs`, `game.mjs`, `pickups.test.mjs`.
-- Recent merged work: #112 the handover docs; #111 the banners; #109 the paint shop.
+- Sleazeburg64, branch `claude/confident-euler-70sqzi` (PR 2, #114): the arrow and S as in plan step 3;
+  `pickups.drop` and `place` under the I/O area; `tools/assets.mjs` `signPixels`, `arrowRows`; the pack test
+  checks only up to `HIGH_CODE` (what waits past it, the rest of `io_more`, is copied up first, then written
+  over); `play.mjs` and `traffic.test.mjs` pass the player's place and on-foot flag to the pickups model.
+- Recent merged work: #113 the P marker; #112 the handover docs; #111 the banners.
 
 ## Verification
 
-- `tests/e2e/pickups.test.mjs`: 8 pass, the new marker test included (frame, listed, cyan and white, the
-  picture, no late frame, gone when far). Full `make test`: running.
+- `tests/e2e/pickups.test.mjs`: 9 pass with the arrow test (28 November 2026). `make test` running for PR 2.
+  Last full `make test` (PR 1): 152 pass, tools 25 pass.
 - Unverified anywhere: the C64 program on real hardware (owner's to try).
 
 ## Dead ends
@@ -85,11 +78,15 @@ with heat (ROADMAP, the paint shop; `specs/design.md` there, "The paint shop", a
 - 64tass labels are case-insensitive: a constant and a label of the same letters clash (`GET_OUT`/`get_out`,
   `WINDOW`/`window`, `pace`, `down`, `px`). Macros' names clash with labels too (`put`, `gate`).
 - The size check for the tile rooms names the table (0-6), not the room (1-6).
+- `ARROW_FRAME` at `$2500` (after the passers-by's frames): that is their 21st, lying-down frame, and clearing
+  it broke the picture tests. It is at `$0f40` now.
+- `paint_near` ends in `arrow_round`, which uses X: the caller in `look_each` set X before the call and
+  stored it after, so `turn` became $ff. It now loads X after the call.
 
 ## Next
 
-Wait for `make test`; then commit, push, open PR 1 (closes nothing: the paint shop's issue stays open for the
-arrow), subscribe, a send_later check-in; merge when green; then step 4.
+Wait for #114's checks (and the local `make test`), then merge it (a merge commit). The send_later safety
+net trig_01HLGhD4SsTPKBUAk8znAE8d is set: delete it after the merge. Then the next roadmap item (jobs, mselin/gta-c64#117; push-aside, #110).
 
 ## Subagent files
 

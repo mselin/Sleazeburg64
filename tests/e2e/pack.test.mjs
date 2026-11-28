@@ -24,8 +24,10 @@ test('start unpacks it in place, byte for byte, before anything else is set up',
     // waiting area, which reaches into the BASIC ROM's addresses, which run as the program loads.)
     await vice.runTo(L.unpack);
     await vice.runTo(L['car.init']);
-    // (Bar the code copied in after the map by then, from its place further on, which is checked after.)
-    const wanted = region(game.unpacked, L.city_map, L.program_end);
+    // (Bar the code copied in after the map by then, from its place further on, which is checked after; and
+    // what waits past HIGH_CODE, the last of the code under the I/O area, which is copied up first and then
+    // written over by the code copied to HIGH_CODE.)
+    const wanted = region(game.unpacked, L.city_map, Math.min(L.program_end, L.HIGH_CODE));
     const got = await vice.read(L.city_map, wanted.length);
     const copied = (i) => L.city_map + i >= L.map_end && L.city_map + i < L.gap_end;
     let first = -1;

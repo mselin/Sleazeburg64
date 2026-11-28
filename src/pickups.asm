@@ -48,6 +48,27 @@ KIND_BANDAGE    = 3
 KIND_KNIFE      = 4
 PICKUP_SPRITE   = PICKUP_FRAMES / 64
 
+A_CAP           = 53                    ; r from which the arrow's offset along the smaller distance is 255
+; The arrow's working (arrow_round), in zero page the music test builds' tune has (they have no pickups).
+                .virtual $e0
+a_t             .word ?                 ; a value worked on (and the bigger distance, shifted)
+a_big           = a_t
+a_in            .byte ?                 ; the shop in the view: a bit clear by axis
+a_d             .byte ?, ?              ; how far to the shop, x then y: low ...
+a_dh            .byte ?, ?              ; ... and high
+a_neg           .byte ?, ?              ; bit 7: it is the other way (left, up)
+a_swap          .byte ?                 ; 0: x is the bigger; 1: y
+a_r             .byte ?
+a_way           .byte ?                 ; 0-15: clockwise from east
+a_shown         .byte ?                 ; the way in ARROW_FRAME
+a_off           .byte ?                 ; along the smaller
+a_so            .byte ?                 ; the S's two offsets
+a_i             .byte ?
+a_at_lo         .byte ?, ?, ?, ?        ; where: the arrow's x, the S's x, the arrow's y, the S's y
+a_at_hi         .byte ?, ?, ?, ?
+                .cerror * > $f8, "the arrow's working runs into src (main.asm)"
+                .endv
+
 ; Place them all, at start.
 init            ldx #COUNT - 1
 -               stx who
@@ -58,15 +79,20 @@ init            ldx #COUNT - 1
                 lda #0
                 sta turn
                 sta clock
+                ldx #$ff                ; no way in the arrow's frame yet
+                stx a_shown
                 jsr window_tile
                 sta last_col
                 sty last_row
                 jmp all_near
 
-; Pickup who somewhere new: a pavement, grass or plaza tile, not by the start, its kind by the shares.
-place           jsr rnd
+; Pickup who somewhere new: a pavement, grass or plaza tile, not by the start, its kind by the shares
+; (place_io, under the I/O area).
+place           #io_gate place_io
+                .section io_more
+place_io        jsr rnd
                 cmp #MAP_SIZE
-                bcs place
+                bcs place_io
                 sta col_now
 -               jsr rnd
                 cmp #MAP_SIZE
@@ -81,7 +107,7 @@ place           jsr rnd
                 lda row_now
                 sbc #START_ROW - CLEAR
                 cmp #2 * CLEAR + 1
-                bcc place
+                bcc place_io
 +               ldx row_now             ; the tile's kind
                 lda video.row_lo,x
                 sta car.mp
@@ -94,7 +120,7 @@ place           jsr rnd
                 cmp #PAVEMENT
                 beq +
                 cmp #GRASS
-                bne place
+                bne place_io
 +               jsr rnd                 ; which: 34 %, 28 %, 18 %, 14 % and 6 %
                 ldy #KIND_KNIFE
 -               cmp share - 1,y
@@ -110,6 +136,7 @@ place           jsr rnd
                 sta row,x
                 rts
 share           .byte 87, 159, 205, 241 ; a random byte below these: ammo, cash, donut, bandage; else a knife
+                .send
 
 ; A = the window's top left tile across, Y = down: its position over 16 (under 1568, so it fits a byte).
 window_tile     lda cam_lo + 1
@@ -183,9 +210,9 @@ look_each       ldx turn
                 inx
                 cpx #COUNT
                 bcc +
-                ldx #0
                 inc rounds
-                jsr paint_near          ; (and the paint shop, once a round)
+                jsr paint_near          ; (and the paint shop and the arrow, once a round: X not kept)
+                ldx #0
 +               stx turn
                 dec looks
                 bne look_each
@@ -630,8 +657,10 @@ DROP_CASH_ODDS  = 102                   ; a random byte below this, cash: 40 %
 DROP_KNIFE_ODDS = 123                   ; ... else below this, a knife: 8 %
 
                 .section low_more       ; (where there is room: main.asm)
-; Person X (people.asm), killed by the player: what they drop, if anything. X kept.
-drop            lda people.col,x        ; a scooter rider: nothing (the design: they pay $0)
+; Person X (people.asm), killed by the player: what they drop, if anything (drop_io, under the I/O area). X kept.
+drop            #io_gate drop_io
+                .section io_code
+drop_io         lda people.col,x        ; a scooter rider: nothing (the design: they pay $0)
                 cmp #LIGHT_GREEN
                 beq no_drop
                 jsr rnd
@@ -673,6 +702,7 @@ no_drop         rts
                 lda #>DROP_LIFE
                 sta dlife_hi,y
                 rts
+                .send
 
 ; Once a frame: the time each has left, and gone when it is up.
 age             ldx #DROPS - 1
@@ -735,7 +765,9 @@ paint_hook      rts                     ; then the paint shop's marker: written 
 
 ; The paint shop's marker (the browser game's `marker`): a P, flashing cyan and white each 16 frames, at the
 ; shop's middle; always shown, heat or not.
-show_paint      lda #MARKER_FRAMES / 64
+show_paint
+paint_skip      bit show_arrow          ; written JMP when the shop is not near (paint_near): then only the arrow
+                lda #MARKER_FRAMES / 64
                 sta sprites.sp
                 lda clock
                 and #16
@@ -753,7 +785,9 @@ show_paint      lda #MARKER_FRAMES / 64
                 lda #>police.PAINT_Y
                 sta mid_y + 1
                 lda #0
-                jmp in_view
+                jsr in_view
+paint_tail      rts                     ; then the arrow to it: written JMP when it is shown (arrow_round)
+                .word show_arrow
 
 ; Whether the paint shop is near the window (as near_one has it for a pickup): show_drops then shows it.
 paint_near      sec
@@ -765,12 +799,330 @@ paint_near      sec
                 lda #(PAINT_ROW + NEAR_TILES) & 255
                 sbc last_row
                 cmp #10 + 2 * NEAR_TILES + 1
-                lda #$4c                ; (jmp)
+                lda #$2c                ; (near: bit, past the jump to the arrow; and show_paint, jmp)
+                ldy #$4c
                 bcc ++
-+               lda #$60                ; (rts)
-+               sta paint_hook
++               lda #$4c                ; (not: jmp to the arrow; and rts, unless arrow_round has it)
+                ldy #$60
++               sta paint_skip
+                sty paint_hook
+                jmp arrow_round
+                .send
+                .section low_more
+; ---------- the arrow to the paint shop ----------
+; With heat, at the wheel, and the shop not on the screen (12 pixels in from its edges), the browser game's
+; `edgeArrow`: a cyan arrow at the edge of the view towards the shop, and an S on black beside it. Worked out
+; once a round, here (from paint_near): the way to the shop from the player, as r = 64 * small / big of the
+; two distances (shifted under 256) and which is which: one of 16 ways (11.25 and 33.75 degrees: r 13, 43),
+; its frame copied to ARROW_FRAME when it changes; the arrow 400 pixels that way, along the bigger distance
+; (past the edge) and A_OFF[r] along the smaller, kept 10 pixels inside the view; the S 12 pixels back
+; towards the player (A_S[r / 2]), kept 1 pixel inside. Shown each frame from those (show_arrow).
+arrow_round     lda status.heat
+                beq arrow_off
+                lda foot.on
+                bne arrow_off
+                ldx #1                  ; y, then x
+-               txa
+                asl
+                tay
+                sec                     ; the shop in the view, less 13: in it if under SPAN
+                lda a_pm_lo,x
+                sbc cam_lo,x
+                sta a_t
+                lda a_pm_hi,x
+                sbc cam_hi,x
+                sta a_t + 1
+                lda a_t
+                cmp a_span_lo,x
+                lda a_t + 1
+                sbc a_span_hi,x
+                rol a_in                ; (C clear: in)
+                sec                     ; the way to it from the player, and its sign
+                lda a_paint_lo,x
+                sbc player_at,y
+                sta a_d,x
+                lda a_paint_hi,x
+                sbc player_at + 1,y
+                sta a_dh,x
+                sta a_neg,x
+                bpl +
+                lda #0
+                sec
+                sbc a_d,x
+                sta a_d,x
+                lda #0
+                sbc a_dh,x
+                sta a_dh,x
++               dex
+                bpl -
+                lda a_in
+                and #3
+                bne +
+arrow_off       lda #$60                ; (rts: no arrow)
+                sta paint_tail
+                rts
++
+-               lda a_dh                ; both under 256
+                ora a_dh + 1
+                beq +
+                lsr a_dh
+                ror a_d
+                lsr a_dh + 1
+                ror a_d + 1
+                jmp -
++               ldx #0                  ; which is bigger: x (0, or the same), or y (1)
+                lda a_d
+                cmp a_d + 1
+                bcs +
+                inx
++               stx a_swap
+                lda a_d,x
+                sta a_big
+                txa
+                eor #1
+                tax
+                lda a_d,x               ; r = 64 * small / big, 0-63
+                ldx #6
+                stx a_r                 ; (its top two bits shifted out)
+-               asl
+                bcs +
+                cmp a_big
+                bcc ++
++               sbc a_big
+                sec
++               rol a_r
+                dex
+                bne -
+                lda a_r
+                and #63
+                sta a_r
+                ldy #0                  ; the way
+                cmp #13
+                bcc +
+                iny
+                cmp #43
+                bcc +
+                iny
++               sty a_way
+                lda a_swap
+                beq +
+                lda #4
+                jsr from_way
++               bit a_neg
+                bpl +
+                lda #8
+                jsr from_way
++               bit a_neg + 1
+                bpl +
+                lda #16
+                jsr from_way
+                and #15
+                sta a_way
++               ldx a_r                 ; the offset along the smaller
+                lda #255
+                cpx #A_CAP
+                bcs +
+                lda a_off_at,x
++               sta a_off
+                txa
+                lsr
+                tax
+                lda a_s_at,x
+                sta a_so
+                jmp arrow_axes
+from_way        sec
+                sbc a_way
+                sta a_way
                 rts
                 .send
+                .section tile_room4     ; (where there is room: main.asm)
+; Where the arrow and the S go, on each axis X, from player_at, the way and the offsets (arrow_round).
+arrow_axes      ldx #1
+-               txa
+                asl
+                sta a_i                 ; the arrow's bounds and place: 2 * X, the S's after
+                cpx a_swap
+                bne +
+                lda a_neg,x             ; the bigger: past the edge, either way
+                ora #4
+                sta a_t + 1
+                bne ++
++               tay
+                sec                     ; the smaller: from the player, A_OFF that way
+                lda player_at,y
+                sbc cam_lo,x
+                sta a_t
+                lda player_at + 1,y
+                sbc cam_hi,x
+                sta a_t + 1
+                lda a_k,x
+                jsr a_add
+                lda a_off
+                jsr a_move
++               jsr a_clamp
+                lda a_so                ; the S: back towards the player, its offset on this axis
+                cpx a_swap
+                bne +
+                lsr
+                lsr
+                lsr
+                lsr
++               and #15
+                jsr a_back
+                inc a_i
+                jsr a_clamp
+                dex
+                bpl -
+                lda a_way
+                cmp a_shown
+                beq +
+                sta a_shown
+                jsr arrow_copy
++               lda #$4c                ; (jmp: shown)
+                sta paint_tail
+                sta paint_hook
+                rts
+                .send
+                .section stack_code
+; a_t (16 bits) to the bounds a_i (A_LOW to A_HIGH), and kept at that place in a_at. X kept.
+a_clamp         ldy a_i
+                lda a_t + 1
+                bmi a_low
+                bne +
+                lda a_t
+                cmp a_low_at,y
+                bcc a_low
++               lda a_high_lo,y
+                cmp a_t
+                lda a_high_hi,y
+                sbc a_t + 1
+                bcs a_put
+                lda a_high_lo,y
+                sta a_t
+                lda a_high_hi,y
+                sta a_t + 1
+                bcc a_put
+a_low           lda a_low_at,y
+                sta a_t
+                lda #0
+                sta a_t + 1
+a_put           lda a_t
+                sta a_at_lo,y
+                lda a_t + 1
+                sta a_at_hi,y
+                rts
+                .send
+                .section car_extra      ; (where there is room: TOP_CODE, waiting.asm)
+; a_t less A the way the shop is on axis X (a_back), or more (a_move), or more (a_add). X kept.
+a_back          ldy a_neg,x
+                bpl a_sub
+                bmi a_add
+a_move          ldy a_neg,x
+                bmi a_sub
+a_add           clc
+                adc a_t
+                sta a_t
+                bcc +
+                inc a_t + 1
++               rts
+a_sub           eor #$ff
+                sec
+                adc a_t
+                sta a_t
+                bcs +
+                dec a_t + 1
++               rts
+                .send
+                .section gap_code
+a_off_at                                ; 400 r / sqrt(1 + r * r), r = i / 64: under 256 up to A_CAP
+                .for i = 0, i < A_CAP, i += 1
+                .byte round(400.0 * i / 64 / sqrt(1 + (i / 64.0) ** 2))
+                .next
+; Bounds, as sprite positions, by place (the arrow's x, the S's x, the arrow's y, the S's y): the arrow's
+; middle 10 pixels inside the view, the S's black square 1 inside (lx - 1 at 0; its sprite 30 and 53 on)
+a_low_at        .byte 10 + 26, 1 + 30, 10 + 49, 1 + 53
+a_high_lo       .byte <(VIEW_W - 10 + 26), <(VIEW_W - 9 + 30), VIEW_H - 10 + 49, VIEW_H - 9 + 53
+a_high_hi       .byte >(VIEW_W - 10 + 26), >(VIEW_W - 9 + 30), 0, 0
+                .send
+                .section police_extra   ; (where there is room: EXTRA_CODE, waiting.asm)
+a_frame         .byte ARROW_FRAME / 64, SIGN_FRAME / 64
+a_colour        .byte CYAN, CYAN | $80  ; (the arrow hi-res, the S multicolour)
+a_s_at                                  ; 12 / sqrt(1 + r * r) by 16, and 12 r / sqrt(1 + r * r), r = i / 32
+                .for i = 0, i < 32, i += 1
+                .byte round(12 / sqrt(1 + (i / 32.0) ** 2)) * 16 + round(12.0 * i / 32 / sqrt(1 + (i / 32.0) ** 2))
+                .next
+; By axis (x, y): the shop, and less 13; how far in from that it is in the view (12 pixels in from each edge)
+a_paint_lo      .byte <police.PAINT_X, <police.PAINT_Y
+a_paint_hi      .byte >police.PAINT_X, >police.PAINT_Y
+a_pm_lo         .byte <(police.PAINT_X - 13), <(police.PAINT_Y - 13)
+a_pm_hi         .byte >(police.PAINT_X - 13), >(police.PAINT_Y - 13)
+a_span_lo       .byte <(VIEW_W - 25), <(VIEW_H - 25)
+a_span_hi       .byte >(VIEW_W - 25), >(VIEW_H - 25)
+a_k             .byte 26, 49            ; from the view to the arrow's sprite: its middle at its pixel 5, line 5
+                .send
+                .section low_more
+; Each frame, after the drops (or the shop's marker), with the arrow on: the S, then the arrow. X kept.
+show_arrow      stx who
+                ldx #1
+-               lda a_at_lo,x
+                sta sprites.sx
+                lda a_at_hi,x
+                sta sprites.sx + 1
+                lda a_at_lo + 2,x
+                sta sprites.sy
+                lda a_frame,x
+                sta sprites.sp
+                lda a_colour,x
+                sta sprites.sc
+                txa
+                pha
+                jsr sprites.add
+                pla
+                tax
+                dex
+                bpl -
+                ldx who
+                rts
+                .send
+; The arrow's frame for way a_way, into ARROW_FRAME (arrow_copy_io, under the I/O area).
+arrow_copy      #io_gate arrow_copy_io
+                .section io_late
+arrow_copy_io   lda a_way
+                ldy #0                  ; ways 0-8: their lines from the top down
+                ldx #3
+                cmp #9
+                bcc +
+                eor #$ff                ; ways 9-15: way 16 less, upside down (the same, as tools/assets.mjs checks)
+                adc #16                 ; (C set)
+                ldy #10 * 3
+                ldx #256 - 3
++               stx a_t                 ; from line to line
+                tax
+                lda #0
+                clc
+-               dex                     ; 22 bytes a way
+                bmi +
+                adc #22
+                bcc -                   ; (always)
++               tax
+                lda #11
+                sta a_t + 1
+-               lda arrow_ways,x
+                sta ARROW_FRAME,y
+                lda arrow_ways + 1,x
+                sta ARROW_FRAME + 1,y
+                inx
+                inx
+                tya
+                clc
+                adc a_t
+                tay
+                dec a_t + 1
+                bne -
+                rts
+arrow_ways      .binary "arrows.bin"    ; ways 0-8, each its 11 lines of 2 bytes (tools/assets.mjs)
+                .send
+
                 .section low_more
 
 ; Dropped one X picked up (take_drop_io, under the I/O area). X kept.

@@ -52,10 +52,23 @@ assets.people = readFileSync(join(ROOT, 'build/people.bin')); // the passers-by'
 assets.punch = readFileSync(join(ROOT, 'build/punch.bin')); // the player punching, 8 frames
 assets.pickups = readFileSync(join(ROOT, 'build/pickups.bin')); // the five pickups
 assets.scooters = readFileSync(join(ROOT, 'build/scooters.bin')); // scooter riders: four ways, then lying
-assets.marker = readFileSync(join(ROOT, 'build/marker.bin')); // the paint shop's marker, a P
+const marker = readFileSync(join(ROOT, 'build/marker.bin'));
+assets.marker = marker.subarray(0, 64); // the paint shop's marker, a P
+assets.sign = marker.subarray(64, 128); // the S beside the arrow to it
+assets.arrows = readFileSync(join(ROOT, 'build/arrows.bin')); // the arrow's ways 0-8: 11 lines of 2 bytes each
+/** The arrow's way k, as the program copies it into its sprite (at $2500): 11 lines of two bytes; ways 9-15
+ * are ways 7-1 upside down (tools/assets.mjs checks that they are, drawn as the browser game turns it). */
+export function arrowFrame(k) {
+  const f = new Uint8Array(63), w = k > 8 ? 16 - k : k;
+  for (let y = 0; y < 11; y++)
+    for (let b = 0; b < 2; b++) f[(k > 8 ? 10 - y : y) * 3 + b] = assets.arrows[w * 22 + 2 * y + b];
+  return f;
+}
 export const PICKUP_SPRITE = 0x0c40 / 64;
 export const SCOOTER_SPRITE = 0x0d80 / 64; // scooter riders: four ways, then lying
 export const MARKER_SPRITE = 0x0ec0 / 64; // the paint shop's marker
+export const SIGN_SPRITE = 0x0f00 / 64; // the S beside the arrow
+export const ARROW_SPRITE = 0x0f40 / 64; // the arrow, its way copied in (after the S)
 export const BULLET_SPRITE = (0x2540 + 2 * 64) / 64; // a bullet (src/gun.asm): a 2 x 2 square at pixels 12-13 of lines 10-11
 assets.bullet = new Uint8Array(63);
 assets.bullet[10 * 3 + 1] = assets.bullet[11 * 3 + 1] = 0x0c;
@@ -65,6 +78,7 @@ export const PEOPLE_SPRITE = 0x2000 / 64;
 /** The 63 bytes of the sprite a pointer names: one of the car's frames, the pickups', the passers-by's, the punching or Big Honk's. */
 export function spriteData(pointer) {
   if (pointer === MARKER_SPRITE) return assets.marker.subarray(0, 63);
+  if (pointer === SIGN_SPRITE) return assets.sign.subarray(0, 63);
   if (pointer >= SCOOTER_SPRITE && pointer < SCOOTER_SPRITE + 5) return assets.scooters.subarray((pointer - SCOOTER_SPRITE) * 64, (pointer - SCOOTER_SPRITE) * 64 + 63);
   if (pointer === BULLET_SPRITE) return assets.bullet;
   if (pointer >= HONK_SPRITE) return assets.chars.subarray(pointer * 64 - CHARSET, pointer * 64 - CHARSET + 63);
@@ -78,7 +92,7 @@ export function spriteData(pointer) {
  * A sprite as the multiplexer's plan puts it on the screen (traffic-model.mjs), for the picture model: bit 7 of
  * its colour makes it a multicolour sprite (sprites.put).
  */
-export const planned = (s) => ({ x: s.x, y: s.y, colour: s.colour & 15, multicolour: s.colour >= 0x80, bitmap: spriteData(s.pointer) });
+export const planned = (s) => ({ x: s.x, y: s.y, colour: s.colour & 15, multicolour: s.colour >= 0x80, bitmap: s.bitmap ?? spriteData(s.pointer) });
 
 /**
  * Assemble a program for a test. `defs` become -D options and `include` directories are searched before
