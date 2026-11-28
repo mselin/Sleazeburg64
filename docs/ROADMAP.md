@@ -276,6 +276,17 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
     their pace (47 × PERSON), their way (straight at the player, stopping within 6 × PERSON) and the arrest of a
     player on foot (within 7 × PERSON, at once). The design's [Cars](https://github.com/mselin/gta-c64/blob/main/specs/design.md#cars)
     now gives the traffic's mix: sedan 50 %, van 15 %, taxi 15 %, sports car 13 %, police car on patrol 7 %.
+  - **Flatlined without the hospital's bill is a bust** (mselin/gta-c64#118, by mselin/gta-c64#120). Wasted with
+    less than the $500 bill, the player goes as if busted: to the police station, weapons taken, fined a fifth of
+    their cash; with $0 it is the jail ending (BUSTED AND BROKE). The banner still says FLATLINED. In the design's
+    [Heat and the police](https://github.com/mselin/gta-c64/blob/main/specs/design.md#heat-and-the-police), under
+    "Wasted or busted".
+  - **The police ram the player's car from heat 3** (mselin/gta-c64#119, by mselin/gta-c64#121). A chasing car
+    aims where the player's car is going, keeps the throttle down into it, and when pressed against it drops back
+    for a run-up and charges again. A knock the police car drove into is no longer the player's crime. Below heat
+    3, and against a player on foot, nothing changes. In the design's
+    [Heat and the police](https://github.com/mselin/gta-c64/blob/main/specs/design.md#heat-and-the-police),
+    under "The response" and the crime table.
 - Fighting on foot, by the design's
   [Fighting on foot](https://github.com/mselin/gta-c64/blob/main/specs/design.md#fighting-on-foot): fire uses
   the gun while there is ammo, then the knife if the player has one, otherwise fists. A punch knocks someone
