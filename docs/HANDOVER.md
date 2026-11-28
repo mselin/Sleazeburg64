@@ -27,7 +27,8 @@ Then three PRs, each merged when green:
 1. PR C (anti-theft first, the owner's choice). Which cars (three bits a car, from `rnd` as it appears, modern only; never the hospital car; a police car
    always has anti-theft and never the other two, by the design now, not the ROADMAP) and anti-theft: the time while
    driving, stopped for good, the two messages, the bits travelling with the car. Check: a test where a car
-   with anti-theft stops after its time and will not go again. Status: mapping the code (subagent).
+   with anti-theft stops after its time and will not go again. Status: code and tests done
+   (`tests/e2e/assist.test.mjs`, 3 pass); full `make test` and the PR next.
 2. PR D. Lane assist. Check: a test of the swerve and its message.
 3. PR E. Emergency braking. Check: tests stopping for a person and a car.
 (The alarm's sound waits for sound, milestone 4; its lights flash the car's sprite yellow.)
@@ -66,6 +67,9 @@ Difficulty done: #118 (riders), #119 (title page, D).
 
 ## Changes
 
+- PR C (branch, not merged): anti-theft. `src/car.asm` (`assist`, `anti`), `src/police.asm` (`fit`),
+  `src/traffic.asm` (`assist` in tile_room1), `src/foot.asm` (`park`, `got`), `src/status.asm` (MSG_THEFT,
+  MSG_NO); models car/foot/traffic, `play.mjs`; `tests/e2e/assist.test.mjs`; ROADMAP, NOTES.
 - PR R reverted on the branch (3c1fa91 has it); NOTES records the cost.
 - Merged #119, PR B: the title page's difficulty. `src/title-page.asm`
   (`.section title_code`, D, `turn`), `src/main.asm` (TITLE_HOME, PACK_ABOVE), `tools/picture.mjs` (`title()`,
@@ -110,10 +114,8 @@ Difficulty done: #118 (riders), #119 (title page, D).
 
 ## Next
 
-PR C, anti-theft only, in the small gaps (about 240 bytes, Plan). Map the code: `police.new_car` (roll on modern,
-`people.difficulty`), take_io / out_here (carry the byte), the car's drive (count down while driven, stop),
-`status.say` (two messages). Per-slot byte in bss (bits 5-0: 0 none, 1 stopped, else 32-frame steps left,
-rolled 17 + r/16 + r/32); lane and braking bits wait for more room.
+Merge PR C when green. Then PR D (lane assist): find room (the tile rooms have 14-43 bytes each, NOTES), a
+second bit per car beside `traffic.assist` (bits 6-7 are free: the count needs 6).
 
 ## Subagent files
 

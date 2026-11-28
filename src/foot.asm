@@ -528,10 +528,7 @@ out_here        lda #0
                 sta traffic.dir,x
                 lda car.colour
                 sta traffic.col,x
-                lda #0
-                sta traffic.sp,x
-                sta traffic.dlo,x
-                sta traffic.dhi,x
+                jsr park                ; (A = 0)
                 sta traffic.cruise,x
                 sta traffic.entered,x
                 sta traffic.held,x
@@ -715,12 +712,34 @@ taken           lda traffic.pf,x
                 sta car.vel_x + 1,y
 +               lda traffic.col,x
                 sta car.colour
+                lda traffic.assist,x
+                sta car.assist
                 lda #1
                 sta car.inside          ; wherever it was left: free to move if that was in a wall
                 cpx traffic.mine
                 bne +
                 lda #$ff
                 sta traffic.mine
-+               jmp hint
++               jmp got
+                .send
+                .section tile_room4     ; (where there is room: main.asm)
+; out_here: car X left standing, with its anti-theft as far as it has counted. A = 0 after.
+park            lda car.assist
+                sta traffic.assist,x
+                lda #0
+                sta traffic.sp,x
+                sta traffic.dlo,x
+                sta traffic.dhi,x
+                rts
+                .send
+                .section tile_room3     ; (where there is room: main.asm)
+; take_io's end: the message, or the immobiliser's, if the car is one anti-theft has stopped (car.anti).
+got             jsr hint
+                lda car.assist
+                cmp #1
+                bne +
+                ldx #status.MSG_NO
+                jmp status.say
++               rts
                 .send
                 .bend

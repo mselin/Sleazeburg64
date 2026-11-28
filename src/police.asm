@@ -135,7 +135,7 @@ new_car         sta roll
                 lda #CHASE_GAP
                 sta chase_wait
                 lda #COP_CRUISE
-                rts
+                jmp fit
 +               lda roll
                 cmp #$c0
                 bcc +
@@ -148,7 +148,38 @@ new_car         sta roll
                 and #63
                 clc
                 adc #CRUISE_MIN
+                jmp fit
+
+                .section tile_room6     ; (where there is room: main.asm)
+; The end of new_car: car X's driver assistance (the design's "Cursed driver assistance", modern only: on
+; classic none). For now, anti-theft only (car.assist says what the byte holds): every police car has it, and
+; one car in five else (a random byte under 51); its time, 17 + r/16 + r/32 steps of 32 frames, 10 to 25
+; seconds. A (the cruising speed) and X kept.
+fit             pha
+                lda #0
+                sta traffic.assist,x
+                lda people.difficulty
+                beq +
+                lda cop,x
+                ora patrol,x
+                bne arm
+                jsr traffic.rnd
+                cmp #51
+                bcs +
+arm             jsr traffic.rnd
+                lsr
+                lsr
+                lsr
+                lsr
+                sta traffic.assist,x    ; r/16
+                lsr
+                clc
+                adc #17
+                adc traffic.assist,x
+                sta traffic.assist,x
++               pla
                 rts
+                .send
 
 ; traffic.enter, at a crossing, the ways it can go worked out (traffic.ways, traffic.cnt): for car Y, a police
 ; car with heat about, C set and A = the way to take; else C clear. Y kept.

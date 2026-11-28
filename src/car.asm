@@ -171,6 +171,7 @@ mul             .macro v, s, to         ; to = v * s / 256, rounded towards 0, f
 ; and the high bytes at SQUARES_HI + n, so that a * b = (a + b)^2 / 4 - (a - b)^2 / 4, from the one table.
 ; (Before, a second table, moved along by 255, held the negative half: 1K, for what is 510 bytes.)
 init            lda #0
+                sta assist              ; (the first car is a clean one)
                 sta trig_set
                 sta fwd_set
                 sta sum
@@ -257,6 +258,40 @@ place           sta pos_x + 1
                 sta colour
                 rts
 
+                .section tile_room2     ; (where there is room: main.asm)
+; The car's driver assistance (the design's "Cursed driver assistance"), from the traffic's tables as the
+; player takes it (traffic.assist, foot.take_io, back with foot.out_here; police.fit rolls it). For now only
+; anti-theft: 0 none; 1 the car stopped for good; else the 32-frame steps left until it does, counted while
+; the player drives (update), with traffic.tick.
+assist          .byte 0
+; update, before the engine (the steering has had the stick's throttle): the steps counted down, and the car
+; stopped at the last one, with its message; and once it is, the throttle does nothing and down is held while
+; the forward speed is more than BRAKING, so that it brakes to a stop and never backs away.
+anti            lda assist
+                beq a_done
+                cmp #1
+                beq a_stop
+                lda traffic.tick
+                and #31
+                bne a_done
+                dec assist
+                lda assist
+                cmp #1
+                bne a_done
+                ldx #status.MSG_THEFT
+                jmp status.say
+a_stop          lda #0
+                sta thr
+                lda fwd + 1
+                bmi a_done
+                bne +
+                lda fwd
+                cmp #BRAKING + 1
+                bcc a_done
++               dec thr
+a_done          rts
+                .send
+
 ; One frame of driving. In: A = joystick bits.
 update          tay
                 lda #0
@@ -313,6 +348,7 @@ update          tay
 +               #mul vel_y, cs, lat     ; sideways = vy cos - vx sin
                 #mul vel_x, sn, mr
                 #sub16 lat, mr, lat
+                jsr anti                ; (anti-theft may take the throttle, now that fwd is this frame's)
                 jsr engine
                 jsr tyres
                 #sub16 nf, fwd, nf      ; the changes ...

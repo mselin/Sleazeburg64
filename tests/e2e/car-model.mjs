@@ -45,7 +45,8 @@ export class Car {
   /** A car at pixel (x, y), facing east, standing still. */
   constructor(x, y) {
     // wet: thirds of it in the water, as water-model.mjs last found (water.wet).
-    Object.assign(this, { x: x * 256, y: y * 256, vx: 0, vy: 0, angle: 0, colour: 2, wet: 0 }); // red
+    // assist: its anti-theft (car.assist): 0 none, 1 stopped for good, else the 32-frame steps left until it is.
+    Object.assign(this, { x: x * 256, y: y * 256, vx: 0, vy: 0, angle: 0, colour: 2, wet: 0, assist: 0 }); // red
   }
   get px() {
     return this.x >> 8;
@@ -54,12 +55,26 @@ export class Car {
     return this.y >> 8;
   }
   /**
+   * car.anti, before the engine: the steps counted down on the traffic's `tick` (from before its step), and the
+   * message as the last one goes (`said`); once stopped, the throttle does nothing and the car brakes while its
+   * forward speed `fwd` is more than BRAKING.
+   */
+  anti(thr, fwd, tick) {
+    this.said = null;
+    if (!this.assist) return thr;
+    if (this.assist > 1) {
+      if (!(tick & 31) && --this.assist === 1) this.said = 'THEFT';
+      return thr;
+    }
+    return fwd > C.BRAKING ? -1 : 0;
+  }
+  /**
    * One frame with the joystick held as given (JOY bits). `traffic`, if given, is the traffic model, which the
    * car can run into (traffic-model.mjs). `busy`: the frame works out colour memory (the window's `busy` before
    * it moves), and then the car's picture does not turn a step.
    */
   step(bits, traffic = null, busy = false) {
-    const thr = (bits & 1 && !(bits & 2) ? 1 : 0) - (bits & 2 && !(bits & 1) ? 1 : 0);
+    let thr = (bits & 1 && !(bits & 2) ? 1 : 0) - (bits & 2 && !(bits & 1) ? 1 : 0);
     const turn = (bits & 8 && !(bits & 4) ? 1 : 0) - (bits & 4 && !(bits & 8) ? 1 : 0);
     const hand = !!(bits & 16);
     const inside = hits(this.px, this.py, this.angle >> 8);
@@ -84,6 +99,7 @@ export class Car {
     }
     const fwd = mul(this.vx, c) + mul(this.vy, s);
     const lat = mul(this.vy, c) - mul(this.vx, s);
+    thr = this.anti(thr, fwd, traffic?.tick ?? 0); // (after the steering, which had the stick's)
     let nf = fwd;
     const wet = this.wet;
     if (thr > 0) nf += WADE.ACCEL[wet];

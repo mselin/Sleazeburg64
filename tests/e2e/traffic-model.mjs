@@ -50,7 +50,7 @@ export class Rnd {
 export class TrafficCar {
   constructor(fields) {
     // sink: 0, or for a car that flooded the frames since, from 1 (water.asm).
-    Object.assign(this, { on: 1, x: 0, y: 0, dir: 0, sp: 0, cruise: 0, face: 0, col: 0, turn: 0xff, ta: 0, held: 0, ghost: 0, blocked: 0, entered: 0, wreck: 0, sink: 0, cop: 0, patrol: 0 }, fields);
+    Object.assign(this, { on: 1, x: 0, y: 0, dir: 0, sp: 0, cruise: 0, face: 0, col: 0, turn: 0xff, ta: 0, held: 0, ghost: 0, blocked: 0, entered: 0, wreck: 0, sink: 0, cop: 0, patrol: 0, assist: 0 }, fields);
   }
   get px() {
     return this.x >> 8;
@@ -64,9 +64,10 @@ export class Traffic {
   /**
    * `cars` is how much traffic there can be (CARS). The tables have one more place than that (n: SLOTS), so
    * that a car the player leaves always has somewhere to go. `mine` is the place of the car the player left
-   * last, which stays however far they go, or 0xff.
+   * last, which stays however far they go, or 0xff. `modern`: the difficulty is modern (people.difficulty 1),
+   * and police.fit gives some cars anti-theft.
    */
-  constructor({ cars = 5, spawn = true } = {}) {
+  constructor({ cars = 5, spawn = true, modern = false } = {}) {
     this.limit = cars;
     this.n = cars + 1;
     this.spawn = spawn;
@@ -79,7 +80,7 @@ export class Traffic {
     this.spawnWait = 0;
     // The police (src/police.asm): frames before another can appear, whether one is near the player this frame,
     // and the heat (heat-model.mjs), set by whoever steps the models (none: no heat).
-    Object.assign(this, { chaseWait: 0, around: 0, heat: null, wail: 0, tone: 0, stolen: 0, patrolNear: 0 }); // (wail, tone: the siren's sound)
+    Object.assign(this, { modern, chaseWait: 0, around: 0, heat: null, wail: 0, tone: 0, stolen: 0, patrolNear: 0 }); // (wail, tone: the siren's sound)
   }
 
   /**
@@ -317,7 +318,13 @@ export class Traffic {
     let cruise = T.CRUISE_MIN + (r3 & 63), col = COLOURS[(r1 >> 4) & 7], cop = 0, patrol = 0;
     if (this.heat?.level) [cruise, col, cop, this.chaseWait] = [255, 1, 1, 110]; // a police car (police.new_car)
     else if (r3 >= 0xc0 && r1 & 0x80) [col, patrol] = [1, 1]; // on patrol: one time in eight
-    this.cars[slot] = new TrafficCar({ x: nx << 8, y: ny << 8, dir, sp: cruise, cruise, face: dir * 4, col, cop, patrol });
+    // police.fit: on modern, anti-theft in every police car and one car in five else, 10-25 s of 32-frame steps.
+    let assist = 0;
+    if (this.modern && (cop || patrol || this.rnd.next() < 51)) {
+      const r4 = this.rnd.next();
+      assist = 17 + (r4 >> 4) + (r4 >> 5);
+    }
+    this.cars[slot] = new TrafficCar({ x: nx << 8, y: ny << 8, dir, sp: cruise, cruise, face: dir * 4, col, cop, patrol, assist });
     this.spawnWait = T.SPAWN_GAP;
   }
 

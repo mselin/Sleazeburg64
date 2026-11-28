@@ -313,10 +313,13 @@ If 1b and 1c feel right on real hardware, the rest is a long list of known work.
     - In a frame that works out colour memory, which has the least time to spare, it can keep the last frame's
       answer, as the car already does for turning its picture. `EMERGENCY BRAKING ENGAGED` is 25 characters;
       three quick beeps go with it once there is sound.
-  - **Anti-theft devices.** After 10 to 25 seconds with the player at the wheel, it stops the car for good. Never
-    in a police car, once there are police.
+  - **Anti-theft devices.** After 10 to 25 seconds with the player at the wheel, it stops the car for good. Every
+    police car has it (the design now; it once said never), and one car in five else (`rnd` under 51), rolled as
+    the car comes (`police.fit`, on modern only).
     - **The time** counts only while the player drives the car, and does not start again when they get back in.
-      In steps of 8 frames it is 63 to 156, so it fits a byte.
+      Done (PR C): one byte a car, `traffic.assist` (0 none, 1 stopped for good, else 32-frame steps left, rolled
+      17 + r/16 + r/32, 17 to 39: 11 to 25 seconds), counted in `car.anti`; it travels with the car both ways
+      (`foot.take_io`, `foot.park`). Tests: `tests/e2e/assist.test.mjs`.
     - **Stopped for good:** the throttle does nothing, and down is held for the player until the car is under
       `BRAKING` (26). The stick still steers while it rolls. Once there is sound, the engine note stops too.
     - **The messages:** `ANTI-THEFT ENGAGED: ENGINE IMMOBILISED` (38 characters, inside row 3's 40). Getting back
