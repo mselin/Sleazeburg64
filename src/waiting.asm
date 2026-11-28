@@ -107,16 +107,17 @@ EXTRA_PAGES     = (extra_end - EXTRA_CODE + 255) / 256
                 .cerror MORE_CODE < video.COPIES + 9 * video.COPY_SIZE, "MORE_CODE is in the screen copies"
                 .cerror more_end > $d000, "the code at MORE_CODE runs into the I/O area"
                 .cerror EXTRA_CODE + EXTRA_PAGES * 256 > TOP_CODE, "the code at EXTRA_CODE runs into TOP_CODE"
+once_start
+                .cerror once_start < video.COLOUR_11, "car.init would be written over by the code after the map"
+                .dsection once          ; car.init runs once, from here, before video.init writes over this
+                .cerror * > HIGH_CODE, "what waits after the map (car.init included) reaches where it is copied to"
+; The rest of the code under the I/O area waits last, as it may run on past HIGH_CODE: start copies it up first.
 more_io_image                           ; (the rest of the code under the I/O area: IO_MORE, main.asm)
                 .logical IO_MORE
                 .dsection io_more
 more_io_end
                 .endlogical
-                .cerror more_io_end > IO_TEXT, "the rest of the code under the I/O area runs into its texts"
+                .cerror more_io_end > IO_LATE, "the rest of the code under the I/O area runs into io_late"
 MORE_IO_PAGES   = (more_io_end - IO_MORE + 255) / 256
-once_start
-                .cerror once_start < video.COLOUR_11, "car.init would be written over by the code after the map"
-                .dsection once          ; car.init runs once, from here, before video.init writes over this
 .endif
-                .cerror * > HIGH_CODE, "what waits after the map (car.init included) reaches where it is copied to"
 program_end

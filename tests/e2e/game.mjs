@@ -55,11 +55,13 @@ assets.scooters = readFileSync(join(ROOT, 'build/scooters.bin')); // scooter rid
 const marker = readFileSync(join(ROOT, 'build/marker.bin'));
 assets.marker = marker.subarray(0, 64); // the paint shop's marker, a P
 assets.sign = marker.subarray(64, 128); // the S beside the arrow to it
-assets.arrows = readFileSync(join(ROOT, 'build/arrows.bin')); // the arrow's 16 ways: byte i of each, then i + 1 (22 bytes)
-/** The arrow's way k, as the program copies it into its sprite (at $2500): 11 lines of two bytes. */
+assets.arrows = readFileSync(join(ROOT, 'build/arrows.bin')); // the arrow's ways 0-8: 11 lines of 2 bytes each
+/** The arrow's way k, as the program copies it into its sprite (at $2500): 11 lines of two bytes; ways 9-15
+ * are ways 7-1 upside down (tools/assets.mjs checks that they are, drawn as the browser game turns it). */
 export function arrowFrame(k) {
-  const f = new Uint8Array(63);
-  for (let i = 0; i < 22; i++) f[(i >> 1) * 3 + (i & 1)] = assets.arrows[i * 16 + k];
+  const f = new Uint8Array(63), w = k > 8 ? 16 - k : k;
+  for (let y = 0; y < 11; y++)
+    for (let b = 0; b < 2; b++) f[(k > 8 ? 10 - y : y) * 3 + b] = assets.arrows[w * 22 + 2 * y + b];
   return f;
 }
 export const PICKUP_SPRITE = 0x0c40 / 64;

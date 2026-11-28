@@ -64,13 +64,15 @@ SQUARES_START   = SQUARES - 255         ; (1.5K, from here up to the screen copi
 HIGH_CODE       = video.COLOUR_END       ; code that runs from just above the colour routines,
 IO_CODE         = $d000                 ; under the I/O area: run only through a gate (below), copied at start
 IO_MORE         = $d600                 ; more of it (the banner), waiting after the map
-IO_TEXT         = $dc00                 ; and the panel's messages there, which status.say copies out
+IO_LATE         = $d900                 ; and the rest (io_late, then the panel's messages, which status.say copies
+                                        ; out), waiting with what start runs once
 MORE_CODE       = $c8e0                 ; from after the screen copies,
 TOP_CODE        = $f300                 ; and from the top of memory: all copied there at start
 EXTRA_CODE      = $e000                 ; and from under the KERNAL ROM, which is switched out, up to TOP_CODE
 PEOPLE_FRAMES   = $2000                 ; the passers-by's sprite, copied there at start: 20 frames
 PUNCH_FRAMES    = $0200                 ; the player punching, 8 frames, copied there at start (the KERNAL's
                                         ; pages, which it does not use once it is switched out)
+ARROW_FRAME     = $2500                 ; the arrow to the paint shop, its way copied in (pickups.arrow_round)
 PLAYER_BUFFERS  = $2540                 ; the player on foot's flipped frames, made when needed: two (frames.asm)
 BULLET_FRAME    = PLAYER_BUFFERS + 2 * 64 ; a bullet's sprite (gun.asm), made at start after the passers-by's
                                         ; frames are copied up (the page they come in reaches it)
@@ -227,17 +229,17 @@ boot            cld
 .endif
 .endif
 .if VIEWER == 0
+                lda #$34                ; (all RAM, to write under the I/O area; first, as some of the code there
+                sta CPU_PORT            ; waits where the passers-by's frames go, and some past HIGH_CODE)
+                #raise more_io_image, IO_MORE, MORE_IO_PAGES
+                #raise io_image, IO_CODE, IO_PAGES
+                #raise text_image, IO_LATE, TEXT_PAGES
+                lda #$35
+                sta CPU_PORT
                 #raise high_image, HIGH_CODE, HIGH_PAGES   ; the code that runs from higher up, from where it
                 #raise more_image, MORE_CODE, MORE_PAGES   ; waits, before anything is written over it there
                 #raise top_image, TOP_CODE, TOP_PAGES
                 #raise extra_image, EXTRA_CODE, EXTRA_PAGES
-                lda #$34                ; (all RAM, to write under the I/O area; first, as the code there waits
-                sta CPU_PORT            ; where the passers-by's frames go)
-                #raise io_image, IO_CODE, IO_PAGES
-                #raise text_image, IO_TEXT, TEXT_PAGES
-                #raise more_io_image, IO_MORE, MORE_IO_PAGES
-                lda #$35
-                sta CPU_PORT
                 #raise people_image, PEOPLE_FRAMES, (size(people_image) + 255) / 256
                 #raise punch_image, PUNCH_FRAMES, 2
                 #raise panel_image, PANEL_CODE, 1     ; (before video.init clears round it)
@@ -669,15 +671,16 @@ low_end
 ; Nothing writes there before: the title page's picture goes to $c000, the unpacking from city_map up.
                 * = SCREEN_A
                 .dsection boot
-; The panel's messages, under the I/O area at IO_TEXT (main.asm), copied there at start
-; with its code. It waits here, with what start runs once.
+; More code under the I/O area (io_late), then the panel's messages, at IO_LATE, copied there at start with
+; the rest of it. They wait here, with what start runs once.
 text_image
-                .logical IO_TEXT
+                .logical IO_LATE
+                .dsection io_late
                 .dsection io_text
 text_end
                 .endlogical
                 .cerror text_end > $e000, "the texts under the I/O area run into EXTRA_CODE"
-TEXT_PAGES      = (text_end - IO_TEXT + 255) / 256
+TEXT_PAGES      = (text_end - IO_LATE + 255) / 256
 boot_end
                 .cerror * > charset, "what start runs once has run into the character set"
 .else

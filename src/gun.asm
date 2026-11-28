@@ -48,7 +48,9 @@ init            ldx #63
 fire            lda status.ammo
                 bne +
                 jmp people.punch
-+               lda people.punch_left
++               #io_gate fire_io        ; (now and then: under the I/O area)
+                .section io_late
+fire_io         lda people.punch_left
                 beq +
                 rts
 +               lda #GUN_WAIT
@@ -125,6 +127,7 @@ scare           lda foot.pos + 1        ; anyone within SCARE_SHOT of the player
                 bpl -
                 lda #2 * 3 / 2          ; 1.5 heat (in halves)
                 jmp status.add_heat
+                .send
 
 ; A = a signed byte; high = its high byte, $ff or 0.
 signed          ldx #0

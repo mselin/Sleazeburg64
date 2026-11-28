@@ -420,10 +420,17 @@ export function arrowFrame(k) {
   arrowRows(k).forEach((b, y) => ((bytes[y * 3] = b >> 8), (bytes[y * 3 + 1] = b & 255)));
   return bytes;
 }
-/** The 16 ways' lines for the program (under the I/O area): byte i of every way, then byte i + 1 (22 of them). */
+/** Ways 0-8's lines for the program (under the I/O area), 22 bytes each: ways 9-15 are ways 7-1 upside down,
+ * which the program copies them as (refused here if that ever stops being so). */
 export function arrowBytes() {
-  const out = new Uint8Array(22 * 16);
-  for (let k = 0; k < 16; k++) arrowRows(k).forEach((b, y) => ((out[(2 * y) * 16 + k] = b >> 8), (out[(2 * y + 1) * 16 + k] = b & 255)));
+  const out = new Uint8Array(22 * 9);
+  for (let k = 0; k < 16; k++) {
+    const rows = arrowRows(k);
+    if (k > 8) {
+      const up = arrowRows(16 - k);
+      if (rows.some((b, y) => b !== up[10 - y])) throw new Error(`arrow way ${k} is not way ${16 - k} upside down`);
+    } else rows.forEach((b, y) => ((out[k * 22 + 2 * y] = b >> 8), (out[k * 22 + 2 * y + 1] = b & 255)));
+  }
   return out;
 }
 export function pickupFrames() {
