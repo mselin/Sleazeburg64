@@ -63,10 +63,13 @@ init            ldx #COUNT - 1
                 sty last_row
                 jmp all_near
 
-; Pickup who somewhere new: a pavement, grass or plaza tile, not by the start, its kind by the shares.
-place           jsr rnd
+; Pickup who somewhere new: a pavement, grass or plaza tile, not by the start, its kind by the shares
+; (place_io, under the I/O area).
+place           #io_gate place_io
+                .section io_more
+place_io        jsr rnd
                 cmp #MAP_SIZE
-                bcs place
+                bcs place_io
                 sta col_now
 -               jsr rnd
                 cmp #MAP_SIZE
@@ -81,7 +84,7 @@ place           jsr rnd
                 lda row_now
                 sbc #START_ROW - CLEAR
                 cmp #2 * CLEAR + 1
-                bcc place
+                bcc place_io
 +               ldx row_now             ; the tile's kind
                 lda video.row_lo,x
                 sta car.mp
@@ -94,7 +97,7 @@ place           jsr rnd
                 cmp #PAVEMENT
                 beq +
                 cmp #GRASS
-                bne place
+                bne place_io
 +               jsr rnd                 ; which: 34 %, 28 %, 18 %, 14 % and 6 %
                 ldy #KIND_KNIFE
 -               cmp share - 1,y
@@ -110,6 +113,7 @@ place           jsr rnd
                 sta row,x
                 rts
 share           .byte 87, 159, 205, 241 ; a random byte below these: ammo, cash, donut, bandage; else a knife
+                .send
 
 ; A = the window's top left tile across, Y = down: its position over 16 (under 1568, so it fits a byte).
 window_tile     lda cam_lo + 1
@@ -630,8 +634,10 @@ DROP_CASH_ODDS  = 102                   ; a random byte below this, cash: 40 %
 DROP_KNIFE_ODDS = 123                   ; ... else below this, a knife: 8 %
 
                 .section low_more       ; (where there is room: main.asm)
-; Person X (people.asm), killed by the player: what they drop, if anything. X kept.
-drop            lda people.col,x        ; a scooter rider: nothing (the design: they pay $0)
+; Person X (people.asm), killed by the player: what they drop, if anything (drop_io, under the I/O area). X kept.
+drop            #io_gate drop_io
+                .section io_code
+drop_io         lda people.col,x        ; a scooter rider: nothing (the design: they pay $0)
                 cmp #LIGHT_GREEN
                 beq no_drop
                 jsr rnd
@@ -673,6 +679,7 @@ no_drop         rts
                 lda #>DROP_LIFE
                 sta dlife_hi,y
                 rts
+                .send
 
 ; Once a frame: the time each has left, and gone when it is up.
 age             ldx #DROPS - 1

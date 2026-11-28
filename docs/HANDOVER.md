@@ -25,10 +25,16 @@ with heat (ROADMAP, the paint shop; `specs/design.md` there, "The paint shop", a
    pickups, screen and play tests pass; the screen test with no heat still passes. Done in the working tree
    (frame `MARKER_FRAMES` = $0ec0, `pickups.show_paint`, `paint_near`, `paint_hook`; `code_end` $1f93);
    the new pickups test passes; `make test` running.
-3. PR 1 opened, green, merged.
-4. The arrow and the S (PR 2): with heat at the wheel and the shop 12 px inside the view's edge or beyond,
-   a cyan hi-res arrow (16 frames from `ARW`, kept under the I/O area, copied into the frame at `$2500` when
-   the direction changes) and the S on black beside it. Check: model and tests; frame time with heat.
+3. PR 1: mselin/Sleazeburg64#113, merged 28 November 2026. Done.
+4. The arrow and the S (PR 2), in progress. Room: `pickups.drop` moved under the I/O area (done: `low_end`
+   $2f9a, 79 free). Once a round (`paint_near`'s end, every 6 frames): with heat and at the wheel, the
+   direction to the shop from `player_at`: |dx|, |dy| shifted under 256, r = 64 * small / big, the frame
+   (16 ways) from the octant and r (thresholds 12, 42 for tan 11.25 and 33.75 degrees), the offsets
+   (big axis +-400, small axis a table of 400r/sqrt(1+r^2), 65 bytes, capped at 255; the S's 12-pixel
+   offsets in a packed table by r/2); the 11 x 11 hi-res frame copied from `io_more` into `$2500` through a
+   gate when it changes. Each frame (hooked after the drops, no cost without heat): not if the shop is 12 px
+   inside the view; else the arrow clamped 10 px inside, the S (multicolour frame at `$0f00`, black square,
+   cyan letter) beside it. Check: model and tests; frame time with heat.
 5. PR 2 opened, green, merged; ROADMAP and NOTES updated.
 
 ## Established
@@ -64,15 +70,17 @@ with heat (ROADMAP, the paint shop; `specs/design.md` there, "The paint shop", a
 
 ## Changes
 
-- Sleazeburg64, branch `claude/confident-euler-70sqzi` (not yet committed): `src/pickups.asm` (take and
-  take_drop under the I/O area; the marker), `src/main.asm` (`MARKER_FRAMES`), `tools/assets.mjs`
-  (`markerPixels`, `build/marker.bin`), `tests/e2e/pickups-model.mjs`, `game.mjs`, `pickups.test.mjs`.
-- Recent merged work: #112 the handover docs; #111 the banners; #109 the paint shop.
+- Sleazeburg64, branch `claude/confident-euler-70sqzi` (PR 2, not yet opened): `pickups.drop` and `place`
+  under the I/O area (`low_end` $2f9a, `code_end` $1f77 with the S frame); `tools/assets.mjs` `signPixels`,
+  `arrowRows` (the browser's `turned()`), `build/arrows.bin`, the S as marker.bin's second frame
+  (`SIGN_FRAME` $0f00); `tests/e2e/game.mjs` `assets.sign`, `arrowFrame`, `SIGN_SPRITE`, `ARROW_SPRITE`,
+  a list entry's own `bitmap`.
+- Recent merged work: #113 the P marker; #112 the handover docs; #111 the banners.
 
 ## Verification
 
-- `tests/e2e/pickups.test.mjs`: 8 pass, the new marker test included (frame, listed, cyan and white, the
-  picture, no late frame, gone when far). Full `make test`: running.
+- `tests/e2e/pickups.test.mjs`: 8 pass after the drop and place moves (28 November 2026). Last full
+  `make test` (PR 1): 152 pass, tools 25 pass.
 - Unverified anywhere: the C64 program on real hardware (owner's to try).
 
 ## Dead ends
@@ -88,8 +96,8 @@ with heat (ROADMAP, the paint shop; `specs/design.md` there, "The paint shop", a
 
 ## Next
 
-Wait for `make test`; then commit, push, open PR 1 (closes nothing: the paint shop's issue stays open for the
-arrow), subscribe, a send_later check-in; merge when green; then step 4.
+Write `pickups.arrow_round` (low_code), `show_arrow` (low_more), the 16 ways and their copy (io_more), the
+hooks (`paint_tail`, `paint_skip`, `paint_hook`), as in plan step 4; then the model and tests.
 
 ## Subagent files
 

@@ -109,7 +109,8 @@ tmp             .byte ?
                 .cerror * != SCOOTER_FRAMES, "the scooter riders' frames follow the pickups'"
                 .binary "scooters.bin"
 .endif
-MARKER_FRAMES                           ; the paint shop's marker, a P (pickups.show_paint), after those
+MARKER_FRAMES                           ; the paint shop's marker, a P (pickups.show_paint), after those, then
+SIGN_FRAME = MARKER_FRAMES + 64         ; the S beside the arrow to the shop (pickups.show_arrow)
                 .binary "marker.bin"
 .endif
 
