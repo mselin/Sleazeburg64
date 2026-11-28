@@ -344,7 +344,7 @@ l_take          lda #40                 ; it takes the wheel, one way or the oth
                 sta pull
                 jmp a_back
                 .send
-                .section low_code       ; (where there is room: main.asm)
+                .section tile_room6     ; (where there is room: main.asm; low_code was full for the autopilot build)
 l_hold          dec swerve              ; holding the wheel
                 lda swerve
                 beq l_end
