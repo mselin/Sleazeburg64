@@ -149,13 +149,13 @@ copy            lda $ffff,y             ; (the address is written above)
                 sta msg_buf,y
                 cpy #0
                 bne -
-                pla
-                sta CPU_PORT
-                plp
-                lda msg_left_lo,x
+                lda msg_left_lo,x       ; (also under the I/O area)
                 sta left
                 lda msg_left_hi,x
                 sta left + 1
+                pla
+                sta CPU_PORT
+                plp
                 lda #0
                 sta offset
                 lda #SCROLL_START + 1   ; (the same)
@@ -554,7 +554,6 @@ idle            lda #DARK_GREY
                 rts
 
 ; Digit A at column X of row 3, and X + 1; or nothing for a leading zero.
-                .section status_high
 digit           tay
                 bne +
                 lda lead
@@ -566,7 +565,6 @@ digit           tay
                 sta lead                ; not 0
 +               rts
 
-                .send
 ; Row 3 is to be in colour A: from the next frame with the time, if it is not that already.
 row3_colour     sta want_ink
                 cmp row3_ink
@@ -640,8 +638,12 @@ msg_most        .byte most_of(MESSAGES[0]), most_of(MESSAGES[1]), most_of(MESSAG
                 .byte most_of(MESSAGES[12]), most_of(MESSAGES[13]), most_of(MESSAGES[14]), most_of(MESSAGES[15])
                 .byte most_of(MESSAGES[16]), most_of(MESSAGES[17])
 MSG_FRAMES      = (frames_of(MESSAGES[0]), frames_of(MESSAGES[1]), frames_of(MESSAGES[2]), frames_of(MESSAGES[3]), frames_of(MESSAGES[4]), frames_of(MESSAGES[5]), frames_of(MESSAGES[6]), frames_of(MESSAGES[7]), frames_of(MESSAGES[8]), frames_of(MESSAGES[9]), frames_of(MESSAGES[10]), frames_of(MESSAGES[11]), frames_of(MESSAGES[12]), frames_of(MESSAGES[13]), frames_of(MESSAGES[14]), frames_of(MESSAGES[15]), frames_of(MESSAGES[16]), frames_of(MESSAGES[17]))
+                .send
+                .section io_code        ; (under the I/O area, where say reads them: main.asm)
 msg_left_lo     .byte <MSG_FRAMES
 msg_left_hi     .byte >MSG_FRAMES
+                .send
+                .section status
                 .enc "none"
 
                 .send

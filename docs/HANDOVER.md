@@ -61,8 +61,8 @@ car pushing people aside (mselin/gta-c64#110; ROADMAP, Pedestrians; Sleazeburg64
 ## Changes
 
 - Sleazeburg64, branch `claude/confident-euler-70sqzi`: the whole-body run-over (`src/people.asm` `struck`,
-  `term`, `turns` in `basic_code`); `status.add_heat` under the I/O area (`heat_io`/`heat_a`), `status.digit`
-  in `HIGH_CODE`, messages m0/m1 in `io_more` to make room (`docs/NOTES.md` has the figures); the people model
+  `term`, `turns` in `basic_code`); `status.add_heat` under the I/O area (`heat_io`/`heat_a`), the messages'
+  times in `io_code`, messages m0/m1 in `io_more` to make room (`docs/NOTES.md` has the figures); the people model
   and a new test (`tests/e2e/people.test.mjs`, "the whole car runs people over").
 - Recent merged work: #114 the paint shop arrow and S; #113 the P marker; #112 the handover docs.
 
@@ -87,10 +87,13 @@ car pushing people aside (mselin/gta-c64#110; ROADMAP, Pedestrians; Sleazeburg64
   it broke the picture tests. It is at `$0f40` now.
 - `paint_near` ends in `arrow_round`, which uses X: the caller in `look_each` set X before the call and
   stored it after, so `turn` became $ff. It now loads X after the call.
+- `status.digit` in `HIGH_CODE`: the build with sixteen cars (traffic tests) overflowed it by 18 bytes.
+- The pickups tests ran someone over 10 px ahead of the car's middle, within the reach of their drop (11), so
+  the car took it at once; they now hit them at 12 (`tests/e2e/pickups.test.mjs`, `runOver`).
 
 ## Next
 
-Run `make test`, open the PR for the whole-body run-over, merge when green. Then: traffic hurting the player by
+Wait for CI on PR #115 (the whole-body run-over), merge when green. Then: traffic hurting the player by
 its body (police.asm `hits`, along 12 and across 7 by `traffic.dir`; `tests/e2e/play.mjs` `hits()`, `HURT`), then
 the push aside below RUN_OVER.
 

@@ -262,14 +262,17 @@ test('someone stabbed may drop cash at their feet: the player, standing within r
     assert.equal(await missed(vice, L) - late, 0, 'no frame was late');
   }));
 
-/** Run over someone in the road at the top of the city, the roll from `seed`, then the car put back west of them. */
+/** Run over someone in the road at the top of the city, the roll from `seed`. The car hits them with its whole body,
+ * here 12 px ahead of its middle (the car is where it is each frame, from the same start): just out of the reach of
+ * what they drop, which it would pick up at once if it hit them nearer. */
 async function runOver(vice, w, seed) {
   await putCar(vice, L, w, 200, 24, 0);
   await hold(vice, w, 0, 3, 'put there');
   await putSeed(vice, w, seed);
-  const p = await putPerson(vice, L, w.people, 2, { x: 290, y: 24, way: 1, spd: 0, col: 4, wait: 255 });
+  const p = await putPerson(vice, L, w.people, 2, { x: 292, y: 24, way: 1, spd: 0, col: 4, wait: 255 });
   for (let i = 1; i <= 120 && !p.down; i++) await pass(vice, L, w, JOY.UP, `driving at them, ${i} frames`);
   assert.equal(p.down, P.DOWN_TIME, 'run over');
+  assert.equal(p.px - w.car.px, P.BODY_LONG / 64, 'by the front of the car');
   return p;
 }
 
